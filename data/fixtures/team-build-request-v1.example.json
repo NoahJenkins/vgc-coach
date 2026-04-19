@@ -1,0 +1,17 @@
+{
+  "format": {
+    "game": "pokemon-champions",
+    "battle_mode": "doubles",
+    "regulation_id": "regulation-m-a"
+  },
+  "target_mons": ["Sableye"],
+  "target_strategy": "anti-meta balance with one-turn tempo control",
+  "playstyle": "bulky offense",
+  "avoid": ["hard trick room"],
+  "anti_meta_targets": ["Incineroar balance", "rain"],
+  "constraints": {
+    "must_be_legal": true,
+    "prefer_clear_lead_plans": true
+  }
+}
+

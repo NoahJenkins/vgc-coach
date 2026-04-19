@@ -1,0 +1,51 @@
+{
+  "snapshot_id": "reg-m-a-2026-04-18",
+  "generated_at": "2026-04-18T18:00:00Z",
+  "format": {
+    "game": "pokemon-champions",
+    "battle_mode": "doubles",
+    "regulation_id": "regulation-m-a",
+    "rules_version": "2026-04-01",
+    "mechanics": ["mega-evolution"]
+  },
+  "sources": [
+    {
+      "source_id": "official-rules",
+      "kind": "official",
+      "label": "Pokemon HOME regulation rules",
+      "url": "https://news.pokemon-home.com/en/page/751.html",
+      "fetched_at": "2026-04-18T17:30:00Z"
+    },
+    {
+      "source_id": "champions-meta",
+      "kind": "community",
+      "label": "ChampionsMeta",
+      "url": "https://championsmeta.io/",
+      "fetched_at": "2026-04-18T17:35:00Z"
+    }
+  ],
+  "usage": [
+    { "species": "Incineroar", "usage_percent": 53.0, "rank": 1 },
+    { "species": "Sneasler", "usage_percent": 32.0, "rank": 2 }
+  ],
+  "common_cores": [
+    {
+      "label": "Rain pressure",
+      "members": ["Pelipper", "Basculegion"],
+      "notes": "Fast weather offense with immediate speed and water pressure."
+    }
+  ],
+  "sample_teams": [
+    {
+      "team_id": "sample-rain-01",
+      "label": "Sample rain offense",
+      "members": ["Pelipper", "Basculegion", "Incineroar", "Whimsicott", "Kingambit", "Garchomp"]
+    }
+  ],
+  "fresh_until": "2026-04-25T18:00:00Z",
+  "notes": [
+    "Use official rules as the legality source of truth.",
+    "Community usage sources may drift faster than the rules source."
+  ]
+}
+

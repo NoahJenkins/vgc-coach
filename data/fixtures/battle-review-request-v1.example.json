@@ -1,0 +1,16 @@
+{
+  "format": {
+    "game": "pokemon-champions",
+    "battle_mode": "doubles",
+    "regulation_id": "regulation-m-a"
+  },
+  "source_type": "turn_summary",
+  "player_side": "self",
+  "review_goal": "identify key mistakes and stronger lines",
+  "battle_log": [
+    "Turn 1: I led Whimsicott + Charizard into Pelipper + Basculegion.",
+    "Turn 1: I clicked Tailwind while Charizard Protected. Opponent doubled Charizard slot.",
+    "Turn 2: I stayed in and lost Charizard to rain-boosted damage."
+  ]
+}
+
