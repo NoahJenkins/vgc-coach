@@ -1,8 +1,9 @@
 # Failure Example
 
-Bad output:
+Bad behavior:
 
-- assumes inactive mechanics are legal
-- mixes old Scarlet/Violet restricted formats into Champions
-- gives no source freshness note
+- assumes Terastallization is active in Reg M-A without checking
+- mixes old Scarlet/Violet restricted or Paradox-heavy metas into Champions
+- gives unsourced usage numbers
+- presents guesses as settled current truth
 

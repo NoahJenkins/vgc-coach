@@ -1,4 +1,12 @@
-# Good Example
+# Good Example 1
 
-A strong answer explains how each slot supports the requested mon and what the actual game plan is into common matchups.
+Request:
 
+`Build me a Champions anti-meta balance team around Sableye.`
+
+Why this is good:
+
+- keeps the requested mon central
+- gives one recommended shell
+- explains why Sableye belongs on that team
+- acknowledges the Dark-type Prankster problem instead of hiding it

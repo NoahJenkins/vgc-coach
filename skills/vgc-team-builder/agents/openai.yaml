@@ -1,0 +1,4 @@
+interface:
+  display_name: "VGC Team Builder"
+  short_description: "Build Champions teams with intent"
+  default_prompt: "Use $vgc-team-builder to build a Pokemon Champions team around my target mon or strategy."

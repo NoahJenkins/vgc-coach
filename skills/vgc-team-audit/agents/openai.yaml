@@ -1,0 +1,4 @@
+interface:
+  display_name: "VGC Team Audit"
+  short_description: "Audit a team for structural flaws"
+  default_prompt: "Use $vgc-team-audit to review this Pokemon Champions team and find the highest-impact issues."

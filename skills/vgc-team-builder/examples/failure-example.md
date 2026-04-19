@@ -1,8 +1,9 @@
 # Failure Example
 
-Bad output:
+Bad behavior:
 
-- includes the target mon but gives it no real job
-- ignores legality/current format
-- gives a list of six mons without lead or matchup logic
+- jams the requested mon into an unrelated team with no clear job
+- gives three half-baked versions instead of one real recommendation
+- ignores current format pressure points
+- pretends obvious weaknesses do not exist
 

@@ -1,4 +1,11 @@
-# Good Example
+# Good Example 1
 
-A strong audit identifies the exact matchup hole, explains why it exists, and recommends the smallest change that improves it.
+Request:
 
+`Audit this rain team for why it keeps losing to Incineroar balance and opposing weather control.`
+
+Why this is good:
+
+- starts with the highest-impact issues
+- ties them to real matchup losses
+- gives fixes that preserve the team's rain identity
