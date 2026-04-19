@@ -51,19 +51,30 @@ The repo is explicitly **not** trying to start with:
   - `vgc-battle-review`
 - `vgc-meta-research`, `vgc-team-builder`, and `vgc-team-audit` implemented beyond scaffold level
 - `vgc-meta-research` source/freshness hardening batch committed on `main`
+- `vgc-lead-planner` hardened to full MVP package shape:
+  - strong contract in `SKILL.md`
+  - runtime metadata in `agents/openai.yaml`
+  - two good examples plus one failure example
+  - checklist and output rubric under `references/`
+  - three representative eval cases
+- `vgc-battle-review` hardened to the same MVP package shape:
+  - strong contract in `SKILL.md`
+  - runtime metadata in `agents/openai.yaml`
+  - two good examples plus one failure example
+  - checklist and output rubric under `references/`
+  - three representative eval cases
 
 ### In Progress
 
-The main active workstream is the MVP skill hardening pass.
+The MVP skill hardening pass is complete in the local working tree.
 
-Uncommitted work currently present:
+Current follow-up work is:
 
-- richer `vgc-lead-planner` contract and guidance
-- additional `vgc-lead-planner` eval fixtures
-- stronger `vgc-lead-planner` examples and runtime metadata
-- richer `vgc-battle-review` contract and guidance
-- additional `vgc-battle-review` eval fixtures
-- stronger `vgc-battle-review` examples and runtime metadata
+- deciding whether `.plugin-eval/` artifacts should stay committed or move to `.gitignore`
+- choosing the next post-MVP quality layer:
+  - repo-local eval runner tooling
+  - deeper implementation work for `vgc-team-builder` and `vgc-team-audit`
+  - replay ingestion utilities and battle-state schema later
 
 ### Not Started
 
@@ -76,9 +87,9 @@ Uncommitted work currently present:
 
 Latest committed repo state:
 
-- `e42ae16` `feat: strengthen meta research workflow`
+- `ef4e5d6` `Harden lead planner docs and update state`
 
-Current local working tree reflects the current MVP skill hardening pass for `vgc-lead-planner` and `vgc-battle-review`.
+Current local working tree reflects the accepted `vgc-battle-review` hardening batch and this state refresh.
 
 ## Current Findings
 
@@ -112,15 +123,27 @@ The remaining MVP gaps are no longer repo setup or product framing.
 
 The main remaining quality gaps are:
 
-- `vgc-lead-planner` and `vgc-battle-review` are in local hardening/review passes and should be judged after commit
 - repo-local tooling is still absent, but that is lower priority than finishing the core skill layer
+- `vgc-team-builder` and `vgc-team-audit` still stop at skill-package depth rather than deeper repo-local implementation
+
+### MVP Hardening Acceptance Notes
+
+Acceptance checks passed for the two target skills:
+
+- `vgc-lead-planner`
+  - package shape matches the repo MVP standard
+  - three eval cases cover weather offense, Trick Room, and balance/Fake Out pressure
+  - contract preserves the required output section order
+- `vgc-battle-review`
+  - package shape now matches the same MVP standard
+  - three eval cases cover sequencing loss, preserve-logic collapse, and hidden-information surprise tech
+  - contract preserves the required output section order
 
 ## Immediate Next Recommended Steps
 
-1. Finish and review the current `vgc-lead-planner` hardening batch.
-2. Finish and review the current `vgc-battle-review` hardening batch.
-3. Decide whether `.plugin-eval/` artifacts should stay committed or move to `.gitignore`.
-4. Only after the five MVP skills are solid, add repo-local eval runner tooling.
+1. Decide whether `.plugin-eval/` artifacts should stay committed or move to `.gitignore`.
+2. Choose whether the next investment is repo-local eval tooling or deeper implementation for `vgc-team-builder` and `vgc-team-audit`.
+3. Only after that, add replay ingestion utilities and battle-state schema work.
 
 ## Open Decisions
 
@@ -152,8 +175,8 @@ If a future thread resumes work here, start with:
 
 ## Success Condition For Current Workstream
 
-The current MVP hardening workstream is in a good stopping state when:
+The current MVP hardening workstream is now in a good stopping state:
 
 - `vgc-lead-planner` and `vgc-battle-review` are both no longer scaffold-thin
 - the repo has at least 3 representative eval cases for both skills
-- the current batch is reviewed and committed cleanly
+- the current batch has been reviewed locally and is ready for commit
