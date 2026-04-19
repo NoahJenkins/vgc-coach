@@ -1,0 +1,108 @@
+{
+  "snapshot_id": "champions-reg-m-a-2026-04-18",
+  "generated_at": "2026-04-18T23:59:00Z",
+  "format": {
+    "game": "pokemon-champions",
+    "battle_mode": "doubles",
+    "regulation_id": "regulation-m-a",
+    "rules_version": "2026-04-01",
+    "mechanics": ["mega-evolution"],
+    "active_window": {
+      "start": "2026-04-08T02:00:00Z",
+      "end": "2026-06-17T01:59:00Z"
+    }
+  },
+  "sources": [
+    {
+      "source_id": "official-regulation-ma",
+      "kind": "official",
+      "label": "Pokemon HOME Regulation Set M-A",
+      "url": "https://news.pokemon-home.com/en/page/751.html",
+      "fetched_at": "2026-04-18T23:20:00Z"
+    },
+    {
+      "source_id": "official-transition",
+      "kind": "official",
+      "label": "Play! Pokemon transition to Champions",
+      "url": "https://www.pokemon.com/uk/pokemon-news/play-pokemon-competitions-transition-to-pokemon-champions-on-april-and-may-2026",
+      "fetched_at": "2026-04-18T23:21:00Z"
+    },
+    {
+      "source_id": "championsmeta",
+      "kind": "community",
+      "label": "ChampionsMeta",
+      "url": "https://championsmeta.io/",
+      "fetched_at": "2026-04-18T23:23:00Z"
+    },
+    {
+      "source_id": "championslab",
+      "kind": "community",
+      "label": "Champions Lab Meta",
+      "url": "https://www.championslab.xyz/meta",
+      "fetched_at": "2026-04-18T23:25:00Z"
+    }
+  ],
+  "usage": [
+    { "species": "Incineroar", "usage_percent": 53.21, "rank": 1, "source_id": "championslab" },
+    { "species": "Sneasler", "usage_percent": 43.17, "rank": 2, "source_id": "championslab" },
+    { "species": "Garchomp", "usage_percent": 35.55, "rank": 3, "source_id": "championslab" },
+    { "species": "Sinistcha", "usage_percent": 35.47, "rank": 4, "source_id": "championslab" },
+    { "species": "Kingambit", "usage_percent": 25.89, "rank": 5, "source_id": "championslab" },
+    { "species": "Whimsicott", "usage_percent": 21.96, "rank": 6, "source_id": "championslab" },
+    { "species": "Basculegion", "usage_percent": 21.74, "rank": 7, "source_id": "championslab" },
+    { "species": "Charizard", "usage_percent": 19.25, "rank": 8, "source_id": "championslab" },
+    { "species": "Pelipper", "usage_percent": 18.69, "rank": 9, "source_id": "championslab" },
+    { "species": "Tyranitar", "usage_percent": 16.44, "rank": 10, "source_id": "championslab" }
+  ],
+  "common_cores": [
+    {
+      "label": "Rain offense",
+      "members": ["Pelipper", "Basculegion"],
+      "source_id": "championsmeta",
+      "notes": "Common weather-speed shell that appears both in usage leaders and tournament-winning teams."
+    },
+    {
+      "label": "Arch rain",
+      "members": ["Archaludon", "Pelipper"],
+      "source_id": "championslab",
+      "notes": "High-usage core pair built around rain pressure and Archaludon value."
+    },
+    {
+      "label": "Sun",
+      "members": ["Torkoal", "Venusaur"],
+      "source_id": "championslab",
+      "notes": "Classic weather core with strong early-format tournament presence."
+    },
+    {
+      "label": "Sand",
+      "members": ["Tyranitar", "Excadrill"],
+      "source_id": "championslab",
+      "notes": "One of the clearest anti-tempo weather shells in the current format."
+    }
+  ],
+  "sample_teams": [
+    {
+      "team_id": "cm-nagasaki-2026-winner",
+      "label": "Torneo Champions VGC Nagasaki 2 winner",
+      "source_id": "championsmeta",
+      "members": ["Incineroar", "Floette", "Archaludon", "Sinistcha", "Basculegion", "Pelipper"]
+    },
+    {
+      "team_id": "cm-pilar-training-arc-winner",
+      "label": "Pilar Training Arc VGC winner",
+      "source_id": "championsmeta",
+      "members": ["Sneasler", "Maushold", "Charizard", "Incineroar", "Gardevoir", "Garchomp"]
+    },
+    {
+      "team_id": "cl-wide-league-snr84",
+      "label": "Wide League SNR 84 winner",
+      "source_id": "championslab",
+      "members": ["Basculegion-M", "Kingambit", "Rotom-Heat", "Froslass", "Sneasler", "Clefable"]
+    }
+  ],
+  "fresh_until": "2026-04-19T23:59:00Z",
+  "notes": [
+    "This is an early-format snapshot captured on April 18, 2026.",
+    "Use live verification for current claims before presenting this snapshot as present-tense truth."
+  ]
+}

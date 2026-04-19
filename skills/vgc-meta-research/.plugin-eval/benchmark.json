@@ -1,0 +1,72 @@
+{
+  "kind": "plugin-eval-benchmark",
+  "schemaVersion": 2,
+  "version": 2,
+  "targetKind": "skill",
+  "targetName": "vgc-meta-research",
+  "runner": {
+    "type": "codex-cli",
+    "model": "gpt-5.4-mini",
+    "sandbox": "workspace-write",
+    "approvalPolicy": "never",
+    "extraArgs": []
+  },
+  "workspace": {
+    "sourcePath": "/Users/noahjenkins/Code/vgc-coach",
+    "setupMode": "copy",
+    "preserve": "on-failure"
+  },
+  "targetProvisioning": {
+    "mode": "isolated-skill-home"
+  },
+  "verifiers": {
+    "commands": []
+  },
+  "notes": [
+    "Edit workspace.sourcePath so it points at the repo or template you want Codex to work inside.",
+    "Edit the scenarios so they match real tasks instead of generic starter prompts.",
+    "Benchmark means real codex exec runs now. There is no simulated dry-run mode."
+  ],
+  "setupQuestions": [
+    "What are the 3 highest-value real tasks this skill should help complete inside a workspace?",
+    "Which scenario is the must-pass end-to-end task for this skill?",
+    "What output should exist on disk if the scenario succeeds?",
+    "Which verification command would tell you the result is actually usable?",
+    "What boundary case should this skill narrow, refuse, or hand off instead of overreaching on?"
+  ],
+  "scenarios": [
+    {
+      "id": "reg-m-a-meta-report",
+      "title": "Current Reg M-A meta report",
+      "purpose": "Measure the core happy path: a current-format Champions meta research pass that leaves a concrete artifact on disk.",
+      "userInput": "Use the local Codex skill \"vgc-meta-research\". Research the current Pokemon Champions Regulation M-A metagame and write the result to docs/evals/plugin-eval/meta-report-reg-m-a.md. The output file must use these exact section headings in this order: Format Check, Meta Snapshot, Popular Teams and Cores, Strategic Trends, Anti-Meta Openings, Sources. Use live current sources, clearly separate sourced facts from inference, and make the report useful to a competitive player deciding what to prepare for right now.",
+      "successChecklist": [
+        "The report is written to docs/evals/plugin-eval/meta-report-reg-m-a.md.",
+        "The file uses the required section headings in the required order.",
+        "The content is Champions-first and based on current-source research rather than generic VGC commentary."
+      ]
+    },
+    {
+      "id": "mon-fit-lens",
+      "title": "Single-mon meta fit research",
+      "purpose": "Measure whether the skill can answer a narrower competitive-research question without losing format accuracy or output structure.",
+      "userInput": "Use the local Codex skill \"vgc-meta-research\". Research how Hisuian Zoroark currently fits into Pokemon Champions Regulation M-A and write the result to docs/evals/plugin-eval/hisuian-zoroark-meta-fit.md. The output file must still use the exact section headings Format Check, Meta Snapshot, Popular Teams and Cores, Strategic Trends, Anti-Meta Openings, Sources, but interpret them through the lens of Hisuian Zoroark's place in the live meta. Distinguish sourced facts from inference and be explicit if public data is thin.",
+      "successChecklist": [
+        "The report is written to docs/evals/plugin-eval/hisuian-zoroark-meta-fit.md.",
+        "The writeup stays narrowly focused on Hisuian Zoroark's meta fit rather than drifting into generic team-building.",
+        "The output explicitly labels thin-data or inference cases instead of overstating certainty."
+      ]
+    },
+    {
+      "id": "format-conflict-boundary",
+      "title": "Format-conflict boundary handling",
+      "purpose": "Check whether the skill handles mixed-format or stale-mechanic requests honestly instead of confidently blending incompatible assumptions.",
+      "userInput": "Use the local Codex skill \"vgc-meta-research\". A user asks for the current VGC meta but also insists Terastallization is active in Pokemon Champions Regulation M-A. Research the current format and write a response artifact to docs/evals/plugin-eval/format-conflict-boundary.md. The file must use the exact section headings Format Check, Meta Snapshot, Popular Teams and Cores, Strategic Trends, Anti-Meta Openings, Sources. Explicitly correct the mechanic mismatch, explain the boundary between confirmed current rules and community meta inference, and avoid pretending Scarlet/Violet format assumptions still apply.",
+      "successChecklist": [
+        "The report is written to docs/evals/plugin-eval/format-conflict-boundary.md.",
+        "The output explicitly corrects the Tera/Champions mismatch instead of carrying the bad assumption forward.",
+        "The response shows boundary discipline when the request mixes incompatible formats."
+      ]
+    }
+  ]
+}

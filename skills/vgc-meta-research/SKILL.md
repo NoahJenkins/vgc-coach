@@ -47,6 +47,7 @@ Keep the sections concise, but do not skip them.
 ## Source Policy
 
 - Read [references/source-policy.md](references/source-policy.md) before summarizing the live format.
+- Read [references/current-source-map.md](references/current-source-map.md) when deciding which live sources to consult first.
 - Prefer official rules and event-policy sources over all community sources.
 - Use community sources for usage, teams, and trends after format legality is locked.
 - If sources conflict, say so explicitly instead of averaging them into fake certainty.
@@ -60,6 +61,7 @@ Keep the sections concise, but do not skip them.
 ## Output Quality Bar
 
 - Read [references/output-rubric.md](references/output-rubric.md) when tightening the final answer.
+- Use the dated snapshot in `data/snapshots/` only as a support artifact or fallback, not as a replacement for live verification.
 - Distinguish sourced fact from inference.
 - Do not invent usage percentages, placements, or cores.
 - Do not carry forward stale SV-era assumptions into Champions.
