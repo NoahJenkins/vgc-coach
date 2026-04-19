@@ -63,33 +63,41 @@ The repo is explicitly **not** trying to start with:
   - two good examples plus one failure example
   - checklist and output rubric under `references/`
   - three representative eval cases
+- `vgc-team-builder` hardened to the same MVP package shape:
+  - one-primary-draft contract cleanup in `SKILL.md`
+  - supporting reference and example refresh
+  - fixed eval cases tightened around branch control and weak-request honesty
+  - runtime metadata updated in `agents/openai.yaml`
+- `vgc-team-audit` hardened to the same MVP package shape:
+  - findings-first, identity-preserving contract in `SKILL.md`
+  - stronger checklist and output rubric under `references/`
+  - example set refreshed to teach targeted fixes over generic rewrites
+  - fixed eval cases and rubric tightened around filler, identity loss, and residual risk
 
 ### In Progress
 
-The MVP skill hardening pass is complete in the local working tree.
+The MVP skill hardening pass is complete and committed locally.
 
 Current follow-up work is:
 
 - deciding whether `.plugin-eval/` artifacts should stay committed or move to `.gitignore`
 - choosing the next post-MVP quality layer:
   - repo-local eval runner tooling
-  - deeper implementation work for `vgc-team-builder` and `vgc-team-audit`
   - replay ingestion utilities and battle-state schema later
 
 ### Not Started
 
-- real implementation pass for `vgc-team-builder` and `vgc-team-audit` beyond current skill-package level
 - repo-local eval runner tools
 - replay ingestion utilities
 - battle-state schema
 
 ## Working Tree Snapshot
 
-Latest committed repo state:
+Latest substantive repo state:
 
-- `ef4e5d6` `Harden lead planner docs and update state`
+- `979f9c4` `feat: harden team builder and team audit skills`
 
-Current local working tree reflects the accepted `vgc-battle-review` hardening batch and this state refresh.
+Current local working tree is clean after the skill-hardening batch and this state refresh.
 
 ## Current Findings
 
@@ -123,12 +131,12 @@ The remaining MVP gaps are no longer repo setup or product framing.
 
 The main remaining quality gaps are:
 
-- repo-local tooling is still absent, but that is lower priority than finishing the core skill layer
-- `vgc-team-builder` and `vgc-team-audit` still stop at skill-package depth rather than deeper repo-local implementation
+- repo-local tooling is still absent
+- the repo still lacks a local eval runner to score the fixed cases without manual review
 
 ### MVP Hardening Acceptance Notes
 
-Acceptance checks passed for the two target skills:
+Acceptance checks passed for the most recent hardening batches:
 
 - `vgc-lead-planner`
   - package shape matches the repo MVP standard
@@ -138,11 +146,19 @@ Acceptance checks passed for the two target skills:
   - package shape now matches the same MVP standard
   - three eval cases cover sequencing loss, preserve-logic collapse, and hidden-information surprise tech
   - contract preserves the required output section order
+- `vgc-team-builder`
+  - contract now makes one-primary-draft behavior and weak-request pivots explicit
+  - fixed eval cases now punish branchy output and hidden second-team refinements
+  - runtime metadata matches the recommendation-first contract
+- `vgc-team-audit`
+  - package shape now matches the same MVP standard
+  - checklist, rubric, and examples all reinforce findings-first, identity-preserving audits
+  - fixed eval cases now punish filler praise, vague synergy language, and identity-erasing rewrites
 
 ## Immediate Next Recommended Steps
 
 1. Decide whether `.plugin-eval/` artifacts should stay committed or move to `.gitignore`.
-2. Choose whether the next investment is repo-local eval tooling or deeper implementation for `vgc-team-builder` and `vgc-team-audit`.
+2. Build repo-local eval tooling for the fixed skill cases.
 3. Only after that, add replay ingestion utilities and battle-state schema work.
 
 ## Open Decisions
@@ -172,11 +188,20 @@ If a future thread resumes work here, start with:
    - [meta-research-rubric.md](./data/rubrics/meta-research-rubric.md)
    - [meta-research-human-review.md](./data/rubrics/meta-research-human-review.md)
    - [benchmark-usage.jsonl](./skills/vgc-meta-research/.plugin-eval/benchmark-usage.jsonl)
+8. If working on `vgc-team-builder`, inspect:
+   - [SKILL.md](./skills/vgc-team-builder/SKILL.md)
+   - [team-builder-rubric.md](./data/rubrics/team-builder-rubric.md)
+   - [case-01.md](./data/fixtures/evals/team-builder/case-01.md)
+9. If working on `vgc-team-audit`, inspect:
+   - [SKILL.md](./skills/vgc-team-audit/SKILL.md)
+   - [team-audit-rubric.md](./data/rubrics/team-audit-rubric.md)
+   - [case-01.md](./data/fixtures/evals/team-audit/case-01.md)
 
 ## Success Condition For Current Workstream
 
 The current MVP hardening workstream is now in a good stopping state:
 
 - `vgc-lead-planner` and `vgc-battle-review` are both no longer scaffold-thin
-- the repo has at least 3 representative eval cases for both skills
-- the current batch has been reviewed locally and is ready for commit
+- `vgc-team-builder` and `vgc-team-audit` now match the same MVP package standard
+- the repo has at least 3 representative eval cases for all five MVP skills
+- the current batch has been committed locally
