@@ -50,24 +50,21 @@ The repo is explicitly **not** trying to start with:
   - `vgc-lead-planner`
   - `vgc-battle-review`
 - `vgc-meta-research`, `vgc-team-builder`, and `vgc-team-audit` implemented beyond scaffold level
+- `vgc-meta-research` source/freshness hardening batch committed on `main`
 
 ### In Progress
 
-The main active workstream is `vgc-meta-research`.
+The main active workstream is `vgc-lead-planner`.
 
 Uncommitted work currently present:
 
-- stronger `vgc-meta-research` source/freshness guidance
-- live source map reference for current Champions research
-- dated Reg M-A snapshot artifact
-- manual live-check checklist
-- plugin-eval benchmark artifacts for real observed usage
-- quality-first eval rewrite for `vgc-meta-research`
+- richer `vgc-lead-planner` contract and guidance
+- additional `vgc-lead-planner` eval fixtures
+- stronger `vgc-lead-planner` examples and runtime metadata
 
 ### Not Started
 
 - end-to-end implementation work for:
-  - `vgc-lead-planner`
   - `vgc-battle-review`
 - real implementation pass for `vgc-team-builder` and `vgc-team-audit` beyond current skill-package level
 - repo-local eval runner tools
@@ -78,25 +75,9 @@ Uncommitted work currently present:
 
 Latest committed repo state:
 
-- `a92b089` `feat: implement core vgc coaching skills`
+- `e42ae16` `feat: strengthen meta research workflow`
 
-Tracked but uncommitted changes exist in:
-
-- `data/fixtures/evals/meta-research/case-01.md`
-- `data/fixtures/evals/meta-research/case-02.md`
-- `data/fixtures/evals/meta-research/case-03.md`
-- `data/rubrics/meta-research-rubric.md`
-- `data/snapshots/README.md`
-- `skills/vgc-meta-research/SKILL.md`
-- `skills/vgc-meta-research/examples/good-example.md`
-
-Untracked current additions:
-
-- `data/rubrics/meta-research-human-review.md`
-- `data/snapshots/champions-reg-m-a-2026-04-18.json`
-- `docs/evals/meta-research-live-checklist.md`
-- `skills/vgc-meta-research/references/current-source-map.md`
-- `skills/vgc-meta-research/.plugin-eval/`
+Current local working tree reflects the next `vgc-lead-planner` hardening pass.
 
 ## Current Findings
 
@@ -124,15 +105,26 @@ Observed benchmark results for `vgc-meta-research` show:
 
 This led to adding a quality-first rubric layer in-repo rather than treating plugin-eval's default grade as the source of truth.
 
+### MVP Gap Reality
+
+The remaining MVP gaps are no longer repo setup or product framing.
+
+The main remaining quality gaps are:
+
+- `vgc-battle-review` still lags behind the stronger skills in depth
+- `vgc-lead-planner` is in a local hardening/review pass and should be judged after commit
+- eval coverage is still incomplete for `vgc-battle-review`
+- repo-local tooling is still absent, but that is lower priority than finishing the core skill layer
+
 ## Immediate Next Recommended Steps
 
-1. Review the three benchmark output artifacts using the new quality-first rubric.
-2. Decide whether the current `vgc-meta-research` quality is good enough to commit as-is.
-3. Commit the current `vgc-meta-research` batch once reviewed.
-4. Move next to `vgc-team-builder` using the same pattern:
-   - quality-first rubric
-   - real examples
-   - plugin-eval benchmark only as supporting evidence
+1. Finish and review the current `vgc-lead-planner` hardening batch.
+2. Move next to `vgc-battle-review` using the same pattern:
+   - stronger contract
+   - better examples
+   - at least 3 eval cases
+3. Decide whether `.plugin-eval/` artifacts should stay committed or move to `.gitignore`.
+4. Only after the five MVP skills are solid, add repo-local eval runner tooling.
 
 ## Open Decisions
 
@@ -148,7 +140,11 @@ If a future thread resumes work here, start with:
 2. Read [Design Spec](./docs/superpowers/specs/2026-04-18-vgc-coach-design.md)
 3. Read [MVP Plan](./docs/superpowers/plans/2026-04-18-vgc-coach-mvp.md)
 4. Check `git status --short`
-5. If working on `vgc-meta-research`, inspect:
+5. If working on `vgc-lead-planner`, inspect:
+   - [SKILL.md](./skills/vgc-lead-planner/SKILL.md)
+   - [lead-planner-rubric.md](./data/rubrics/lead-planner-rubric.md)
+   - [case-01.md](./data/fixtures/evals/lead-planner/case-01.md)
+6. If working on `vgc-meta-research`, inspect:
    - [SKILL.md](./skills/vgc-meta-research/SKILL.md)
    - [meta-research-rubric.md](./data/rubrics/meta-research-rubric.md)
    - [meta-research-human-review.md](./data/rubrics/meta-research-human-review.md)
@@ -156,8 +152,8 @@ If a future thread resumes work here, start with:
 
 ## Success Condition For Current Workstream
 
-The current `vgc-meta-research` workstream is in a good stopping state when:
+The current `vgc-lead-planner` workstream is in a good stopping state when:
 
-- the quality-first rubric and benchmark-informed changes are reviewed
-- the current batch is committed cleanly
-- the repo has one accepted standard for judging research-skill quality
+- the skill contract is no longer scaffold-thin
+- the repo has at least 3 representative lead-planner eval cases
+- the current batch is reviewed and committed cleanly

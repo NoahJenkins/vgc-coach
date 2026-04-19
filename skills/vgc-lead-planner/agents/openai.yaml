@@ -1,0 +1,4 @@
+interface:
+  display_name: "VGC Lead Planner"
+  short_description: "Plan default and matchup-specific leads"
+  default_prompt: "Use $vgc-lead-planner to generate lead plans, preserve targets, and first-turn goals for this Pokemon Champions team."
