@@ -10,3 +10,4 @@ Checks:
 - does not flatten the team into generic balance by default
 - separates structural flaws from stylistic differences
 - recommends targeted rather than sweeping changes
+- states what residual risk remains even after the targeted fixes

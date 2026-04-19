@@ -10,4 +10,4 @@ Checks:
 - distinguishes raw power from structural soundness
 - recommends concrete fixes
 - orders findings by impact
-
+- does not fall back to vague "more synergy" language

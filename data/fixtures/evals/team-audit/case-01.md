@@ -7,4 +7,5 @@ Checks:
 - identifies weather dependency
 - identifies positioning or speed-control weakness
 - recommends specific improvements
-
+- keeps findings ahead of filler praise
+- preserves the team’s rain identity instead of defaulting to a generic rebuild

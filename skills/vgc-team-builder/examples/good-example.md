@@ -12,3 +12,4 @@ Why this is good:
 - matches the expected response shape with `Build Goal`, `Recommended Team`, `Role Map`, `Set Direction`, `Why Each Slot Exists`, `Matchup Notes`, and `Weaknesses and Next Refinements`
 - explains why Sableye belongs on that specific team
 - acknowledges the Dark-type Prankster problem instead of hiding it
+- keeps optional swap ideas out of the main recommendation

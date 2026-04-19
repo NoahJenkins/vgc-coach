@@ -7,3 +7,4 @@ Bad behavior:
 - gives three half-baked versions instead of one real recommendation
 - lists six mons with no usable set direction
 - pretends obvious weaknesses do not exist
+- hides alternate teams inside the refinement section

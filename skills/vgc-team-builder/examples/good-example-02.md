@@ -12,3 +12,4 @@ Why this is good:
 - matches the expected response shape with `Build Goal`, `Recommended Team`, `Role Map`, `Set Direction`, `Why Each Slot Exists`, `Matchup Notes`, and `Weaknesses and Next Refinements`
 - points future agents toward checking whether the answer should be framed as a `current-field recommendation` or an `inference-heavy early read`
 - keeps the final recommendation sharp and matchup-aware
+- makes one committed recommendation instead of hedging across multiple shells

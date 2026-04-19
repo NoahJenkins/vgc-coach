@@ -9,3 +9,4 @@ Checks:
 - acknowledges Dark-type interaction with Prankster
 - gives per-slot `Set Direction` guidance for the full six
 - keeps the build tied to the stated Reg M-A context
+- keeps optional swaps out of the main recommendation

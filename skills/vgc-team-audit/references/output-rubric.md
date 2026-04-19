@@ -7,6 +7,8 @@ A strong audit:
 - orders issues by impact
 - recommends concrete, proportional fixes
 - preserves team identity when reasonable
+- opens with findings instead of filler praise
+- states the residual risk that would remain after the recommended fixes
 
 A weak audit:
 
@@ -14,3 +16,5 @@ A weak audit:
 - rewrites the team into something unrelated
 - confuses an uncommon choice with a bad one
 - fails to connect recommendations to actual matchup or gameplay problems
+- opens with compliments and buries the real issues
+- says the team needs "more synergy" without identifying a real loss pattern

@@ -9,6 +9,7 @@ A strong team-builder answer:
 - explains matchup intent
 - admits real weaknesses
 - handles weak requests honestly by saying when the ask is too weak and pivoting to the nearest viable version when needed
+- keeps alternates and swap ideas confined to the final refinement section
 
 A weak answer:
 
@@ -18,3 +19,4 @@ A weak answer:
 - gives roster-only output with no practical set direction
 - avoids making an actual recommendation
 - ignores current meta context or freshness discipline when current positioning materially matters
+- turns the refinement section into a disguised second team

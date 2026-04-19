@@ -9,7 +9,7 @@ description: Use when the user wants a Pokemon Champions team built around targe
 
 Use this skill to build **one practical recommended team** for Pokemon Champions around a real user goal.
 
-This is a recommendation-first skill. It should explain how the team is supposed to function and stay honest when a requested mon or concept is weak.
+This is a recommendation-first skill. It should commit to one primary draft, explain how that team is supposed to function, and stay honest when a requested mon or concept is weak.
 
 ## Inputs
 
@@ -21,6 +21,8 @@ Accept:
 - anti-meta goals
 - avoid list
 - optional event or ladder context
+
+If the user does not specify format, default to the **current Pokemon Champions regulation** and state that verified assumption.
 
 ## Output Contract
 
@@ -73,16 +75,19 @@ State the real unresolved weaknesses. This is the only place where optional futu
 1. Lock the active format and major meta pressures first.
 2. Identify the real build goal behind the request before choosing slots.
 3. Build around one clear team identity.
-4. Keep the requested mon or concept only when it still supports one coherent team.
-5. If the request is weak but salvageable, say so directly, explain the tradeoffs, and build the best honest shell.
-6. If the request breaks team quality too hard, pivot to the nearest viable version that preserves the user goal as much as possible.
-7. End with the real weaknesses and likely next refinements instead of pretending the build is solved.
+4. Recommend one primary draft only.
+5. Keep the requested mon or concept only when it still supports one coherent team.
+6. If the request is weak but salvageable, say so directly, explain the tradeoffs, and build the best honest shell.
+7. If the request breaks team quality too hard, say that plainly and pivot to the nearest viable version that preserves the user goal as much as possible.
+8. Give lightweight set direction for each slot so the draft is testable immediately.
+9. End with the real weaknesses and likely next refinements instead of pretending the build is solved.
 
 ## Build Checklist
 
 - Read [references/build-principles.md](references/build-principles.md) before finalizing the team.
 - Cover speed or tempo control, board control, damage profile, and matchup intent.
-- Keep optional swaps inside `Weaknesses and Next Refinements`.
+- Keep optional swaps inside `Weaknesses and Next Refinements`, not in the main recommendation.
+- Avoid generic six-goodstuff recommendations with no structure.
 
 ## Freshness Policy
 
@@ -97,7 +102,14 @@ State the real unresolved weaknesses. This is the only place where optional futu
 - Be competitive-direct.
 - Explain how all six slots support the same plan.
 - Keep set direction lightweight and practical rather than export-level unless the user explicitly asks for a full build.
-- Avoid generic six-goodstuff recommendations with no structure.
+
+## Rules
+
+- recommend one primary draft only
+- keep the requested idea only when it still makes a coherent team
+- be explicit when pivoting away from a weak request
+- keep matchup notes tied to the actual shell
+- do not hide unresolved weaknesses
 
 ## Common Mistakes
 
