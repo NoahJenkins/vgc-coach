@@ -21,11 +21,27 @@ Before finalizing the draft, answer:
 - What does the endgame usually look like?
 - Which current meta shells is this team trying to punish?
 
+## Recommendation Discipline
+
+- Build one primary team, not a menu of branches.
+- If you mention optional swaps, keep them for the final refinement section only.
+
 ## Requested Mon Handling
 
 - If the requested mon is good in the requested role, commit to it.
-- If the requested mon is weak but still salvageable, say so and build the best honest shell.
-- If the requested ask is self-contradictory, explain the conflict and recommend the best nearby version.
+- If the requested mon is weak but salvageable, say so and build the best honest shell.
+- If the requested ask is not realistically viable, explain that directly and pivot to the nearest viable version that preserves the user goal as much as possible.
+
+## Set Direction Standard
+
+Each final build should provide lightweight set direction for every slot:
+
+- likely role framing
+- likely item direction
+- move or utility emphasis
+- tera-style or equivalent positioning direction when relevant
+
+Do not turn this into a full export unless the user asks for one.
 
 ## Anti-Meta Framing
 
@@ -43,4 +59,3 @@ A strong anti-meta team should:
 - support overload with no closer
 - pure offense with no way to stabilize board position
 - solving every matchup on paper and ending up with no identity
-
