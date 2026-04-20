@@ -46,6 +46,7 @@ The repo already contains the core pieces needed to iterate on coaching quality:
 
 - agent-portable skill definitions under `skills/`
 - Codex repo-skill discovery wrappers under `.agents/skills/`
+- Claude Code project skill discovery wrappers under `.claude/skills/`
 - examples and reference material under `docs/skills/`
 - runtime adapter notes under `docs/runtime/`
 - fixed eval cases under `data/fixtures/evals/`
@@ -61,7 +62,7 @@ Planned next layers such as repo-local eval tooling, replay ingestion utilities,
 - Current-meta claims should use live verification before being presented as current.
 - Official rules sources outrank community sources.
 - Core coaching logic should stay runtime-neutral where possible.
-- Keep `skills/` as the canonical portable skill source and use `.agents/skills/` only as a thin Codex discovery layer.
+- Keep `skills/` as the canonical portable skill source and use `.agents/skills/` and `.claude/skills/` only as thin runtime discovery layers.
 - Runtime-specific differences should stay in thin adapter docs, not the shared skill layer.
 - Skill changes should be judged against fixed eval cases and rubrics, not just nicer wording.
 
@@ -81,6 +82,10 @@ vgc-coach/
 ├── README.md
 ├── STATE.md
 ├── .agents/
+│   └── skills/
+├── .claude/
+│   ├── CLAUDE.md
+│   ├── docs
 │   └── skills/
 ├── data/
 │   ├── fixtures/

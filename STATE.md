@@ -43,6 +43,10 @@ The repo is explicitly **not** trying to start with:
   - Codex
   - Claude Code
   - OpenCode
+- Claude Code adapter layer added:
+  - `.claude/CLAUDE.md` now points Claude back to shared repo rules in `AGENTS.md`
+  - `.claude/skills/` now exposes all 10 shared skills for Claude project discovery
+  - `.claude/docs` now shims shared relative skill references back to the real `docs/` tree
 - First five MVP skill folders created:
   - `vgc-meta-research`
   - `vgc-team-builder`
