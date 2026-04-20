@@ -5,7 +5,8 @@ Codex is the primary runtime for this repo.
 ## Loading Model
 
 - Prefer repo-root `AGENTS.md` as the shared operating contract.
-- Keep skill logic in `skills/` so Codex can use the same core content as future runtimes.
+- Keep canonical skill logic in `skills/` so Codex can share the same core content as future runtimes.
+- Expose repo-local Codex skills through `.agents/skills/` as a thin discovery layer that points back to `skills/`.
 - Use web verification for current meta, rules, and recommendations.
 
 ## Expected Behavior
@@ -17,5 +18,5 @@ Codex is the primary runtime for this repo.
 ## Runtime-Specific Notes
 
 - Codex can combine local repo artifacts with live web verification cleanly.
+- `.agents/skills/` should not become a second editable skill tree; keep it as wrappers or symlinks only.
 - Keep Codex-specific behavior in this file, not inside shared skill logic.
-
