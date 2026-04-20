@@ -55,6 +55,6 @@ Fail the run if any output:
 ## Supporting Artifacts
 
 - `data/snapshots/champions-reg-m-a-2026-04-18.json`
-- `skills/vgc-meta-research/references/source-policy.md`
-- `skills/vgc-meta-research/references/current-source-map.md`
+- `docs/skills/vgc-meta-research/references/source-policy.md`
+- `docs/skills/vgc-meta-research/references/current-source-map.md`
 - `data/rubrics/meta-research-rubric.md`

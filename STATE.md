@@ -53,25 +53,25 @@ The repo is explicitly **not** trying to start with:
 - `vgc-meta-research` source/freshness hardening batch committed on `main`
 - `vgc-lead-planner` hardened to full MVP package shape:
   - strong contract in `SKILL.md`
-  - runtime metadata in `agents/openai.yaml`
-  - two good examples plus one failure example
-  - checklist and output rubric under `references/`
+  - runtime metadata now isolated under `docs/runtime/codex/skills/`
+  - two good examples plus one failure example under `docs/skills/vgc-lead-planner/examples/`
+  - checklist and output rubric under `docs/skills/vgc-lead-planner/references/`
   - three representative eval cases
 - `vgc-battle-review` hardened to the same MVP package shape:
   - strong contract in `SKILL.md`
-  - runtime metadata in `agents/openai.yaml`
-  - two good examples plus one failure example
-  - checklist and output rubric under `references/`
+  - runtime metadata now isolated under `docs/runtime/codex/skills/`
+  - two good examples plus one failure example under `docs/skills/vgc-battle-review/examples/`
+  - checklist and output rubric under `docs/skills/vgc-battle-review/references/`
   - three representative eval cases
 - `vgc-team-builder` hardened to the same MVP package shape:
   - one-primary-draft contract cleanup in `SKILL.md`
-  - supporting reference and example refresh
+  - supporting reference and example refresh under `docs/skills/vgc-team-builder/`
   - fixed eval cases tightened around branch control and weak-request honesty
-  - runtime metadata updated in `agents/openai.yaml`
+  - runtime metadata updated under `docs/runtime/codex/skills/`
 - `vgc-team-audit` hardened to the same MVP package shape:
   - findings-first, identity-preserving contract in `SKILL.md`
-  - stronger checklist and output rubric under `references/`
-  - example set refreshed to teach targeted fixes over generic rewrites
+  - stronger checklist and output rubric under `docs/skills/vgc-team-audit/references/`
+  - example set refreshed under `docs/skills/vgc-team-audit/examples/` to teach targeted fixes over generic rewrites
   - fixed eval cases and rubric tightened around filler, identity loss, and residual risk
 - Five support skills implemented to the same package standard:
   - `vgc-format-verifier`
@@ -79,7 +79,7 @@ The repo is explicitly **not** trying to start with:
   - `vgc-calcs-assistant`
   - `vgc-opponent-scout`
   - `vgc-practice-journal`
-  - each includes `SKILL.md`, `agents/openai.yaml`, two references, three examples, and three fixed eval cases
+  - each includes a lean `SKILL.md`, runtime metadata under `docs/runtime/codex/skills/`, two references under `docs/skills/<skill>/references/`, three examples under `docs/skills/<skill>/examples/`, and three fixed eval cases
 
 ### In Progress
 
@@ -87,7 +87,7 @@ The support-skill implementation batch is validated locally and still uncommitte
 
 Current follow-up work is:
 
-- deciding whether `.plugin-eval/` artifacts should stay committed or move to `.gitignore`
+- re-running `plugin-eval analyze` after the skill budget-hardening pass
 - choosing the next post-MVP quality layer:
   - repo-local eval runner tooling
   - replay ingestion utilities and battle-state schema later
@@ -169,7 +169,7 @@ Acceptance checks passed for the most recent hardening batches:
 
 ## Immediate Next Recommended Steps
 
-1. Decide whether `.plugin-eval/` artifacts should stay committed or move to `.gitignore`.
+1. Re-run `plugin-eval analyze` across all skills after the budget-hardening pass.
 2. Build repo-local eval tooling for the fixed skill cases.
 3. Only after that, add replay ingestion utilities and battle-state schema work.
 
