@@ -47,6 +47,10 @@ The repo is explicitly **not** trying to start with:
   - `.claude/CLAUDE.md` now points Claude back to shared repo rules in `AGENTS.md`
   - `.claude/skills/` now exposes all 10 shared skills for Claude project discovery
   - `.claude/docs` now shims shared relative skill references back to the real `docs/` tree
+- OpenCode adapter layer added:
+  - `opencode.json` now loads `docs/runtime/opencode.md` through OpenCode's project instructions
+  - `.opencode/commands/` now exposes slash commands for the five MVP skills
+  - `.agents/docs` now shims shared relative skill references back to the real `docs/` tree for runtimes resolving skills through `.agents/skills/`
 - First five MVP skill folders created:
   - `vgc-meta-research`
   - `vgc-team-builder`

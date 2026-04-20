@@ -47,6 +47,8 @@ The repo already contains the core pieces needed to iterate on coaching quality:
 - agent-portable skill definitions under `skills/`
 - Codex repo-skill discovery wrappers under `.agents/skills/`
 - Claude Code project skill discovery wrappers under `.claude/skills/`
+- OpenCode project config under `opencode.json`
+- OpenCode project commands under `.opencode/commands/`
 - examples and reference material under `docs/skills/`
 - runtime adapter notes under `docs/runtime/`
 - fixed eval cases under `data/fixtures/evals/`
@@ -63,6 +65,7 @@ Planned next layers such as repo-local eval tooling, replay ingestion utilities,
 - Official rules sources outrank community sources.
 - Core coaching logic should stay runtime-neutral where possible.
 - Keep `skills/` as the canonical portable skill source and use `.agents/skills/` and `.claude/skills/` only as thin runtime discovery layers.
+- Use `.opencode/commands/` and `opencode.json` to improve OpenCode UX without forking the shared skill content.
 - Runtime-specific differences should stay in thin adapter docs, not the shared skill layer.
 - Skill changes should be judged against fixed eval cases and rubrics, not just nicer wording.
 
@@ -82,11 +85,14 @@ vgc-coach/
 ├── README.md
 ├── STATE.md
 ├── .agents/
+│   ├── docs
 │   └── skills/
 ├── .claude/
 │   ├── CLAUDE.md
 │   ├── docs
 │   └── skills/
+├── .opencode/
+│   └── commands/
 ├── data/
 │   ├── fixtures/
 │   │   └── evals/
