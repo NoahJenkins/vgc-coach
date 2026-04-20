@@ -1,18 +1,12 @@
 # VGC Coach
 
-VGC Coach is a Codex-first, agent-portable coaching project for Pokemon Champions VGC.
+VGC Coach is a Codex-first, runtime-portable coaching repo for Pokemon Champions VGC.
 
-The product direction is not "build a fake optimizer." It is:
+It is designed as a skill-and-evaluation workspace, not a finished end-user app. The current focus is building reliable coaching skills around live-format research, team building, lead planning, and replay review before adding heavier runtime or tooling layers.
 
-- research the live metagame accurately
-- help build coherent teams around target mons or strategies
-- generate matchup and lead plans
-- review games and turn them into better future recommendations
-- evolve toward real-time battle assistance only after the state/eval layers are trustworthy
+## Core Focus
 
-## MVP
-
-The first useful version should ship five core skills:
+The MVP stays centered on five coaching skills:
 
 1. `vgc-meta-research`
 2. `vgc-team-builder`
@@ -20,66 +14,80 @@ The first useful version should ship five core skills:
 4. `vgc-lead-planner`
 5. `vgc-battle-review`
 
-The repo also carries five support skills that reinforce the core layer:
+The repo also includes support skills that reinforce that core layer:
 
-1. `vgc-format-verifier`
-2. `vgc-source-verifier`
-3. `vgc-calcs-assistant`
-4. `vgc-opponent-scout`
-5. `vgc-practice-journal`
+- `vgc-format-verifier`
+- `vgc-source-verifier`
+- `vgc-calcs-assistant`
+- `vgc-opponent-scout`
+- `vgc-practice-journal`
 
-These are supported by a shared data and evaluation layer:
+## Current Capabilities
 
-- format/rules verification
-- source freshness checks
-- versioned meta snapshots
-- replay and battle-review fixtures
-- skill eval harness
+The repo already contains the core pieces needed to iterate on coaching quality:
+
+- agent-portable skill definitions under `skills/`
+- examples and reference material under `docs/skills/`
+- runtime adapter notes under `docs/runtime/`
+- fixed eval cases under `data/fixtures/evals/`
+- scoring rubrics under `data/rubrics/`
+- versioned meta snapshot artifacts under `data/snapshots/`
+- design and MVP planning docs under `docs/superpowers/`
+
+Planned next layers such as repo-local eval tooling, replay ingestion utilities, and battle-state schema work are not implemented yet.
 
 ## Principles
 
-- Codex is the first supported agent runtime.
-- Skill logic must remain agent-neutral where possible.
-- Runtime-specific behavior belongs in thin adapter docs, not in the core skill logic.
-- Official rules outrank community sources.
-- Current-meta claims must be source-backed or clearly marked as inferred.
-- Skill changes should be measured against fixed eval cases before being trusted.
+- Current-meta claims should use live verification before being presented as current.
+- Official rules sources outrank community sources.
+- Core coaching logic should stay runtime-neutral where possible.
+- Runtime-specific differences should stay in thin adapter docs, not the shared skill layer.
+- Skill changes should be judged against fixed eval cases and rubrics, not just nicer wording.
 
-## Key Docs
+## Where To Start
 
-- [Design Spec](./docs/superpowers/specs/2026-04-18-vgc-coach-design.md)
-- [MVP Plan](./docs/superpowers/plans/2026-04-18-vgc-coach-mvp.md)
+- [README.md](./README.md): stable repo overview
+- [STATE.md](./STATE.md): current workstream, progress, and next-step status
+- [AGENTS.md](./AGENTS.md): repo operating rules and project constraints
+- [Design Spec](./docs/superpowers/specs/2026-04-18-vgc-coach-design.md): product direction and architecture intent
+- [MVP Plan](./docs/superpowers/plans/2026-04-18-vgc-coach-mvp.md): implementation roadmap for the first useful version
 
-## Initial Repo Shape
+## Actual Repo Layout
 
 ```text
 vgc-coach/
 ├── AGENTS.md
 ├── README.md
-├── docs/
-│   ├── superpowers/
-│   │   ├── specs/
-│   │   └── plans/
-│   ├── runtime/
-│   └── evals/
-├── skills/
-│   ├── vgc-meta-research/
-│   ├── vgc-team-builder/
-│   ├── vgc-team-audit/
-│   ├── vgc-lead-planner/
-│   └── vgc-battle-review/
+├── STATE.md
 ├── data/
-│   ├── snapshots/
 │   ├── fixtures/
-│   └── rubrics/
-└── tools/
-    ├── eval-runner/
-    └── replay-ingestion/
+│   │   └── evals/
+│   ├── rubrics/
+│   └── snapshots/
+├── docs/
+│   ├── evals/
+│   ├── runtime/
+│   │   └── codex/
+│   ├── skills/
+│   └── superpowers/
+│       ├── plans/
+│       └── specs/
+└── skills/
+    ├── vgc-battle-review/
+    ├── vgc-calcs-assistant/
+    ├── vgc-format-verifier/
+    ├── vgc-lead-planner/
+    ├── vgc-meta-research/
+    ├── vgc-opponent-scout/
+    ├── vgc-practice-journal/
+    ├── vgc-source-verifier/
+    ├── vgc-team-audit/
+    └── vgc-team-builder/
 ```
 
 ## What Not To Build First
 
 - autonomous Showdown battling
-- "best team" scoring without a credible simulator/policy stack
+- fake "best team" scoring without a credible simulator or policy layer
 - vision-first live coaching before a battle-state schema exists
-- separate Codex/Claude/OpenCode implementations of the same core skill
+- separate Codex, Claude, and OpenCode rewrites of the same core coaching logic
