@@ -73,14 +73,16 @@ State the real unresolved weaknesses. This is the only place where optional futu
 ## Workflow
 
 1. Lock the active format and major meta pressures first.
-2. Identify the real build goal behind the request before choosing slots.
-3. Build around one clear team identity.
-4. Recommend one primary draft only.
-5. Keep the requested mon or concept only when it still supports one coherent team.
-6. If the request is weak but salvageable, say so directly, explain the tradeoffs, and build the best honest shell.
-7. If the request breaks team quality too hard, say that plainly and pivot to the nearest viable version that preserves the user goal as much as possible.
-8. Give lightweight set direction for each slot so the draft is testable immediately.
-9. End with the real weaknesses and likely next refinements instead of pretending the build is solved.
+2. If the build depends on a legality or rules assumption, align with `vgc-format-verifier` before choosing slots.
+3. Identify the real build goal behind the request before choosing slots.
+4. Build around one clear team identity.
+5. Recommend one primary draft only.
+6. Keep the requested mon or concept only when it still supports one coherent team.
+7. If the request is weak but salvageable, say so directly, explain the tradeoffs, and build the best honest shell.
+8. If the request breaks team quality too hard, say that plainly and pivot to the nearest viable version that preserves the user goal as much as possible.
+9. Give lightweight set direction for each slot so the draft is testable immediately.
+10. If a current-field positioning claim is thin, apply `vgc-source-verifier` discipline instead of overselling it.
+11. End with the real weaknesses and likely next refinements instead of pretending the build is solved.
 
 ## Build Checklist
 

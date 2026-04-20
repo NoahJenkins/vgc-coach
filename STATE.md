@@ -73,10 +73,17 @@ The repo is explicitly **not** trying to start with:
   - stronger checklist and output rubric under `references/`
   - example set refreshed to teach targeted fixes over generic rewrites
   - fixed eval cases and rubric tightened around filler, identity loss, and residual risk
+- Five support skills implemented to the same package standard:
+  - `vgc-format-verifier`
+  - `vgc-source-verifier`
+  - `vgc-calcs-assistant`
+  - `vgc-opponent-scout`
+  - `vgc-practice-journal`
+  - each includes `SKILL.md`, `agents/openai.yaml`, two references, three examples, and three fixed eval cases
 
 ### In Progress
 
-The MVP skill hardening pass is complete and committed locally.
+The support-skill implementation batch is validated locally and still uncommitted.
 
 Current follow-up work is:
 
@@ -97,7 +104,7 @@ Latest substantive repo state:
 
 - `979f9c4` `feat: harden team builder and team audit skills`
 
-Current local working tree is clean after the skill-hardening batch and this state refresh.
+Current local working tree contains the new support-skill implementation batch.
 
 ## Current Findings
 
@@ -154,6 +161,11 @@ Acceptance checks passed for the most recent hardening batches:
   - package shape now matches the same MVP standard
   - checklist, rubric, and examples all reinforce findings-first, identity-preserving audits
   - fixed eval cases now punish filler praise, vague synergy language, and identity-erasing rewrites
+- support-skill layer
+  - all five support skills now exist as standalone but composable repo-local packages
+  - each skill has three eval cases and repo-level rubric coverage
+  - core skill docs now reference the support layer where it improves composability
+  - local validation passed for all five skills, and `plugin-eval analyze` surfaced only the expected static token-budget warnings
 
 ## Immediate Next Recommended Steps
 

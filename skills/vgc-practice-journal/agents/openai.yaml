@@ -1,0 +1,4 @@
+interface:
+  display_name: "VGC Practice Journal"
+  short_description: "Capture practice sessions into repeatable next steps"
+  default_prompt: "Use $vgc-practice-journal to turn this Pokemon Champions testing session into a concise practice journal with concrete next-session changes."

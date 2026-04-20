@@ -20,6 +20,14 @@ The first useful version should ship five core skills:
 4. `vgc-lead-planner`
 5. `vgc-battle-review`
 
+The repo also carries five support skills that reinforce the core layer:
+
+1. `vgc-format-verifier`
+2. `vgc-source-verifier`
+3. `vgc-calcs-assistant`
+4. `vgc-opponent-scout`
+5. `vgc-practice-journal`
+
 These are supported by a shared data and evaluation layer:
 
 - format/rules verification

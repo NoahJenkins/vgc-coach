@@ -1,0 +1,4 @@
+interface:
+  display_name: "VGC Calcs Assistant"
+  short_description: "Turn damage and speed checks into actionable prep"
+  default_prompt: "Use $vgc-calcs-assistant to reason through this Pokemon Champions calc question and explain the decision impact honestly."

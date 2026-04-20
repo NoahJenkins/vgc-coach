@@ -45,6 +45,8 @@ Always return:
 ## Planning Checklist
 
 - Read [references/planning-checklist.md](references/planning-checklist.md) before finalizing the answer.
+- If the prep is opponent-specific and public info exists, use `vgc-opponent-scout` to tighten the matchup branches.
+- If a turn-one plan hinges on one speed or survival benchmark, align that point with `vgc-calcs-assistant`.
 - Check whether the team needs to preserve speed control, weather control, redirection, setup support, or a specific closer.
 - Prefer a smaller set of trustworthy lead plans over fake coverage of every possible opposing variation.
 

@@ -47,6 +47,9 @@ Always return:
 ## Review Checklist
 
 - Read [references/review-checklist.md](references/review-checklist.md) before finalizing the answer.
+- If a turning point depends on one benchmark question, call out the calc uncertainty cleanly for `vgc-calcs-assistant`.
+- If the loss exposed a repeatable prep pattern across multiple games, leave a clean handoff for `vgc-practice-journal`.
+- If opponent prep or public tendencies were part of the miss, point toward `vgc-opponent-scout`.
 - Check whether the loss came from lead plan, preserve logic, sequencing, positioning, damage assumptions, or matchup misunderstanding.
 - Prefer a small number of high-signal findings over a turn-by-turn recap with no prioritization.
 

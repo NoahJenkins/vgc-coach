@@ -48,6 +48,8 @@ Keep the sections concise, but do not skip them.
 
 - Read [references/source-policy.md](references/source-policy.md) before summarizing the live format.
 - Read [references/current-source-map.md](references/current-source-map.md) when deciding which live sources to consult first.
+- If the user is really asking whether the format or legality assumption is current, align with `vgc-format-verifier` before summarizing the meta.
+- If a cited trend claim feels weak or overstated, use `vgc-source-verifier` discipline before repeating it.
 - Prefer official rules and event-policy sources over all community sources.
 - Use community sources for usage, teams, and trends after format legality is locked.
 - If sources conflict, say so explicitly instead of averaging them into fake certainty.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "VGC Source Verifier"
+  short_description: "Check whether a VGC claim is actually well-sourced"
+  default_prompt: "Use $vgc-source-verifier to review this Pokemon Champions claim and judge whether the sources actually support it."
