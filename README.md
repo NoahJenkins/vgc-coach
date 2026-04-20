@@ -22,6 +22,24 @@ The repo also includes support skills that reinforce that core layer:
 - `vgc-opponent-scout`
 - `vgc-practice-journal`
 
+## Skill Catalog
+
+### Core Focus Skills
+
+- `vgc-meta-research`: use for live Pokemon Champions meta snapshots, trend reads, and anti-meta openings grounded in current sources.
+- `vgc-team-builder`: use for building one practical, coherent team around a target mon, strategy, or anti-meta goal.
+- `vgc-team-audit`: use for findings-first team reviews that preserve identity unless the identity itself is the problem.
+- `vgc-lead-planner`: use for default leads, matchup branches, preserve targets, and turn-one priorities.
+- `vgc-battle-review`: use for replay or turn-log review that separates real mistakes from variance and hindsight.
+
+### Support Skills
+
+- `vgc-format-verifier`: use when legality, regulation, or “is this current?” format truth needs to be verified before coaching.
+- `vgc-source-verifier`: use when a meta, matchup, or rules claim needs a source audit before it is repeated as fact.
+- `vgc-calcs-assistant`: use for damage, survival, speed, and benchmark questions that need honest decision framing; v1 exact-browser support is limited to damage, KO, and survival, while speed checks remain assumption-framed.
+- `vgc-opponent-scout`: use for public-info scouting that turns likely shells, techs, and tendencies into prep notes.
+- `vgc-practice-journal`: use for compressing testing notes into repeatable next-session changes and follow-up questions.
+
 ## Current Capabilities
 
 The repo already contains the core pieces needed to iterate on coaching quality:
