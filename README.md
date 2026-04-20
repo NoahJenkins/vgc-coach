@@ -33,6 +33,7 @@ The repo already contains the core pieces needed to iterate on coaching quality:
 - fixed eval cases under `data/fixtures/evals/`
 - scoring rubrics under `data/rubrics/`
 - versioned meta snapshot artifacts under `data/snapshots/`
+- repo-local helper tooling under `tools/`
 - design and MVP planning docs under `docs/superpowers/`
 
 Planned next layers such as repo-local eval tooling, replay ingestion utilities, and battle-state schema work are not implemented yet.
@@ -76,6 +77,8 @@ vgc-coach/
 │   └── superpowers/
 │       ├── plans/
 │       └── specs/
+├── tests/
+├── tools/
 └── skills/
     ├── vgc-battle-review/
     ├── vgc-calcs-assistant/

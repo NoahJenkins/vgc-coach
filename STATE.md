@@ -1,6 +1,6 @@
 # VGC Coach State
 
-Last updated: 2026-04-19
+Last updated: 2026-04-20
 
 ## Purpose
 
@@ -97,6 +97,7 @@ Current follow-up work is:
 - repo-local eval runner tools
 - replay ingestion utilities
 - battle-state schema
+- browser-assisted exact calc tooling beyond the first v1 wrapper
 
 ## Working Tree Snapshot
 
@@ -138,8 +139,17 @@ The remaining MVP gaps are no longer repo setup or product framing.
 
 The main remaining quality gaps are:
 
-- repo-local tooling is still absent
+- repo-local eval runner tooling is still absent
 - the repo still lacks a local eval runner to score the fixed cases without manual review
+- the exact-browser calc layer now exists for `vgc-calcs-assistant`, but it is still limited to damage/survival and one backend
+
+### Exact Calc v1 Notes
+
+- `tools/browser_damage_calc.py` now provides a normalized `CalcRequest -> CalcResult` wrapper
+- the first exact backend is `agent-browser` + Pikalytics
+- exact browser support currently covers damage, KO, and survival only
+- speed checks still stay in assumption-framed guidance
+- Champions spread legality now blocks impossible exact runs before browser execution
 
 ### MVP Hardening Acceptance Notes
 

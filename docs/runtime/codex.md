@@ -20,3 +20,5 @@ Codex is the primary runtime for this repo.
 - Codex can combine local repo artifacts with live web verification cleanly.
 - `.agents/skills/` should not become a second editable skill tree; keep it as wrappers or symlinks only.
 - Keep Codex-specific behavior in this file, not inside shared skill logic.
+- `vgc-calcs-assistant` v1 exact support depends on local `agent-browser` plus `python3 tools/browser_damage_calc.py`.
+- The current exact backend is Pikalytics for damage, KO, and survival only; speed checks still stay in assumption-framed guidance.

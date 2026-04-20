@@ -19,6 +19,8 @@ List what is known:
 - mechanic assumptions such as mega evolution
 - field conditions such as weather, screens, boosts, or chip
 
+If the request is exact-browser eligible, confirm that the encoded spread is legal for the active ruleset before trusting the calc.
+
 ## Benchmark Priority
 
 Prefer:
@@ -31,6 +33,7 @@ Prefer:
 ## Avoid These Failure Modes
 
 - exact numbers with missing inputs
+- exact-browser runs on illegal Champions spreads
 - damage-table dumping with no decision framing
 - ignoring weather, chip, boosts, or protect pressure
 - pretending the calc answer is more certain than the assumptions allow
