@@ -1,0 +1,36 @@
+{
+  "name": "vgc",
+  "version": "0.1.0",
+  "description": "Expose VGC Coach skills as repo-local Codex slash commands.",
+  "author": {
+    "name": "Noah Jenkins",
+    "url": "https://github.com/NoahJenkins"
+  },
+  "homepage": "https://github.com/NoahJenkins/vgc-coach",
+  "repository": "https://github.com/NoahJenkins/vgc-coach",
+  "license": "UNLICENSED",
+  "keywords": [
+    "pokemon",
+    "pokemon-champions",
+    "vgc",
+    "coaching",
+    "team-building",
+    "meta-research"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "VGC",
+    "shortDescription": "Pokemon Champions coaching commands",
+    "longDescription": "Expose the VGC Coach skill set as repo-local Codex slash commands for live meta research, team building, lead planning, team audits, and battle review.",
+    "developerName": "Noah Jenkins",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "websiteURL": "https://github.com/NoahJenkins/vgc-coach",
+    "defaultPrompt": [
+      "Build a VGC team around an anti-meta idea",
+      "Review this replay for the key mistakes",
+      "Research the current Pokemon Champions meta"
+    ],
+    "screenshots": []
+  }
+}
