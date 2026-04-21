@@ -1,8 +1,10 @@
 # VGC Coach
 
-VGC Coach is a Codex-first, runtime-portable coaching repo for Pokemon Champions VGC.
+VGC Coach is a shared VGC coaching skill-and-eval workspace for Pokemon Champions.
 
-It is designed as a skill-and-evaluation workspace, not a finished end-user app. The current focus is building reliable coaching skills around live-format research, team building, lead planning, and replay review before adding heavier runtime or tooling layers.
+It is built around canonical skill packages in `skills/`, thin runtime adapters, fixed eval cases, and quality rubrics. This repo is for improving reusable coaching behavior first, not for starting with a finished end-user app.
+
+The current focus is building reliable coaching skills around live-format research, team building, lead planning, and replay review, then validating those skills against repeatable fixtures.
 
 ## Core Focus
 
@@ -21,6 +23,15 @@ The repo also includes support skills that reinforce that core layer:
 - `vgc-calcs-assistant`
 - `vgc-opponent-scout`
 - `vgc-practice-journal`
+
+## Runtime Support
+
+Shared coaching logic lives in `skills/`.
+
+- Codex is the primary runtime and discovers repo-local skills through `.agents/skills/`.
+- Claude Code is supported through `.claude/skills/`, which points back to the same shared skill packages.
+- Runtime-specific behavior and limitations live under `docs/runtime/`.
+- OpenCode support exists as a secondary adapter layer in this repo, but the main documentation emphasis stays on Codex and Claude Code.
 
 ## Skill Catalog
 
@@ -47,15 +58,15 @@ The repo already contains the core pieces needed to iterate on coaching quality:
 - agent-portable skill definitions under `skills/`
 - Codex repo-skill discovery wrappers under `.agents/skills/`
 - Claude Code project skill discovery wrappers under `.claude/skills/`
-- OpenCode project config under `opencode.json`
-- OpenCode project commands under `.opencode/commands/`
+- runtime adapter docs under `docs/runtime/`
+- OpenCode project config and wrappers as additive support under `opencode.json`, `.opencode/skills/`, and `.opencode/commands/`
 - examples and reference material under `docs/skills/`
-- runtime adapter notes under `docs/runtime/`
 - fixed eval cases under `data/fixtures/evals/`
 - scoring rubrics under `data/rubrics/`
 - versioned meta snapshot artifacts under `data/snapshots/`
 - repo-local helper tooling under `tools/`
 - design and MVP planning docs under `docs/superpowers/`
+- current exact-browser calc support for `vgc-calcs-assistant` through `python3 tools/browser_damage_calc.py`, limited to damage, KO, and survival
 
 Planned next layers such as repo-local eval tooling, replay ingestion utilities, and battle-state schema work are not implemented yet.
 
@@ -65,8 +76,8 @@ Planned next layers such as repo-local eval tooling, replay ingestion utilities,
 - Official rules sources outrank community sources.
 - Core coaching logic should stay runtime-neutral where possible.
 - Keep `skills/` as the canonical portable skill source and use `.agents/skills/` and `.claude/skills/` only as thin runtime discovery layers.
+- Keep runtime-specific behavior in `docs/runtime/` and thin adapter files, not in duplicated skill logic.
 - Use `.opencode/commands/` and `opencode.json` to improve OpenCode UX without forking the shared skill content.
-- Runtime-specific differences should stay in thin adapter docs, not the shared skill layer.
 - Skill changes should be judged against fixed eval cases and rubrics, not just nicer wording.
 
 ## Where To Start
@@ -92,7 +103,9 @@ vgc-coach/
 │   ├── docs
 │   └── skills/
 ├── .opencode/
-│   └── commands/
+│   ├── commands/
+│   └── skills/
+├── opencode.json
 ├── data/
 │   ├── fixtures/
 │   │   └── evals/
