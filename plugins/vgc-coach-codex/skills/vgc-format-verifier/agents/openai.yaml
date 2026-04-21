@@ -1,0 +1,4 @@
+interface:
+  display_name: "VGC Format Verifier"
+  short_description: "Verify format rules and legality assumptions"
+  default_prompt: "Use $vgc-format-verifier to confirm this Pokemon Champions format, regulation, or legality claim."

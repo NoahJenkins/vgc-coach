@@ -1,0 +1,4 @@
+interface:
+  display_name: "VGC Battle Review"
+  short_description: "Review games for real mistakes and better lines"
+  default_prompt: "Use $vgc-battle-review to review this Pokemon Champions battle and identify key decision points, better lines, and future prep implications."

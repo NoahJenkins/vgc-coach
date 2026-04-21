@@ -1,0 +1,24 @@
+{
+  "name": "vgc-coach",
+  "owner": {
+    "name": "Noah Jenkins",
+    "url": "https://github.com/NoahJenkins"
+  },
+  "metadata": {
+    "description": "Pokemon Champions coaching plugins generated from the shared VGC Coach skill packages.",
+    "version": "0.1.0",
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "vgc-coach-claude",
+      "source": "./plugins/vgc-coach-claude",
+      "description": "Pokemon Champions coaching skills for Claude Code.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Noah Jenkins",
+        "url": "https://github.com/NoahJenkins"
+      }
+    }
+  ]
+}

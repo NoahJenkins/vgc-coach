@@ -1,0 +1,38 @@
+{
+  "name": "vgc-coach-codex",
+  "version": "0.1.0",
+  "description": "Pokemon Champions coaching skills for Codex.",
+  "author": {
+    "name": "Noah Jenkins",
+    "url": "https://github.com/NoahJenkins"
+  },
+  "homepage": "https://github.com/NoahJenkins/vgc-coach",
+  "repository": "https://github.com/NoahJenkins/vgc-coach",
+  "license": "Apache-2.0",
+  "keywords": [
+    "pokemon",
+    "vgc",
+    "codex",
+    "coaching",
+    "champions"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "VGC Coach",
+    "shortDescription": "Pokemon Champions coaching skills for Codex",
+    "longDescription": "Installable Pokemon Champions coaching workflows generated from the canonical shared VGC Coach skill packages.",
+    "developerName": "Noah Jenkins",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Knowledge"
+    ],
+    "websiteURL": "https://github.com/NoahJenkins/vgc-coach",
+    "defaultPrompt": [
+      "Use $vgc-meta-research to summarize the current Pokemon Champions metagame and identify anti-meta openings.",
+      "Use $vgc-team-builder to build one practical Pokemon Champions team around my target mon, strategy, or anti-meta goal, with o...",
+      "Use $vgc-team-audit to review this Pokemon Champions team, identify the highest-impact issues first, and recommend the smalle..."
+    ],
+    "brandColor": "#FF6B35"
+  }
+}

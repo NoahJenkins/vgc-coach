@@ -1,0 +1,17 @@
+{
+  "name": "vgc-coach-opencode",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Pokemon Champions coaching skills for OpenCode.",
+  "homepage": "https://github.com/NoahJenkins/vgc-coach",
+  "repository": "https://github.com/NoahJenkins/vgc-coach",
+  "license": "Apache-2.0",
+  "keywords": [
+    "pokemon",
+    "vgc",
+    "opencode",
+    "coaching",
+    "champions"
+  ],
+  "main": "./.opencode/plugins/vgc-coach.js"
+}

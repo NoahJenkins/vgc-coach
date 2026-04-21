@@ -1,0 +1,4 @@
+interface:
+  display_name: "VGC Meta Research"
+  short_description: "Research the live Champions meta"
+  default_prompt: "Use $vgc-meta-research to summarize the current Pokemon Champions metagame and identify anti-meta openings."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "VGC Team Builder"
+  short_description: "Build one honest, coherent Champions team"
+  default_prompt: "Use $vgc-team-builder to build one practical Pokemon Champions team around my target mon, strategy, or anti-meta goal, with one primary draft and lightweight set direction."

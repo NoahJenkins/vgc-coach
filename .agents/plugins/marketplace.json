@@ -1,0 +1,20 @@
+{
+  "name": "vgc-coach",
+  "interface": {
+    "displayName": "VGC Coach"
+  },
+  "plugins": [
+    {
+      "name": "vgc-coach-codex",
+      "source": {
+        "source": "local",
+        "path": "./plugins/vgc-coach-codex"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

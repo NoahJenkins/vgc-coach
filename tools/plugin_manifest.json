@@ -1,0 +1,172 @@
+{
+  "repository": {
+    "homepage": "https://github.com/NoahJenkins/vgc-coach",
+    "repository": "https://github.com/NoahJenkins/vgc-coach",
+    "license": "Apache-2.0",
+    "author": {
+      "name": "Noah Jenkins",
+      "url": "https://github.com/NoahJenkins"
+    }
+  },
+  "skills": [
+    {
+      "name": "vgc-meta-research",
+      "codex_metadata": "skills/vgc-meta-research/agents/openai.yaml",
+      "docs": [
+        "docs/skills/vgc-meta-research"
+      ]
+    },
+    {
+      "name": "vgc-team-builder",
+      "codex_metadata": "skills/vgc-team-builder/agents/openai.yaml",
+      "docs": [
+        "docs/skills/vgc-team-builder",
+        "docs/skills/shared"
+      ]
+    },
+    {
+      "name": "vgc-team-audit",
+      "codex_metadata": "skills/vgc-team-audit/agents/openai.yaml",
+      "docs": [
+        "docs/skills/vgc-team-audit",
+        "docs/skills/shared"
+      ]
+    },
+    {
+      "name": "vgc-lead-planner",
+      "codex_metadata": "skills/vgc-lead-planner/agents/openai.yaml",
+      "docs": [
+        "docs/skills/vgc-lead-planner",
+        "docs/skills/shared"
+      ]
+    },
+    {
+      "name": "vgc-battle-review",
+      "codex_metadata": "skills/vgc-battle-review/agents/openai.yaml",
+      "docs": [
+        "docs/skills/vgc-battle-review"
+      ]
+    },
+    {
+      "name": "vgc-format-verifier",
+      "codex_metadata": "skills/vgc-format-verifier/agents/openai.yaml",
+      "docs": [
+        "docs/skills/vgc-format-verifier",
+        "docs/skills/shared"
+      ]
+    },
+    {
+      "name": "vgc-source-verifier",
+      "codex_metadata": "skills/vgc-source-verifier/agents/openai.yaml",
+      "docs": [
+        "docs/skills/vgc-source-verifier",
+        "docs/skills/shared"
+      ]
+    },
+    {
+      "name": "vgc-calcs-assistant",
+      "codex_metadata": "skills/vgc-calcs-assistant/agents/openai.yaml",
+      "docs": [
+        "docs/skills/vgc-calcs-assistant",
+        "docs/skills/shared"
+      ]
+    },
+    {
+      "name": "vgc-opponent-scout",
+      "codex_metadata": "skills/vgc-opponent-scout/agents/openai.yaml",
+      "docs": [
+        "docs/skills/vgc-opponent-scout",
+        "docs/skills/shared"
+      ]
+    },
+    {
+      "name": "vgc-practice-journal",
+      "codex_metadata": "skills/vgc-practice-journal/agents/openai.yaml",
+      "docs": [
+        "docs/skills/vgc-practice-journal",
+        "docs/skills/shared"
+      ]
+    }
+  ],
+  "shared_copy": {
+    "files": [
+      "LICENSE",
+      "SECURITY.md"
+    ],
+    "directories": [
+      "data/fixtures/evals",
+      "data/rubrics"
+    ],
+    "tools": [
+      "tools/browser_damage_calc.py"
+    ]
+  },
+  "plugins": [
+    {
+      "name": "vgc-coach-codex",
+      "runtime": "codex",
+      "manifest_path": ".codex-plugin/plugin.json",
+      "description": "Pokemon Champions coaching skills for Codex.",
+      "keywords": [
+        "pokemon",
+        "vgc",
+        "codex",
+        "coaching",
+        "champions"
+      ],
+      "brand_color": "#FF6B35",
+      "runtime_docs": [
+        "docs/runtime/codex.md",
+        "docs/runtime/codex/skills/README.md"
+      ],
+      "default_prompt_skills": [
+        "vgc-meta-research",
+        "vgc-team-builder",
+        "vgc-team-audit"
+      ],
+      "capabilities": [
+        "Interactive",
+        "Knowledge"
+      ]
+    },
+    {
+      "name": "vgc-coach-claude",
+      "runtime": "claude",
+      "manifest_path": ".claude-plugin/plugin.json",
+      "description": "Pokemon Champions coaching skills for Claude Code.",
+      "keywords": [
+        "pokemon",
+        "vgc",
+        "claude-code",
+        "coaching",
+        "champions"
+      ],
+      "runtime_docs": [
+        "docs/runtime/claude-code.md"
+      ]
+    },
+    {
+      "name": "vgc-coach-opencode",
+      "runtime": "opencode",
+      "manifest_path": "package.json",
+      "description": "Pokemon Champions coaching skills for OpenCode.",
+      "keywords": [
+        "pokemon",
+        "vgc",
+        "opencode",
+        "coaching",
+        "champions"
+      ],
+      "runtime_docs": [
+        "docs/runtime/opencode.md"
+      ]
+    }
+  ],
+  "release_notes": {
+    "summary": [
+      "Generated Codex, Claude Code, and OpenCode plugin packages from the canonical shared skills tree.",
+      "Published local marketplace metadata for Codex and Claude Code, plus git-install metadata for OpenCode.",
+      "Kept `skills/` and `docs/skills/` as the only editable source of truth for shared coaching behavior."
+    ]
+  }
+}

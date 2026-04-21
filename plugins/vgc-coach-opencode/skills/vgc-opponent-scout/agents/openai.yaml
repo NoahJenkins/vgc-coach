@@ -1,0 +1,4 @@
+interface:
+  display_name: "VGC Opponent Scout"
+  short_description: "Scout likely shells, techs, and prep risks"
+  default_prompt: "Use $vgc-opponent-scout to scout this Pokemon Champions opponent, archetype, or public team trail and turn it into prep notes."

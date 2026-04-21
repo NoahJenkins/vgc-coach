@@ -1,0 +1,4 @@
+interface:
+  display_name: "VGC Calcs Assistant"
+  short_description: "Turn calc questions into actionable prep with honest exactness"
+  default_prompt: "Use $vgc-calcs-assistant to reason through this Pokemon Champions calc question. If it is a fully specified damage or survival calc, use the repo-local browser calc wrapper first and then explain the decision impact honestly."
