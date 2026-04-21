@@ -13,30 +13,32 @@ import {
 
 function App() {
   return (
-    <div className="page-shell">
-      <div className="background-texture" aria-hidden="true" />
-      <header className="site-header">
-        <a className="brand" href="#top">
-          <span className="brand-mark">VGC</span>
+      <div className="page-shell">
+        <div className="background-texture" aria-hidden="true" />
+        <header className="site-header">
+          <a className="brand" href="#top">
+            <span className="brand-mark">VGC</span>
           <span className="brand-copy">
             <strong>Coach</strong>
-            <span>Open-source skill workspace</span>
-          </span>
-        </a>
-        <nav className="site-nav" aria-label="Primary">
-          {navLinks.map((link) => (
-            <a key={link.href} href={link.href}>
-              {link.label}
-            </a>
-          ))}
-        </nav>
-        <a
-          className="button button-ghost"
-          href="https://github.com/NoahJenkins/vgc-coach"
-        >
-          View Repo
-        </a>
-      </header>
+              <span>Open-source skill workspace</span>
+            </span>
+          </a>
+          <div className="site-nav-shell">
+            <nav className="site-nav" aria-label="Primary">
+              {navLinks.map((link) => (
+                <a key={link.href} href={link.href}>
+                  {link.label}
+                </a>
+              ))}
+            </nav>
+          </div>
+          <a
+            className="button button-ghost header-repo-link"
+            href="https://github.com/NoahJenkins/vgc-coach"
+          >
+            View Repo
+          </a>
+        </header>
 
       <main id="top">
         <section className="hero section">
