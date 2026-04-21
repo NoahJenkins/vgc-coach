@@ -39,7 +39,11 @@ Each final build should provide lightweight set direction for every slot:
 - likely role framing
 - likely item direction
 - move or utility emphasis
-- tera-style or equivalent positioning direction when relevant
+- mechanics-aware positioning direction when relevant
+
+If the current regulation does not have `Terastallization` active, do not include Tera recommendations.
+
+If an item is not currently verified as legal, do not treat it as confirmed legal.
 
 Do not turn this into a full export unless the user asks for one.
 

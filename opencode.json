@@ -2,5 +2,11 @@
   "$schema": "https://opencode.ai/config.json",
   "instructions": [
     "docs/runtime/opencode.md"
-  ]
+  ],
+  "permission": {
+    "skill": {
+      "opencode-vgc-*": "allow",
+      "vgc-*": "deny"
+    }
+  }
 }

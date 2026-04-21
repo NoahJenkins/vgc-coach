@@ -6,27 +6,28 @@ OpenCode support in this repo is an additive adapter over the same shared skill 
 
 - Repo-wide product and workflow rules still live in `AGENTS.md`.
 - `opencode.json` should load this file through the `instructions` field so OpenCode gets runtime-specific behavior without duplicating the shared contract.
-- Project skill discovery should use `.agents/skills/<skill-name>/`, which already resolves back to the canonical packages under `skills/<skill-name>/`.
-- `.agents/docs` should shim back to the real `docs/` tree so shared relative references inside `SKILL.md` continue to work if OpenCode resolves skill paths from `.agents/skills/`.
-- Do not create a second editable skill tree under `.opencode/skills/` unless OpenCode-specific limits force it later.
+- OpenCode scans `.opencode/skills/`, `.claude/skills/`, and `.agents/skills/` for project skills.
+- Because this repo keeps Codex and Claude discovery shims with the same shared `vgc-*` names, OpenCode support should expose unique wrapper names under `.opencode/skills/opencode-vgc-*/`.
+- Each OpenCode wrapper should point the model back to the canonical shared files under `skills/` and `docs/` instead of duplicating coaching logic.
+- `opencode.json` should deny the shared `vgc-*` names and allow only `opencode-vgc-*` so OpenCode has one unambiguous VGC skill namespace in this repo.
 
 ## Adapter Rules
 
 - Reuse `AGENTS.md`, `skills/`, `data/fixtures/`, and `data/rubrics/`.
-- Keep OpenCode-specific behavior in this file and `.opencode/commands/` only.
-- Keep `.agents/skills/` as a discovery layer, not a second skill implementation tree.
+- Keep OpenCode-specific behavior in this file, `.opencode/commands/`, and thin `.opencode/skills/opencode-vgc-*/` wrappers only.
+- Keep `.opencode/skills/` as an OpenCode discovery layer, not a second skill implementation tree.
 - Avoid OpenCode-only forks of the coaching logic unless a real runtime limitation forces them.
 
 ## Expected Invocation Model
 
-- OpenCode should be able to discover the project skills from `.agents/skills/`.
+- OpenCode should be able to discover the project skills from `.opencode/skills/opencode-vgc-*/`.
 - Project slash commands under `.opencode/commands/` should provide a first-class path for the five MVP skills:
   - `/vgc-meta-research`
   - `/vgc-team-builder`
   - `/vgc-team-audit`
   - `/vgc-lead-planner`
   - `/vgc-battle-review`
-- Those commands should route back to the shared skill packages instead of re-encoding the coaching logic.
+- Those commands should route through the `opencode-vgc-*` wrappers, which then read the shared skill packages and references directly from `skills/` and `docs/`.
 - Natural-language requests should still be able to trigger the same shared skills when the descriptions match.
 
 ## Current-Info And Sourcing Rules
@@ -47,5 +48,5 @@ OpenCode support in this repo is an additive adapter over the same shared skill 
 ## Validation Expectations
 
 - When changing shared skill logic, validate against the existing fixed eval cases and rubrics.
-- For OpenCode-specific support changes, at minimum verify project command discovery, shared skill discovery through `.agents/skills/`, shared-doc reference resolution, and one representative command invocation.
+- For OpenCode-specific support changes, at minimum verify project command discovery, wrapper-skill discovery through `.opencode/skills/opencode-vgc-*/`, shared file reads from `skills/` and `docs/`, and one representative command invocation.
 - Use [OpenCode Team Builder Live Checklist](../evals/opencode-team-builder-live-checklist.md) when pressure-testing `vgc-team-builder` behavior in OpenCode.
