@@ -48,3 +48,4 @@ OpenCode support in this repo is an additive adapter over the same shared skill 
 
 - When changing shared skill logic, validate against the existing fixed eval cases and rubrics.
 - For OpenCode-specific support changes, at minimum verify project command discovery, shared skill discovery through `.agents/skills/`, shared-doc reference resolution, and one representative command invocation.
+- Use [OpenCode Team Builder Live Checklist](../evals/opencode-team-builder-live-checklist.md) when pressure-testing `vgc-team-builder` behavior in OpenCode.
