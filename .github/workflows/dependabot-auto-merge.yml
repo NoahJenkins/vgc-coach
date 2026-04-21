@@ -45,15 +45,8 @@ jobs:
 
           echo "eligible=true" >> "$GITHUB_OUTPUT"
 
-      - name: Fetch Dependabot metadata
-        if: steps.scope.outputs.eligible == 'true'
-        id: metadata
-        uses: dependabot/fetch-metadata@08eff52bf64351f401fb50d4972fa95b9f2c2d1b # v2.4.0
-        with:
-          github-token: ${{ github.token }}
-
       - name: Enable auto-merge
-        if: steps.scope.outputs.eligible == 'true' && steps.metadata.outputs.package-ecosystem == 'npm'
+        if: steps.scope.outputs.eligible == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
