@@ -10,6 +10,7 @@ OpenCode support in this repo is an additive adapter over the same shared skill 
 - Because this repo keeps Codex and Claude discovery shims with the same shared `vgc-*` names, OpenCode support should expose unique wrapper names under `.opencode/skills/opencode-vgc-*/`.
 - Each OpenCode wrapper should point the model back to the canonical shared files under `skills/` and `docs/` instead of duplicating coaching logic.
 - `opencode.json` should deny the shared `vgc-*` names and allow only `opencode-vgc-*` so OpenCode has one unambiguous VGC skill namespace in this repo.
+- The installable OpenCode package lives under `plugins/vgc-coach-opencode/`, and the repo-root `package.json` exposes it for git-based plugin installs.
 
 ## Adapter Rules
 
@@ -50,3 +51,37 @@ OpenCode support in this repo is an additive adapter over the same shared skill 
 - When changing shared skill logic, validate against the existing fixed eval cases and rubrics.
 - For OpenCode-specific support changes, at minimum verify project command discovery, wrapper-skill discovery through `.opencode/skills/opencode-vgc-*/`, shared file reads from `skills/` and `docs/`, and one representative command invocation.
 - Use [OpenCode Team Builder Live Checklist](../evals/opencode-team-builder-live-checklist.md) when pressure-testing `vgc-team-builder` behavior in OpenCode.
+
+## Install
+
+Add the repo as a git-installed plugin in `opencode.json`:
+
+```json
+{
+  "plugin": ["vgc-coach-opencode@git+https://github.com/NoahJenkins/vgc-coach.git"]
+}
+```
+
+Restart OpenCode after editing the config.
+
+## Update
+
+If you keep the install unpinned, OpenCode refreshes the plugin when it reinstalls from the git source on restart.
+
+If you pin to a release tag, update the ref and restart:
+
+```json
+{
+  "plugin": ["vgc-coach-opencode@git+https://github.com/NoahJenkins/vgc-coach.git#v0.1.0"]
+}
+```
+
+## Verify
+
+Use the native skill tool to confirm the plugin-registered skills are visible:
+
+```text
+use skill tool to list skills
+```
+
+You should see the VGC Coach plugin namespace and its generated skills after restart.

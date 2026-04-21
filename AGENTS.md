@@ -28,9 +28,11 @@ Do not optimize for:
 ## Canonical Source Of Truth
 
 - `skills/` is the only canonical editable source for shared coaching skill behavior.
+- `plugins/` contains generated distribution artifacts and is not a hand-edited source tree.
 - `.agents/skills/` is the Codex discovery layer and should stay thin.
 - `.claude/skills/` is the Claude Code discovery layer and should stay thin.
 - `.opencode/skills/` is additive runtime support and should stay thin.
+- `.agents/plugins/marketplace.json`, `.claude-plugin/marketplace.json`, and the repo-root `package.json` are generated distribution metadata.
 - `docs/runtime/*.md` is where runtime-specific behavior and limitations belong.
 - `docs/skills/` holds shared references and examples that support the canonical skill packages.
 - `data/fixtures/` and `data/rubrics/` are the validation layer for judging skill quality.
@@ -49,6 +51,7 @@ Do not fork shared skill logic into runtime-specific copies unless a real runtim
 
 - Keep shared coaching logic runtime-neutral whenever possible.
 - Preserve the output contracts defined in each `SKILL.md` unless the change intentionally updates that contract.
+- Regenerate packaged plugin artifacts after shared-skill or runtime-doc changes instead of editing generated plugin copies by hand.
 - When a skill depends on current format, legality, or meta state, verify those claims live before presenting them as current.
 - Prefer official rules sources over community sources.
 - Use community sources for trends, usage, and archetype interpretation only after format truth is locked.

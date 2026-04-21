@@ -27,6 +27,7 @@ For larger direction changes, open an issue or discussion first so the repo cont
 ## Repo Rules That Matter
 
 - Keep `skills/` as the only canonical editable source for shared coaching logic.
+- Keep `plugins/` and marketplace metadata generated. Refresh them with `python3 tools/build_plugins.py build` instead of editing package copies by hand.
 - Keep `.agents/skills/`, `.claude/skills/`, and `.opencode/skills/` thin. Do not turn them into separate skill trees.
 - Do not add runtime-specific forks unless a real runtime limitation forces it.
 - Preserve the output contract in a skill's `SKILL.md` unless the change intentionally updates that contract.
@@ -46,6 +47,12 @@ If your change affects runtime support, also verify the matching discovery layer
 - Claude Code: `.claude/skills/` and `docs/runtime/claude-code.md`
 - OpenCode: `.opencode/skills/`, `.opencode/commands/`, `opencode.json`, and `docs/runtime/opencode.md`
 
+If your change affects packaged installs or runtime metadata, also refresh and verify the generated plugin outputs:
+
+- `python3 tools/build_plugins.py build`
+- `python3 tools/build_plugins.py check`
+- `python3 -m unittest tests.test_build_plugins`
+
 If your change touches exact-browser calc behavior, preserve the current limitation honestly: v1 exact support is only for damage, KO, and survival. Speed guidance is still assumption-framed unless a verified exact backend is added.
 
 ## Pull Request Checklist
@@ -54,6 +61,7 @@ Before opening a PR:
 
 - keep the change focused and avoid unrelated cleanup
 - update docs when behavior or public onboarding changes
+- regenerate plugin packages and release notes when changing shared skill content or runtime packaging
 - verify any paths and links you touched still exist
 - make sure runtime wrapper docs still match the live repo
 - explain what changed, why it changed, and how you validated it

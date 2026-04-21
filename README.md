@@ -4,7 +4,7 @@ VGC Coach is an open-source AI coaching assistant for Pokemon VGC (Video Game Ch
 
 It gives you a set of coaching tools — called *skills* — that run inside AI assistants like Codex, Claude Code, or OpenCode. Ask them in plain English to help with team building, meta research, lead planning, replay review, and other prep work.
 
-This is not a standalone app or ladder client. You clone this repo, open it in a supported AI tool, and use natural-language prompts to get coaching help. Developers and contributors can find architecture notes in [How The Repo Works](#how-the-repo-works).
+This is not a standalone app or ladder client. The shared coaching logic lives in this repo, and the easiest way to use it now is through generated plugin packages for Codex, Claude Code, and OpenCode. Developers and contributors can still work directly from source; see [How The Repo Works](#how-the-repo-works).
 
 ## Open Source Status
 
@@ -12,22 +12,45 @@ This is not a standalone app or ladder client. You clone this repo, open it in a
 - Contributions: [CONTRIBUTING.md](./CONTRIBUTING.md)
 - Security reporting: [SECURITY.md](./SECURITY.md)
 
-## Use This Repo
+## Install As Plugin
 
-The simplest way to use these skills is to clone this repository and open it in a supported AI tool. There is nothing to install or configure beyond cloning — just open it and start asking questions.
+The default end-user path is now generated plugin packages, not repo-local symlink wrappers.
+
+### Codex
+
+Build and install the generated Codex package into your local marketplace:
 
 ```bash
 git clone https://github.com/NoahJenkins/vgc-coach.git
 cd vgc-coach
+python3 tools/build_plugins.py build
+python3 tools/install_codex_plugin.py
 ```
 
-After cloning, open the repo in a supported AI tool:
+Restart Codex after install.
 
-- **Codex** — skills load automatically from `.agents/skills/`
-- **Claude Code** — skills load automatically from `.claude/skills/`
-- **OpenCode** — supported via `opencode.json` and `.opencode/skills/`
+### Claude Code
 
-Then ask the AI tool in plain English:
+Add the repo marketplace, then install the packaged Claude plugin:
+
+```bash
+claude plugin marketplace add NoahJenkins/vgc-coach --sparse .claude-plugin plugins
+claude plugin install vgc-coach-claude@vgc-coach
+```
+
+### OpenCode
+
+Add the git-installed plugin in `opencode.json`:
+
+```json
+{
+  "plugin": ["vgc-coach-opencode@git+https://github.com/NoahJenkins/vgc-coach.git"]
+}
+```
+
+Restart OpenCode after editing the config.
+
+Once installed, ask the AI tool in plain English:
 
 - "Build me a Pokemon Champions team around Mega Blastoise."
 - "Audit this team for bad matchups and weak slots."
@@ -35,11 +58,26 @@ Then ask the AI tool in plain English:
 - "Review this replay and tell me what mistakes actually mattered."
 - "Give me a current meta snapshot before I build."
 
-Setup notes and AI-tool-specific details:
+Install, update, and verification details live here:
 
 - [Codex runtime](./docs/runtime/codex.md)
 - [Claude Code runtime](./docs/runtime/claude-code.md)
 - [OpenCode runtime](./docs/runtime/opencode.md)
+
+## Contribute From Source
+
+If you want to edit skills, docs, evals, or runtime adapters directly, clone the repository and work from source:
+
+```bash
+git clone https://github.com/NoahJenkins/vgc-coach.git
+cd vgc-coach
+```
+
+Contributor/source mode still uses the repo-local discovery wrappers:
+
+- **Codex** — `.agents/skills/`
+- **Claude Code** — `.claude/skills/`
+- **OpenCode** — `opencode.json`, `.opencode/skills/`, and `.opencode/commands/`
 
 ## Web Site Deployment
 
@@ -53,7 +91,7 @@ When importing to Vercel, set the Root Directory to `site` so the build runs aga
 
 ## Prerequisites
 
-This repo does not have a root app package to install. The main requirements are:
+This repo does not have a root application package to install for contributor/source work. The main requirements are:
 
 - `git` to clone the repository
 - a supported AI tool such as Codex, Claude Code, or OpenCode
@@ -95,10 +133,12 @@ For other Linux distributions, install the equivalent packages from your distro'
 > **For contributors and developers** — this section covers internal architecture. VGC players can skip to [Skill Catalog](#skill-catalog).
 
 - `skills/` is the source of truth for all coaching logic. This is what you edit.
+- `plugins/` contains generated installable packages for Codex, Claude Code, and OpenCode.
 - `.agents/skills/`, `.claude/skills/`, and `.opencode/skills/` are thin wrappers that point AI tools to the shared packages in `skills/`.
 - `docs/skills/` contains examples and references that support the shared skills.
 - `data/fixtures/evals/` and `data/rubrics/` are how skill quality is judged — test cases and scoring rubrics that changes must pass.
 - `docs/runtime/` documents AI-tool-specific behavior without duplicating the underlying skill logic.
+- `.agents/plugins/marketplace.json`, `.claude-plugin/marketplace.json`, and the repo-root `package.json` are generated distribution metadata.
 
 To adapt these skills for your own setup, use `skills/` as the source of truth and keep any AI-tool-specific wrappers minimal.
 
@@ -143,9 +183,13 @@ Support skills reinforce that core layer:
 The repo already includes:
 
 - Shared coaching skill packages under `skills/`
+- Generated plugin packages under `plugins/`
 - Codex support under `.agents/skills/`
+- Codex marketplace metadata under `.agents/plugins/marketplace.json`
 - Claude Code support under `.claude/skills/`
+- Claude Code marketplace metadata under `.claude-plugin/marketplace.json`
 - OpenCode support under `opencode.json`, `.opencode/skills/`, and `.opencode/commands/`
+- OpenCode git-install metadata in the repo-root `package.json`
 - AI-tool-specific usage notes under `docs/runtime/`
 - Skill examples and references under `docs/skills/`
 - Eval test cases under `data/fixtures/evals/`
@@ -175,10 +219,12 @@ These are still in progress, not yet available:
 
 **For VGC players:**
 - [Skill Catalog](#skill-catalog): overview of what VGC Coach can help with today
-- [Use This Repo](#use-this-repo): how to clone and start asking questions
+- [Install As Plugin](#install-as-plugin): fastest packaged install path
 
 **For developers and contributors:**
+- [Contribute From Source](#contribute-from-source): clone/open workflow for editing the repo
 - [Codex runtime](./docs/runtime/codex.md), [Claude Code runtime](./docs/runtime/claude-code.md), [OpenCode runtime](./docs/runtime/opencode.md): AI-tool-specific usage notes
+- [RELEASE_NOTES.md](./RELEASE_NOTES.md): generated release summary for the current packaged version
 - [AGENTS.md](./AGENTS.md): repo rules and project constraints
 - [CONTRIBUTING.md](./CONTRIBUTING.md): contribution scope and validation expectations
 - [SECURITY.md](./SECURITY.md): responsible disclosure guidance
@@ -194,9 +240,15 @@ vgc-coach/
 ├── CONTRIBUTING.md
 ├── LICENSE
 ├── README.md
+├── RELEASE_NOTES.md
 ├── SECURITY.md
+├── VERSION
 ├── .agents/
+│   ├── plugins/
+│   │   └── marketplace.json
 │   └── skills/
+├── .claude-plugin/
+│   └── marketplace.json
 ├── .claude/
 │   ├── CLAUDE.md
 │   └── skills/
@@ -213,6 +265,10 @@ vgc-coach/
 │   ├── evals/
 │   ├── runtime/
 │   └── skills/
+├── plugins/
+│   ├── vgc-coach-codex/
+│   ├── vgc-coach-claude/
+│   └── vgc-coach-opencode/
 ├── tools/
 └── skills/
 ```

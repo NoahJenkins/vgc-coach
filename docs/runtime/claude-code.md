@@ -9,6 +9,7 @@ Claude Code support in this repo is a thin adapter over the same shared skill pa
 - Claude project skills live in `.claude/skills/<skill-name>/`.
 - Each Claude skill entry should resolve back to the canonical package under `skills/<skill-name>/`.
 - `.claude/docs` exists as a shim back to the real `docs/` tree so shared relative references inside `SKILL.md` continue to work when Claude loads skills from `.claude/skills/`.
+- The distributable Claude plugin lives under `plugins/vgc-coach-claude/`, and this repo exposes it through `.claude-plugin/marketplace.json`.
 
 ## Adapter Rules
 
@@ -43,3 +44,33 @@ Claude Code support in this repo is a thin adapter over the same shared skill pa
 
 - When changing shared skill logic, validate against the existing fixed eval cases and rubrics.
 - For Claude-specific support changes, at minimum verify skill discovery, representative direct invocation, and reference-path resolution from `.claude/skills/`.
+
+## Install
+
+Add the repo marketplace, then install the packaged plugin:
+
+```bash
+claude plugin marketplace add NoahJenkins/vgc-coach --sparse .claude-plugin plugins
+claude plugin install vgc-coach-claude@vgc-coach
+```
+
+## Update
+
+Refresh the marketplace and installed plugin version:
+
+```bash
+claude plugin marketplace update vgc-coach
+claude plugin update vgc-coach-claude@vgc-coach
+```
+
+If Claude reports a new version was installed, run `/reload-plugins`.
+
+## Verify
+
+Test the packaged plugin directly from this repo during development:
+
+```bash
+claude --plugin-dir ./plugins/vgc-coach-claude -p "/vgc-coach-claude:vgc-team-builder Mega Blastoise"
+```
+
+That command should load the generated plugin package and invoke the packaged team-builder skill through Claude's plugin namespace.
