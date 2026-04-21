@@ -1,10 +1,6 @@
 :root {
   font-family: "Manrope", sans-serif;
   color: oklch(26% 0.025 38);
-  background:
-    radial-gradient(circle at top left, oklch(94% 0.055 88), transparent 30%),
-    radial-gradient(circle at 85% 10%, oklch(92% 0.08 35), transparent 24%),
-    linear-gradient(180deg, oklch(98% 0.015 70), oklch(96% 0.02 45));
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -448,7 +444,6 @@ pre {
   border-radius: var(--radius);
   background: color-mix(in oklch, white 72%, transparent);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(14px);
 }
 
 .spotlight-card {
@@ -549,6 +544,25 @@ pre {
   color: oklch(42% 0.08 38);
   font-weight: 700;
   font-size: 0.95rem;
+}
+
+.skill-slug {
+  font-family: "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  margin: 0 0 0.6rem;
+}
+
+.timeline-examples {
+  margin: 0.9rem 0 0;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: oklch(95% 0.025 55);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-style: italic;
+  line-height: 1.6;
+  white-space: pre-line;
 }
 
 .skill-card-core:nth-child(2n) {

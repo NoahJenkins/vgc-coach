@@ -94,13 +94,14 @@ function App() {
             <div className="hero-copy">
               <div className="eyebrow">Pokemon Champions coaching workspace</div>
               <h1>
-                A cleaner way to turn coding agents into serious VGC prep tools.
+                Smarter AI coaching for Pokemon VGC.
               </h1>
               <p className="hero-intro">
-                VGC Coach is an open-source skill-and-eval workspace for
+                VGC Coach is an open-source coaching workspace that gives
+                Codex, Claude Code, and OpenCode structured tools for
                 team-building, meta research, lead planning, replay review, and
-                disciplined coaching iteration across Codex, Claude Code, and
-                OpenCode.
+                consistent prep work — grounded in current format rules, not
+                guesses.
               </p>
               <div className="hero-actions">
                 <a className="button button-primary" href="#getting-started">
@@ -121,10 +122,10 @@ function App() {
               <div className="info-card spotlight-card">
                 <p className="card-label">Why it exists</p>
                 <p className="spotlight-copy">
-                  Most agent-generated VGC advice fails because it sounds sharp
-                  while drifting on legality, format truth, or practical in-game
-                  tradeoffs. This repo hardens shared coaching behavior against
-                  those failure modes.
+                  Most AI-generated VGC advice sounds sharp while quietly getting
+                  the legality, format rules, or in-game tradeoffs wrong. This
+                  workspace hardens the coaching behavior against those failure
+                  modes so the advice you get is actually trustworthy.
                 </p>
               </div>
               <div className="fact-grid">
@@ -141,34 +142,35 @@ function App() {
         <section className="section split-section" id="what-it-does">
           <div className="section-heading">
             <div className="eyebrow">What it does</div>
-            <h2>Not a ladder client. Not a content site. A reusable coaching layer.</h2>
+            <h2>Not a ladder client. Not a content site. A coaching layer for your AI tool.</h2>
           </div>
           <div className="split-copy">
             <p>
-              VGC Coach is built for people who want coding agents to produce
-              stronger Pokemon Champions prep: current-format research,
-              practical team-building help, matchup plans, replay feedback, and
-              repeatable evaluation.
+              VGC Coach gives your AI assistant structured, quality-controlled
+              coaching tools for real Pokemon Champions prep: current meta
+              research, team-building, matchup planning, replay feedback, and
+              practice tracking.
             </p>
             <p>
-              The canonical behavior lives in shared skill packages under
-              <code>skills/</code>. Runtime wrappers stay thin. Fixtures and
-              rubrics exist so changes can be judged against actual quality
-              rather than tone alone.
+              The coaching logic is shared across every supported AI tool, so
+              it stays consistent. Fixed test cases and scoring rubrics exist so
+              you can tell when a change actually made the coaching better —
+              not just whether it sounds better.
             </p>
           </div>
         </section>
 
         <section className="section" id="skills">
           <div className="section-heading compact">
-            <div className="eyebrow">Core MVP skills</div>
-            <h2>The first five surfaces that matter most.</h2>
+            <div className="eyebrow">Core coaching tools</div>
+            <h2>The five coaching tasks that matter most.</h2>
           </div>
           <div className="skill-grid">
             {coreSkills.map((skill) => (
               <article className="skill-card skill-card-core" key={skill.name}>
-                <p className="card-kicker">Core focus</p>
-                <h3>{skill.name}</h3>
+                <p className="card-kicker">Core tool</p>
+                <h3>{skill.displayName}</h3>
+                <p className="skill-slug">{skill.name}</p>
                 <p>{skill.summary}</p>
                 <span>{skill.emphasis}</span>
               </article>
@@ -178,8 +180,8 @@ function App() {
 
         <section className="section runtimes-layout" id="runtimes">
           <div className="section-heading">
-            <div className="eyebrow">Supported runtimes</div>
-            <h2>One shared skill tree, three ways to use it.</h2>
+            <div className="eyebrow">Supported AI tools</div>
+            <h2>One coaching engine, three AI tools to run it.</h2>
           </div>
           <div className="runtime-grid">
             {runtimes.map((runtime) => (
@@ -188,10 +190,10 @@ function App() {
                   <h3>{runtime.name}</h3>
                   <a
                     href={runtime.href}
-                    aria-label={`Open ${runtime.name} runtime notes on GitHub`}
+                    aria-label={`Open ${runtime.name} setup notes on GitHub`}
                     {...externalLinkProps}
                   >
-                    Runtime notes
+                    Setup notes
                   </a>
                 </div>
                 <p className="runtime-summary">{runtime.summary}</p>
@@ -204,7 +206,7 @@ function App() {
         <section className="section getting-started-layout" id="getting-started">
           <div className="section-heading compact">
             <div className="eyebrow">Getting started</div>
-            <h2>Use the repo directly in the runtime you already prefer.</h2>
+            <h2>Use it directly in the AI tool you already prefer.</h2>
           </div>
           <div className="timeline">
             {gettingStartedSteps.map((step, index) => (
@@ -213,7 +215,10 @@ function App() {
                 <div className="timeline-copy">
                   <h3>{step.title}</h3>
                   <p>{step.body}</p>
-                  <pre>{step.code}</pre>
+                  {step.code && step.isCode && <pre>{step.code}</pre>}
+                  {step.code && !step.isCode && (
+                    <p className="timeline-examples">{step.code}</p>
+                  )}
                 </div>
               </article>
             ))}
@@ -222,13 +227,14 @@ function App() {
 
         <section className="section support-layout">
           <div className="section-heading compact">
-            <div className="eyebrow">Support skills</div>
-            <h2>Helpers that make the core coaching surfaces more reliable.</h2>
+            <div className="eyebrow">Support tools</div>
+            <h2>Tools that keep the core coaching honest and accurate.</h2>
           </div>
           <div className="support-grid">
             {supportSkills.map((skill) => (
               <article className="support-card" key={skill.name}>
-                <h3>{skill.name}</h3>
+                <h3>{skill.displayName}</h3>
+                <p className="skill-slug">{skill.name}</p>
                 <p>{skill.summary}</p>
                 <span>{skill.emphasis}</span>
               </article>
@@ -239,7 +245,7 @@ function App() {
         <section className="section systems-layout" id="how-it-works">
           <div className="section-heading">
             <div className="eyebrow">How it works</div>
-            <h2>Shared packages, thin adapters, explicit validation.</h2>
+            <h2>One coaching engine, consistent across every tool.</h2>
           </div>
           <div className="systems-grid">
             <div className="systems-column">
@@ -252,20 +258,19 @@ function App() {
             </div>
             <aside className="systems-aside">
               <div className="info-card">
-                <p className="card-label">Current exact-calc boundary</p>
+                <p className="card-label">Damage and survival checks</p>
                 <p>
-                  <code>vgc-calcs-assistant</code> currently supports exact
-                  damage, KO, and survival checks through the local browser
-                  helper path. Speed guidance remains assumption-framed unless a
-                  verified exact backend exists.
+                  Damage, KO, and survival checks are exact. Speed comparisons
+                  are framed as benchmarks — not invented numbers — unless a
+                  verified exact source confirms them.
                 </p>
               </div>
               <div className="info-card">
-                <p className="card-label">Evaluation posture</p>
+                <p className="card-label">How quality is judged</p>
                 <p>
-                  A skill is not considered better just because it reads better.
-                  This repo keeps fixed evals and rubrics so output quality can
-                  be checked against concrete failure modes.
+                  Coaching that sounds better is not automatically better. Fixed
+                  test cases and scoring rubrics exist so every change can be
+                  checked against concrete failure modes, not just tone.
                 </p>
               </div>
             </aside>
@@ -290,7 +295,7 @@ function App() {
           <div className="cta-card">
             <div>
               <div className="eyebrow">Open source</div>
-              <h2>Use the workspace, inspect the skill contracts, and improve the layer.</h2>
+              <h2>Clone the repo, use the coaching tools, and help make them better.</h2>
             </div>
             <div className="cta-actions">
               <a
@@ -319,7 +324,7 @@ function App() {
           <p className="footer-title">VGC Coach</p>
           <p className="footer-copy">
             An open-source Pokemon Champions coaching workspace built around
-            shared skills, runtime adapters, and evaluation-backed quality.
+            shared coaching tools, quality-checked against real VGC scenarios.
           </p>
           <p className="footer-legal">
             Pokemon and related names are trademarks and copyright of Nintendo,
