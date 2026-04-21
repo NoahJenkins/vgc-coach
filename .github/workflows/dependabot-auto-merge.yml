@@ -1,0 +1,60 @@
+name: Dependabot Auto Merge
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable-auto-merge:
+    name: enable-auto-merge
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.base.ref == 'main' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check changed files stay under site/
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          mapfile -t changed_files < <(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json files --jq '.files[].path')
+          if [ "${#changed_files[@]}" -eq 0 ]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          for path in "${changed_files[@]}"; do
+            case "$path" in
+              site/*)
+                ;;
+              *)
+                echo "Skipping auto-merge because $path is outside site/"
+                echo "eligible=false" >> "$GITHUB_OUTPUT"
+                exit 0
+                ;;
+            esac
+          done
+
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch Dependabot metadata
+        if: steps.scope.outputs.eligible == 'true'
+        id: metadata
+        uses: dependabot/fetch-metadata@08eff52bf64351f401fb50d4972fa95b9f2c2d1b # v2.4.0
+        with:
+          github-token: ${{ github.token }}
+
+      - name: Enable auto-merge
+        if: steps.scope.outputs.eligible == 'true' && steps.metadata.outputs.package-ecosystem == 'npm'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash
