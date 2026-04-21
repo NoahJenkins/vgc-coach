@@ -8,7 +8,7 @@ OpenCode wrapper for the shared `vgc-source-verifier` contract.
 
 Read and follow these shared repo files directly:
 - `skills/vgc-source-verifier/SKILL.md`
-- `docs/skills/vgc-source-verifier/references/source-checklist.md`
+- `docs/skills/vgc-source-verifier/references/source-review-checklist.md`
 - `docs/skills/vgc-source-verifier/references/output-rubric.md`
 - `docs/skills/shared/references/champions-reg-m-a-legality.md`
 

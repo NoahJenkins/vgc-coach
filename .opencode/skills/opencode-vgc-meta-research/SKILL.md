@@ -8,7 +8,8 @@ OpenCode wrapper for the shared `vgc-meta-research` contract.
 
 Read and follow these shared repo files directly:
 - `skills/vgc-meta-research/SKILL.md`
-- `docs/skills/vgc-meta-research/references/research-checklist.md`
+- `docs/skills/vgc-meta-research/references/source-policy.md`
+- `docs/skills/vgc-meta-research/references/current-source-map.md`
 - `docs/skills/vgc-meta-research/references/output-rubric.md`
 - `docs/skills/shared/references/champions-reg-m-a-legality.md`
 

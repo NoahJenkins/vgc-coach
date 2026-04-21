@@ -17,9 +17,8 @@ This repo is built around canonical skill packages in `skills/`, thin runtime ad
 This repo does not have a root app package to install. The main requirements are:
 
 - `git` to clone the repository
-- a supported runtime such as Codex or Claude Code
+- a supported runtime such as Codex, Claude Code, or OpenCode
 - `python3` if you want to use the optional exact-calc helper at `tools/browser_damage_calc.py`
-- `node` and `npm` only if you want the secondary OpenCode adapter under `.opencode/`
 
 ### Install Core Dependencies
 
@@ -68,16 +67,6 @@ Runtime-specific setup and behavior live here:
 - [OpenCode runtime](./docs/runtime/opencode.md)
 
 ## Optional Setup
-
-### OpenCode Adapter
-
-If you want to use the secondary OpenCode adapter, install its local dependency bundle:
-
-```bash
-cd .opencode
-npm install
-cd ..
-```
 
 ### Exact Calc Helper
 
