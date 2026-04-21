@@ -113,21 +113,21 @@ export const runtimes: Runtime[] = [
     name: "Codex",
     summary: "Primary AI tool for this repo.",
     notes:
-      "Open the repo in Codex and the coaching tools are available immediately. No extra configuration needed.",
+      "Build and install the generated Codex plugin package with two commands, then restart Codex. The coaching tools are available immediately after.",
     href: `${blobUrl}/docs/runtime/codex.md`,
   },
   {
     name: "Claude Code",
     summary: "Full support via the same shared coaching logic.",
     notes:
-      "Open the repo in Claude Code and it picks up the same coaching tools and rules as Codex, without duplicating any logic.",
+      "Add the repo marketplace and install the packaged plugin with two commands. Restart Claude Code and the skills are ready — no repo clone needed.",
     href: `${blobUrl}/docs/runtime/claude-code.md`,
   },
   {
     name: "OpenCode",
     summary: "Secondary support with its own setup notes.",
     notes:
-      "OpenCode has its own configuration layer but still pulls from the same shared coaching logic. See the setup notes for details.",
+      "Add the git-install plugin to opencode.json — OpenCode handles the download and wiring automatically on next restart.",
     href: `${blobUrl}/docs/runtime/opencode.md`,
   },
 ];
@@ -141,19 +141,19 @@ export const principles = [
 
 export const gettingStartedSteps = [
   {
-    title: "Clone the workspace",
-    body: "Pull the repo locally and open it in a supported AI tool.",
-    code: "git clone https://github.com/NoahJenkins/vgc-coach.git\ncd vgc-coach",
-    isCode: true,
-  },
-  {
-    title: "Open it in your preferred AI tool",
-    body: "Codex, Claude Code, and OpenCode each pick up the coaching tools automatically when you open the repo. No extra setup is needed.",
+    title: "Install as a plugin",
+    body: "The default path is a plugin install — no full repo clone needed. Each supported AI tool has a short install. See the README for per-tool steps.",
     code: null,
     isCode: false,
   },
   {
-    title: "Start with a real coaching task",
+    title: "Restart your AI tool",
+    body: "Plugin installs take effect after a restart. Codex, Claude Code, and OpenCode each pick up the coaching tools automatically on the next launch.",
+    code: null,
+    isCode: false,
+  },
+  {
+    title: "Ask a real coaching question",
     body: "The fastest way to understand what it can do is to ask a real question.",
     code: "\"Build me a Pokemon Champions team around Mega Blastoise.\"\n\"Plan my leads into common rain teams.\"",
     isCode: false,
