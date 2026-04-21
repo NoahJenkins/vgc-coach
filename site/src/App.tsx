@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   coreSkills,
   footerLinks,
@@ -13,83 +14,120 @@ import {
 
 function App() {
   const currentYear = new Date().getFullYear();
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const externalLinkProps = {
+    target: "_blank",
+    rel: "noreferrer",
+  } as const;
+  const closeMobileNav = () => {
+    setIsMobileNavOpen(false);
+  };
 
   return (
-      <div className="page-shell">
+    <>
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
+      <div className="page-shell" id="top">
         <div className="background-texture" aria-hidden="true" />
         <header className="site-header">
           <a className="brand" href="#top">
-            <span className="brand-mark">VGC</span>
-          <span className="brand-copy">
-            <strong>Coach</strong>
+            <span className="brand-mark" aria-hidden="true">
+              VGC
+            </span>
+            <span className="brand-copy">
+              <strong>Coach</strong>
               <span>Open-source skill workspace</span>
             </span>
           </a>
-          <div className="site-nav-shell">
-            <nav className="site-nav" aria-label="Primary">
+          <div
+            className="site-nav-shell"
+            data-open={isMobileNavOpen ? "true" : "false"}
+          >
+            <nav className="site-nav" aria-label="Primary" id="primary-navigation">
               {navLinks.map((link) => (
-                <a key={link.href} href={link.href}>
+                <a key={link.href} href={link.href} onClick={closeMobileNav}>
                   {link.label}
                 </a>
               ))}
             </nav>
           </div>
-          <a
-            className="button button-ghost header-repo-link"
-            href="https://github.com/NoahJenkins/vgc-coach"
-          >
-            View Repo
-          </a>
+          <div className="header-actions">
+            <a
+              className="button button-ghost header-repo-link"
+              href="https://github.com/NoahJenkins/vgc-coach"
+              aria-label="View the VGC Coach repository on GitHub"
+              {...externalLinkProps}
+            >
+              View Repo
+            </a>
+            <button
+              className="button button-ghost header-menu-toggle"
+              type="button"
+              aria-controls="primary-navigation"
+              aria-expanded={isMobileNavOpen}
+              onClick={() => {
+                setIsMobileNavOpen((current) => !current);
+              }}
+            >
+              <span className="header-menu-toggle-icon" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </span>
+              <span>{isMobileNavOpen ? "Close" : "Menu"}</span>
+            </button>
+          </div>
         </header>
 
-      <main id="top">
-        <section className="hero section">
-          <div className="hero-copy">
-            <div className="eyebrow">Pokemon Champions coaching workspace</div>
-            <h1>
-              A cleaner way to turn coding agents into serious VGC prep tools.
-            </h1>
-            <p className="hero-intro">
-              VGC Coach is an open-source skill-and-eval workspace for
-              team-building, meta research, lead planning, replay review, and
-              disciplined coaching iteration across Codex, Claude Code, and
-              OpenCode.
-            </p>
-            <div className="hero-actions">
-              <a className="button button-primary" href="#getting-started">
-                Start Using It
-              </a>
-              <a className="button button-secondary" href="#skills">
-                Explore Skills
-              </a>
-            </div>
-            <ul className="hero-bullets">
-              {heroBullets.map((bullet) => (
-                <li key={bullet}>{bullet}</li>
-              ))}
-            </ul>
-          </div>
-
-          <aside className="hero-aside">
-            <div className="info-card spotlight-card">
-              <p className="card-label">Why it exists</p>
-              <p className="spotlight-copy">
-                Most agent-generated VGC advice fails because it sounds sharp
-                while drifting on legality, format truth, or practical in-game
-                tradeoffs. This repo hardens shared coaching behavior against
-                those failure modes.
+        <main id="main-content">
+          <section className="hero section">
+            <div className="hero-copy">
+              <div className="eyebrow">Pokemon Champions coaching workspace</div>
+              <h1>
+                A cleaner way to turn coding agents into serious VGC prep tools.
+              </h1>
+              <p className="hero-intro">
+                VGC Coach is an open-source skill-and-eval workspace for
+                team-building, meta research, lead planning, replay review, and
+                disciplined coaching iteration across Codex, Claude Code, and
+                OpenCode.
               </p>
+              <div className="hero-actions">
+                <a className="button button-primary" href="#getting-started">
+                  Start Using It
+                </a>
+                <a className="button button-secondary" href="#skills">
+                  Explore Skills
+                </a>
+              </div>
+              <ul className="hero-bullets">
+                {heroBullets.map((bullet) => (
+                  <li key={bullet}>{bullet}</li>
+                ))}
+              </ul>
             </div>
-            <div className="fact-grid">
-              {quickFacts.map((fact) => (
-                <div className="fact-card" key={fact.label}>
-                  <strong>{fact.value}</strong>
-                  <span>{fact.label}</span>
-                </div>
-              ))}
-            </div>
-          </aside>
-        </section>
+
+            <aside className="hero-aside">
+              <div className="info-card spotlight-card">
+                <p className="card-label">Why it exists</p>
+                <p className="spotlight-copy">
+                  Most agent-generated VGC advice fails because it sounds sharp
+                  while drifting on legality, format truth, or practical in-game
+                  tradeoffs. This repo hardens shared coaching behavior against
+                  those failure modes.
+                </p>
+              </div>
+              <div className="fact-grid">
+                {quickFacts.map((fact) => (
+                  <div className="fact-card" key={fact.label}>
+                    <strong>{fact.value}</strong>
+                    <span>{fact.label}</span>
+                  </div>
+                ))}
+              </div>
+            </aside>
+          </section>
 
         <section className="section split-section" id="what-it-does">
           <div className="section-heading">
@@ -139,7 +177,13 @@ function App() {
               <article className="runtime-card" key={runtime.name}>
                 <div className="runtime-topline">
                   <h3>{runtime.name}</h3>
-                  <a href={runtime.href}>Runtime notes</a>
+                  <a
+                    href={runtime.href}
+                    aria-label={`Open ${runtime.name} runtime notes on GitHub`}
+                    {...externalLinkProps}
+                  >
+                    Runtime notes
+                  </a>
                 </div>
                 <p className="runtime-summary">{runtime.summary}</p>
                 <p>{runtime.notes}</p>
@@ -243,12 +287,16 @@ function App() {
               <a
                 className="button button-primary"
                 href="https://github.com/NoahJenkins/vgc-coach"
+                aria-label="Open the VGC Coach GitHub repository"
+                {...externalLinkProps}
               >
                 Open on GitHub
               </a>
               <a
                 className="button button-secondary"
                 href="https://github.com/NoahJenkins/vgc-coach/blob/main/CONTRIBUTING.md"
+                aria-label="Open the VGC Coach contribution guide on GitHub"
+                {...externalLinkProps}
               >
                 Contribution guide
               </a>
@@ -265,19 +313,20 @@ function App() {
             shared skills, runtime adapters, and evaluation-backed quality.
           </p>
           <p className="footer-legal">
-            Pokémon and All Respective Names are Trademark &amp; © of Nintendo
-            1996-{currentYear}
+            Pokemon and related names are trademarks and copyright of Nintendo,
+            1996-{currentYear}.
           </p>
         </div>
-        <div className="footer-links">
+        <nav className="footer-links" aria-label="Footer">
           {footerLinks.map((link) => (
-            <a key={link.label} href={link.href}>
+            <a key={link.label} href={link.href} {...externalLinkProps}>
               {link.label}
             </a>
           ))}
-        </div>
+        </nav>
       </footer>
-    </div>
+      </div>
+    </>
   );
 }
 
