@@ -21,6 +21,7 @@
   --accent-2: oklch(60% 0.09 115);
   --shadow: 0 28px 70px oklch(40% 0.03 35 / 0.13);
   --radius: 1.6rem;
+  --display-font: "Sora", "Manrope", sans-serif;
 }
 
 * {
@@ -118,9 +119,10 @@ pre {
 }
 
 .brand-copy strong {
-  font-family: "Fraunces", serif;
+  font-family: var(--display-font);
   font-size: 1.1rem;
   font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 .brand-copy span:last-child {
@@ -156,9 +158,9 @@ pre {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.9fr);
   gap: clamp(1.4rem, 4vw, 3rem);
-  align-items: end;
-  min-height: calc(100vh - 7rem);
-  padding-top: clamp(2rem, 5vw, 4rem);
+  align-items: center;
+  min-height: clamp(36rem, 78vh, 46rem);
+  padding-top: clamp(0.75rem, 2vw, 1.75rem);
 }
 
 .eyebrow,
@@ -185,12 +187,13 @@ pre {
 .hero h1,
 .section-heading h2,
 .cta-card h2 {
-  font-family: "Fraunces", serif;
+  font-family: var(--display-font);
   font-size: clamp(3.25rem, 7vw, 7rem);
-  line-height: 0.94;
-  letter-spacing: -0.04em;
+  line-height: 0.92;
+  letter-spacing: -0.065em;
   margin: 0.6rem 0 1rem;
   max-width: 11ch;
+  font-weight: 800;
 }
 
 .section-heading h2,
@@ -324,8 +327,9 @@ pre {
 }
 
 .fact-card strong {
-  font-family: "Fraunces", serif;
+  font-family: var(--display-font);
   font-size: clamp(1.8rem, 3vw, 2.7rem);
+  letter-spacing: -0.05em;
 }
 
 .fact-card span {
@@ -521,8 +525,10 @@ pre {
 }
 
 .footer-title {
-  font-family: "Fraunces", serif;
+  font-family: var(--display-font);
   font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
   margin: 0 0 0.35rem;
 }
 
@@ -619,18 +625,55 @@ pre {
   }
 
   .site-header {
-    grid-template-columns: 1fr;
-    justify-items: start;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.85rem 0.75rem;
+    align-items: start;
   }
 
-  .site-nav,
+  .site-nav {
+    grid-column: 1 / -1;
+    justify-content: start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.2rem;
+    white-space: nowrap;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .site-nav::-webkit-scrollbar {
+    display: none;
+  }
+
   .footer-links {
     justify-content: start;
   }
 
+  .site-nav a {
+    flex: 0 0 auto;
+  }
+
+  .button-ghost {
+    min-height: 2.95rem;
+    padding-inline: 1rem;
+    justify-self: end;
+  }
+
+  .brand {
+    align-items: start;
+  }
+
+  .brand-copy strong {
+    font-size: 1rem;
+  }
+
+  .brand-copy span:last-child {
+    font-size: 0.82rem;
+  }
+
   .hero {
     min-height: auto;
-    padding-top: 1rem;
+    padding-top: 0.4rem;
   }
 
   .hero h1,
