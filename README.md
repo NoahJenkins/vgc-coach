@@ -1,35 +1,33 @@
 # VGC Coach
 
-VGC Coach is an open-source VGC coaching skill-and-eval workspace for Pokemon Champions.
+VGC Coach is an open-source AI coaching assistant for Pokemon VGC (Video Game Championships).
 
-In plain terms: this repo lets you use coding agents such as Codex, Claude Code, or OpenCode as VGC coaching assistants for team building, meta research, lead planning, replay review, and related prep work.
+It gives you a set of coaching tools — called *skills* — that run inside AI assistants like Codex, Claude Code, or OpenCode. Ask them in plain English to help with team building, meta research, lead planning, replay review, and other prep work.
 
-This is not a standalone web app or ladder client. It is a project-scoped skill workspace built around shared skill packages in `skills/`, thin runtime adapters, fixed eval cases, and quality rubrics.
+This is not a standalone app or ladder client. You clone this repo, open it in a supported AI tool, and use natural-language prompts to get coaching help. Developers and contributors can find architecture notes in [How The Repo Works](#how-the-repo-works).
 
 ## Open Source Status
 
 - License: [Apache-2.0](./LICENSE)
-- Contributions: [focused PRs welcome](./CONTRIBUTING.md)
-- Security reporting: [see SECURITY.md](./SECURITY.md)
-- Shared skill logic lives in `skills/`
-- Runtime-specific behavior stays in `docs/runtime/`
+- Contributions: [CONTRIBUTING.md](./CONTRIBUTING.md)
+- Security reporting: [SECURITY.md](./SECURITY.md)
 
 ## Use This Repo
 
-The simplest way to use these skills is to clone this repository and open it in a supported coding agent. This repo is designed as a project-scoped skill workspace, not as a packaged npm or Python distribution.
+The simplest way to use these skills is to clone this repository and open it in a supported AI tool. There is nothing to install or configure beyond cloning — just open it and start asking questions.
 
 ```bash
 git clone https://github.com/NoahJenkins/vgc-coach.git
 cd vgc-coach
 ```
 
-After cloning, open the repo in a supported runtime:
+After cloning, open the repo in a supported AI tool:
 
-- Codex discovers the repo-local skill wrappers from `.agents/skills/`
-- Claude Code discovers the project skill wrappers from `.claude/skills/`
-- OpenCode has secondary support through `opencode.json`, `.opencode/skills/`, and `.opencode/commands/`
+- **Codex** — skills load automatically from `.agents/skills/`
+- **Claude Code** — skills load automatically from `.claude/skills/`
+- **OpenCode** — supported via `opencode.json` and `.opencode/skills/`
 
-Then use natural-language requests or direct skill invocation for jobs like:
+Then ask the AI tool in plain English:
 
 - "Build me a Pokemon Champions team around Mega Blastoise."
 - "Audit this team for bad matchups and weak slots."
@@ -37,7 +35,7 @@ Then use natural-language requests or direct skill invocation for jobs like:
 - "Review this replay and tell me what mistakes actually mattered."
 - "Give me a current meta snapshot before I build."
 
-Runtime-specific setup and behavior live here:
+Setup notes and AI-tool-specific details:
 
 - [Codex runtime](./docs/runtime/codex.md)
 - [Claude Code runtime](./docs/runtime/claude-code.md)
@@ -45,20 +43,20 @@ Runtime-specific setup and behavior live here:
 
 ## Web Site Deployment
 
-The marketing/site frontend lives in `site/` and is deployed from that directory on Vercel.
+The project website lives in `site/` and is deployed on Vercel from that directory.
 
-- Canonical production host: Vercel
-- Vercel project Root Directory: `site`
-- Repo-managed Vercel config: [`site/vercel.json`](./site/vercel.json)
+- Production host: Vercel
+- Vercel Root Directory: `site`
+- Vercel config: [`site/vercel.json`](./site/vercel.json)
 
-For Vercel imports, point the project at this repository and set the Root Directory to `site` so the build runs against the Vite app instead of the repo root.
+When importing to Vercel, set the Root Directory to `site` so the build runs against the Vite app.
 
 ## Prerequisites
 
 This repo does not have a root app package to install. The main requirements are:
 
 - `git` to clone the repository
-- a supported runtime such as Codex, Claude Code, or OpenCode
+- a supported AI tool such as Codex, Claude Code, or OpenCode
 - `python3` if you want to use the optional exact-calc helper at `tools/browser_damage_calc.py`
 
 ### Install Core Dependencies
@@ -90,21 +88,23 @@ For other Linux distributions, install the equivalent packages from your distro'
 
 ### Exact Calc Helper
 
-`vgc-calcs-assistant` can use `python3 tools/browser_damage_calc.py` for exact damage, KO, and survival checks. That path also depends on a local `agent-browser` install, which is not vendored by this repo.
+`vgc-calcs-assistant` can use `python3 tools/browser_damage_calc.py` for exact damage, KO, and survival checks. This requires a local `agent-browser` install (not included in this repo).
 
 ## How The Repo Works
 
-- `skills/` is the only canonical editable source for shared coaching skill behavior.
-- `.agents/skills/`, `.claude/skills/`, and `.opencode/skills/` are discovery layers that point back to the shared skill packages.
-- `docs/skills/` contains references and examples that support the shared skills.
-- `data/fixtures/evals/` and `data/rubrics/` are the acceptance surface for judging whether a skill actually improved.
-- `docs/runtime/` documents runtime-specific behavior without forking the underlying coaching logic.
+> **For contributors and developers** — this section covers internal architecture. VGC players can skip to [Skill Catalog](#skill-catalog).
 
-If you want to adapt these skills for your own agent setup, use the shared packages in `skills/` as the source of truth and keep any runtime-specific wrappers thin.
+- `skills/` is the source of truth for all coaching logic. This is what you edit.
+- `.agents/skills/`, `.claude/skills/`, and `.opencode/skills/` are thin wrappers that point AI tools to the shared packages in `skills/`.
+- `docs/skills/` contains examples and references that support the shared skills.
+- `data/fixtures/evals/` and `data/rubrics/` are how skill quality is judged — test cases and scoring rubrics that changes must pass.
+- `docs/runtime/` documents AI-tool-specific behavior without duplicating the underlying skill logic.
 
-## Core Focus
+To adapt these skills for your own setup, use `skills/` as the source of truth and keep any AI-tool-specific wrappers minimal.
 
-The current MVP stays centered on five coaching skills:
+## Core Coaching Tools
+
+The current focus is five core coaching skills:
 
 1. `vgc-meta-research`
 2. `vgc-team-builder`
@@ -134,51 +134,55 @@ Support skills reinforce that core layer:
 
 - `vgc-format-verifier`: verify legality, regulation, and current-format truth before coaching
 - `vgc-source-verifier`: audit whether a meta, matchup, or rules claim is actually sourced cleanly
-- `vgc-calcs-assistant`: damage, survival, speed, and benchmark framing; v1 exact support is limited to damage, KO, and survival, while speed checks remain assumption-framed
+- `vgc-calcs-assistant`: damage, survival, speed, and benchmark framing; exact damage/KO/survival calculations are supported today; speed comparisons are stated as assumptions unless verified manually
 - `vgc-opponent-scout`: turn public info into likely shells, techs, and prep notes
 - `vgc-practice-journal`: compress testing notes into next-session changes and follow-up questions
 
-## Stable Today
+## What's Included Today
 
 The repo already includes:
 
-- canonical shared skill packages under `skills/`
-- Codex discovery wrappers under `.agents/skills/`
-- Claude Code discovery wrappers under `.claude/skills/`
-- OpenCode adapter support under `opencode.json`, `.opencode/skills/`, and `.opencode/commands/`
-- runtime docs under `docs/runtime/`
-- examples and references under `docs/skills/`
-- fixed eval cases under `data/fixtures/evals/`
-- scoring rubrics under `data/rubrics/`
-- versioned meta snapshot artifacts under `data/snapshots/`
-- repo-local helper tooling under `tools/`
-- exact-browser calc support for `vgc-calcs-assistant` through `python3 tools/browser_damage_calc.py`, currently limited to damage, KO, and survival
+- Shared coaching skill packages under `skills/`
+- Codex support under `.agents/skills/`
+- Claude Code support under `.claude/skills/`
+- OpenCode support under `opencode.json`, `.opencode/skills/`, and `.opencode/commands/`
+- AI-tool-specific usage notes under `docs/runtime/`
+- Skill examples and references under `docs/skills/`
+- Eval test cases under `data/fixtures/evals/`
+- Scoring rubrics under `data/rubrics/`
+- Meta snapshot history under `data/snapshots/`
+- Helper tools under `tools/`
+- Exact damage/KO/survival calc support for `vgc-calcs-assistant` via `python3 tools/browser_damage_calc.py`
 
-## Not Built Yet
+## Planned Work
 
-These are still future-work layers, not shipped capabilities:
+These are still in progress, not yet available:
 
-- repo-local eval runner tooling
-- replay ingestion utilities
-- battle-state schema work
-- broader exact-browser calc support beyond the current v1 path
+- Local eval runner tooling
+- Replay ingestion utilities
+- Battle-state data schema
+- Broader exact calc support beyond damage, KO, and survival
 
 ## Principles
 
 - Verify current meta, rules, and legality before presenting them as current.
-- Prefer official rules sources over community sources.
-- Keep shared coaching logic runtime-neutral where possible.
-- Keep runtime wrappers thin and avoid runtime-specific rewrites of the same skill logic.
-- Judge skill changes against fixtures and rubrics, not just nicer wording.
+- Prefer official rules sources; use community sources only for trends and archetype interpretation.
+- Keep shared coaching logic AI-tool-neutral where possible.
+- Avoid duplicating skill logic into AI-tool-specific copies.
+- Judge skill changes against test cases and rubrics, not just cleaner wording.
 
 ## Where To Start
 
-- [Codex runtime](./docs/runtime/codex.md), [Claude Code runtime](./docs/runtime/claude-code.md), and [OpenCode runtime](./docs/runtime/opencode.md): runtime-specific usage notes
-- [Skill Catalog](#skill-catalog): the quickest overview of what VGC Coach can help with today
+**For VGC players:**
+- [Skill Catalog](#skill-catalog): overview of what VGC Coach can help with today
+- [Use This Repo](#use-this-repo): how to clone and start asking questions
+
+**For developers and contributors:**
+- [Codex runtime](./docs/runtime/codex.md), [Claude Code runtime](./docs/runtime/claude-code.md), [OpenCode runtime](./docs/runtime/opencode.md): AI-tool-specific usage notes
 - [AGENTS.md](./AGENTS.md): repo rules and project constraints
 - [CONTRIBUTING.md](./CONTRIBUTING.md): contribution scope and validation expectations
 - [SECURITY.md](./SECURITY.md): responsible disclosure guidance
-- [data/snapshots/README.md](./data/snapshots/README.md): versioned meta snapshot artifact format
+- [data/snapshots/README.md](./data/snapshots/README.md): meta snapshot artifact format
 
 ## Repo Layout
 
