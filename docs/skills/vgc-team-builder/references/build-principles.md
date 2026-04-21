@@ -25,6 +25,21 @@ Before finalizing the draft, answer:
 
 - Build one primary team, not a menu of branches.
 - If you mention optional swaps, keep them for the final refinement section only.
+- Use `current-field recommendation` only when the minimum live source stack succeeds:
+  - one official regulation source
+  - one tournament-focused community source
+  - one broader usage/community source
+- If that stack is incomplete, call the build an `inference-heavy early read`.
+
+## Supporting Species Legality
+
+Before listing the team, state whether the five non-requested/supporting species were:
+
+- officially verified for the active regulation
+- partially verified
+- or still unverified
+
+This note should appear before the team list so the user sees the confidence boundary before the recommendation.
 
 ## Requested Mon Handling
 
@@ -44,6 +59,8 @@ Each final build should provide lightweight set direction for every slot:
 If the current regulation does not have `Terastallization` active, do not include Tera recommendations.
 
 If an item is not currently verified as legal, do not treat it as confirmed legal.
+
+If move legality is not currently verified in-repo, do not give an exact locked four-move set as if it were confirmed. Use provisional move direction instead.
 
 Do not turn this into a full export unless the user asks for one.
 
