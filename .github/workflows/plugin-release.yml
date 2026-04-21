@@ -1,0 +1,60 @@
+name: Plugin Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Verify release branch
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF_NAME" != "main" ]; then
+            echo "Release workflow must run from main. Current ref: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
+      - name: Run packaging checks
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests.test_browser_damage_calc tests.test_build_plugins
+          python3 tools/build_plugins.py build
+          python3 tools/build_plugins.py update-release-notes
+          python3 tools/build_plugins.py check
+
+      - name: Commit generated release artifacts
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet; then
+            git add VERSION RELEASE_NOTES.md package.json .agents/plugins/marketplace.json .claude-plugin/marketplace.json plugins
+            git commit -m "release: refresh generated plugin artifacts"
+            git push origin HEAD:main
+          fi
+
+      - name: Create tag and GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="$(cat VERSION)"
+          TAG="v${VERSION}"
+          git fetch --tags
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists" >&2
+            exit 1
+          fi
+          git tag "$TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" --title "$TAG" --notes "$(python3 tools/build_plugins.py print-release-notes)"
