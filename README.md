@@ -11,6 +11,40 @@ This repo is built around canonical skill packages in `skills/`, thin runtime ad
 - Shared skill logic lives in `skills/`
 - Runtime-specific behavior stays in `docs/runtime/`
 
+## Prerequisites
+
+This repo does not have a root app package to install. The main requirements are:
+
+- `git` to clone the repository
+- a supported runtime such as Codex or Claude Code
+- `python3` if you want to use the optional exact-calc helper at `tools/browser_damage_calc.py`
+- `node` and `npm` only if you want the secondary OpenCode adapter under `.opencode/`
+
+### Install Core Dependencies
+
+#### macOS (Homebrew)
+
+```bash
+brew install git python node
+```
+
+#### Windows (PowerShell with `winget`)
+
+```powershell
+winget install --id Git.Git -e
+winget install --id Python.Python.3.12 -e
+winget install --id OpenJS.NodeJS.LTS -e
+```
+
+#### Linux (Debian/Ubuntu)
+
+```bash
+sudo apt update
+sudo apt install -y git python3 python3-venv python3-pip nodejs npm
+```
+
+For other Linux distributions, install the equivalent packages from your distro's package manager.
+
 ## Use This Repo
 
 The simplest way to use these skills is to clone this repository and open it in a supported coding agent. This repo is currently designed as a project-scoped skill workspace, not as a packaged npm or Python distribution.
@@ -31,6 +65,22 @@ Runtime-specific setup and behavior live here:
 - [Codex runtime](./docs/runtime/codex.md)
 - [Claude Code runtime](./docs/runtime/claude-code.md)
 - [OpenCode runtime](./docs/runtime/opencode.md)
+
+## Optional Setup
+
+### OpenCode Adapter
+
+If you want to use the secondary OpenCode adapter, install its local dependency bundle:
+
+```bash
+cd .opencode
+npm install
+cd ..
+```
+
+### Exact Calc Helper
+
+`vgc-calcs-assistant` can use `python3 tools/browser_damage_calc.py` for exact damage, KO, and survival checks. That path also depends on a local `agent-browser` install, which is not vendored by this repo.
 
 ## How The Repo Works
 
