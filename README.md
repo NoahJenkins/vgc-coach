@@ -2,7 +2,9 @@
 
 VGC Coach is an open-source VGC coaching skill-and-eval workspace for Pokemon Champions.
 
-This repo is built around canonical skill packages in `skills/`, thin runtime adapters, fixed eval cases, and quality rubrics. It is meant to improve reusable coaching behavior first, not to start with a finished end-user app.
+In plain terms: this repo lets you use coding agents such as Codex, Claude Code, or OpenCode as VGC coaching assistants for team building, meta research, lead planning, replay review, and related prep work.
+
+This is not a standalone web app or ladder client. It is a project-scoped skill workspace built around shared skill packages in `skills/`, thin runtime adapters, fixed eval cases, and quality rubrics.
 
 ## Open Source Status
 
@@ -11,6 +13,35 @@ This repo is built around canonical skill packages in `skills/`, thin runtime ad
 - Security reporting: [see SECURITY.md](./SECURITY.md)
 - Shared skill logic lives in `skills/`
 - Runtime-specific behavior stays in `docs/runtime/`
+
+## Use This Repo
+
+The simplest way to use these skills is to clone this repository and open it in a supported coding agent. This repo is designed as a project-scoped skill workspace, not as a packaged npm or Python distribution.
+
+```bash
+git clone https://github.com/NoahJenkins/vgc-coach.git
+cd vgc-coach
+```
+
+After cloning, open the repo in a supported runtime:
+
+- Codex discovers the repo-local skill wrappers from `.agents/skills/`
+- Claude Code discovers the project skill wrappers from `.claude/skills/`
+- OpenCode has secondary support through `opencode.json`, `.opencode/skills/`, and `.opencode/commands/`
+
+Then use natural-language requests or direct skill invocation for jobs like:
+
+- "Build me a Pokemon Champions team around Mega Blastoise."
+- "Audit this team for bad matchups and weak slots."
+- "Plan my leads into common rain and Trick Room teams."
+- "Review this replay and tell me what mistakes actually mattered."
+- "Give me a current meta snapshot before I build."
+
+Runtime-specific setup and behavior live here:
+
+- [Codex runtime](./docs/runtime/codex.md)
+- [Claude Code runtime](./docs/runtime/claude-code.md)
+- [OpenCode runtime](./docs/runtime/opencode.md)
 
 ## Prerequisites
 
@@ -44,27 +75,6 @@ sudo apt install -y git python3 python3-venv python3-pip nodejs npm
 ```
 
 For other Linux distributions, install the equivalent packages from your distro's package manager.
-
-## Use This Repo
-
-The simplest way to use these skills is to clone this repository and open it in a supported coding agent. This repo is currently designed as a project-scoped skill workspace, not as a packaged npm or Python distribution.
-
-```bash
-git clone https://github.com/NoahJenkins/vgc-coach.git
-cd vgc-coach
-```
-
-After cloning:
-
-- Codex discovers the repo-local skill wrappers from `.agents/skills/`
-- Claude Code discovers the project skill wrappers from `.claude/skills/`
-- OpenCode has secondary support through `opencode.json`, `.opencode/skills/`, and `.opencode/commands/`
-
-Runtime-specific setup and behavior live here:
-
-- [Codex runtime](./docs/runtime/codex.md)
-- [Claude Code runtime](./docs/runtime/claude-code.md)
-- [OpenCode runtime](./docs/runtime/opencode.md)
 
 ## Optional Setup
 
@@ -153,10 +163,11 @@ These are still future-work layers, not shipped capabilities:
 
 ## Where To Start
 
+- [Codex runtime](./docs/runtime/codex.md), [Claude Code runtime](./docs/runtime/claude-code.md), and [OpenCode runtime](./docs/runtime/opencode.md): runtime-specific usage notes
+- [Skill Catalog](#skill-catalog): the quickest overview of what VGC Coach can help with today
 - [AGENTS.md](./AGENTS.md): repo rules and project constraints
 - [CONTRIBUTING.md](./CONTRIBUTING.md): contribution scope and validation expectations
 - [SECURITY.md](./SECURITY.md): responsible disclosure guidance
-- [Codex runtime](./docs/runtime/codex.md), [Claude Code runtime](./docs/runtime/claude-code.md), and [OpenCode runtime](./docs/runtime/opencode.md): runtime-specific usage notes
 - [data/snapshots/README.md](./data/snapshots/README.md): versioned meta snapshot artifact format
 
 ## Repo Layout
