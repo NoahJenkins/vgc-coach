@@ -1,0 +1,63 @@
+name: Bug report
+description: Report a reproducible repo, skill, tooling, or documentation issue.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for reproducible problems in the shared skills, runtime adapters, helper tooling, or docs.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What is broken?
+      placeholder: The repo-local Codex wrapper fails to resolve a shared skill reference...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Shared skill package
+        - Codex adapter
+        - Claude Code adapter
+        - OpenCode adapter
+        - Eval fixture or rubric
+        - Helper tooling
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Include exact steps, prompts, commands, or inputs.
+      placeholder: |
+        1. Open the repo in Codex
+        2. Invoke the skill with ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or evidence
+      description: Paste relevant output, screenshots, or file references.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Validation
+      options:
+        - label: I confirmed this issue is not already covered by existing docs or open issues.
+          required: true
+        - label: I removed secrets or private data from the report.
+          required: true

@@ -1,0 +1,53 @@
+name: Feature request
+description: Propose a focused improvement to the shared coaching workspace.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep requests scoped to the repo's purpose: reusable coaching skill quality, evals, and thin runtime adapters.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or gap
+      description: What user or maintainer problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the smallest useful improvement.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Shared skill package
+        - Codex adapter
+        - Claude Code adapter
+        - OpenCode adapter
+        - Eval fixture or rubric
+        - Helper tooling
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation idea
+      description: How should we know the change actually improved the repo?
+      placeholder: Add or update a fixture, rubric, smoke test, or runtime check.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope checks
+      options:
+        - label: This request does not ask for runtime-specific forks of shared skill logic unless a real runtime limitation requires it.
+          required: true
+        - label: This request is consistent with the repo staying a skill-and-eval workspace first.
+          required: true

@@ -8,6 +8,7 @@ This repo is built around canonical skill packages in `skills/`, thin runtime ad
 
 - License: [Apache-2.0](./LICENSE)
 - Contributions: [focused PRs welcome](./CONTRIBUTING.md)
+- Security reporting: [see SECURITY.md](./SECURITY.md)
 - Shared skill logic lives in `skills/`
 - Runtime-specific behavior stays in `docs/runtime/`
 
@@ -164,9 +165,10 @@ These are still future-work layers, not shipped capabilities:
 ## Where To Start
 
 - [AGENTS.md](./AGENTS.md): repo rules and project constraints
-- [STATE.md](./STATE.md): current workstream and progress snapshot
-- [Design Spec](./docs/superpowers/specs/2026-04-18-vgc-coach-design.md): product direction and architecture intent
-- [MVP Plan](./docs/superpowers/plans/2026-04-18-vgc-coach-mvp.md): early implementation roadmap
+- [CONTRIBUTING.md](./CONTRIBUTING.md): contribution scope and validation expectations
+- [SECURITY.md](./SECURITY.md): responsible disclosure guidance
+- [Codex runtime](./docs/runtime/codex.md), [Claude Code runtime](./docs/runtime/claude-code.md), and [OpenCode runtime](./docs/runtime/opencode.md): runtime-specific usage notes
+- [data/snapshots/README.md](./data/snapshots/README.md): versioned meta snapshot artifact format
 
 ## Repo Layout
 
@@ -178,7 +180,7 @@ vgc-coach/
 ├── CONTRIBUTING.md
 ├── LICENSE
 ├── README.md
-├── STATE.md
+├── SECURITY.md
 ├── .agents/
 │   └── skills/
 ├── .claude/
@@ -196,8 +198,7 @@ vgc-coach/
 ├── docs/
 │   ├── evals/
 │   ├── runtime/
-│   ├── skills/
-│   └── superpowers/
+│   └── skills/
 ├── tools/
 └── skills/
 ```

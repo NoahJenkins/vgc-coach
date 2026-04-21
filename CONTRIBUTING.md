@@ -4,6 +4,13 @@ VGC Coach is open source under [Apache-2.0](./LICENSE). Focused contributions ar
 
 This repo is a shared coaching skill workspace first. The main goal is to improve reusable skill quality without forking the same coaching logic across runtimes.
 
+## Before You Open An Issue
+
+- use the issue templates under `.github/ISSUE_TEMPLATE/`
+- keep reports focused on one bug, gap, or proposal
+- do not post secrets or sensitive data in public issues
+- read [SECURITY.md](./SECURITY.md) before reporting a vulnerability
+
 ## Good Contribution Scope
 
 Prefer small, reviewable changes such as:

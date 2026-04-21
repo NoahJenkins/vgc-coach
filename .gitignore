@@ -1,8 +1,9 @@
 .DS_Store
 node_modules/
+.opencode/node_modules/
 .venv/
 dist/
 build/
 coverage/
 *.log
-skills/*/.plugin-eval/
+**/.plugin-eval/
