@@ -50,6 +50,15 @@ function App() {
                   {link.label}
                 </a>
               ))}
+              <a
+                className="site-nav-link-external"
+                href="https://github.com/NoahJenkins/vgc-coach"
+                aria-label="View the VGC Coach repository on GitHub"
+                onClick={closeMobileNav}
+                {...externalLinkProps}
+              >
+                View Repo
+              </a>
             </nav>
           </div>
           <div className="header-actions">

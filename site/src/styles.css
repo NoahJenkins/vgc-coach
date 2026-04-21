@@ -225,6 +225,10 @@ pre {
   outline-offset: 3px;
 }
 
+.site-nav-link-external {
+  display: none !important;
+}
+
 .site-nav a:hover,
 .site-nav a:focus-visible,
 .footer-links a:hover,
@@ -786,7 +790,7 @@ pre {
 
   .site-header {
     top: 0.55rem;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 0.75rem;
     align-items: start;
     padding: 0.75rem;
@@ -799,16 +803,15 @@ pre {
   }
 
   .header-actions {
-    width: 100%;
-    justify-self: stretch;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    width: auto;
+    justify-self: end;
+    align-self: start;
+    display: flex;
     gap: 0.65rem;
   }
 
   .header-menu-toggle {
     display: inline-flex;
-    justify-self: end;
     min-width: 7rem;
   }
 
@@ -819,6 +822,7 @@ pre {
   .site-nav-shell {
     display: none;
     width: 100%;
+    grid-column: 1 / -1;
   }
 
   .site-nav-shell[data-open="true"] {
@@ -860,13 +864,12 @@ pre {
     background: color-mix(in oklch, white 60%, var(--accent-soft));
   }
 
+  .site-nav-link-external {
+    display: inline-flex !important;
+  }
+
   .header-repo-link {
-    min-height: 2.7rem;
-    padding-inline: 0.95rem;
-    font-size: 0.92rem;
-    background: color-mix(in oklch, white 52%, transparent);
-    justify-self: stretch;
-    width: 100%;
+    display: none;
   }
 
   .brand {
