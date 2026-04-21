@@ -12,6 +12,8 @@ import {
 } from "./siteContent";
 
 function App() {
+  const currentYear = new Date().getFullYear();
+
   return (
       <div className="page-shell">
         <div className="background-texture" aria-hidden="true" />
@@ -261,6 +263,10 @@ function App() {
           <p className="footer-copy">
             An open-source Pokemon Champions coaching workspace built around
             shared skills, runtime adapters, and evaluation-backed quality.
+          </p>
+          <p className="footer-legal">
+            Pokémon and All Respective Names are Trademark &amp; © of Nintendo
+            1996-{currentYear}
           </p>
         </div>
         <div className="footer-links">

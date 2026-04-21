@@ -559,6 +559,13 @@ pre {
   max-width: 52ch;
 }
 
+.footer-legal {
+  margin: 0.45rem 0 0;
+  max-width: 52ch;
+  font-size: 0.92rem;
+  color: color-mix(in oklch, var(--ink) 72%, white);
+}
+
 .footer-links {
   display: flex;
   flex-wrap: wrap;
