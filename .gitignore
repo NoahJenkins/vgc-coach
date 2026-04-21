@@ -6,4 +6,5 @@ dist/
 build/
 coverage/
 *.log
+*.tsbuildinfo
 **/.plugin-eval/
