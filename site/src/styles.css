@@ -645,6 +645,33 @@ pre {
   line-height: 1.5;
 }
 
+.install-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.1rem;
+}
+
+.install-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.install-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.install-card pre {
+  flex: 1;
+  margin-top: 0;
+  font-size: 0.775rem;
+}
+
 .support-grid {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
@@ -914,7 +941,8 @@ pre {
   .runtime-grid,
   .support-grid,
   .systems-column,
-  .principles-grid {
+  .principles-grid,
+  .install-grid {
     grid-template-columns: 1fr;
   }
 
@@ -927,7 +955,8 @@ pre {
     block-size: 2.6rem;
   }
 
-  .timeline-copy pre {
+  .timeline-copy pre,
+  .install-card pre {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }

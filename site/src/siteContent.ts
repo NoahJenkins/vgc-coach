@@ -5,6 +5,11 @@ export type Skill = {
   emphasis: string;
 };
 
+export type RuntimeInstall = {
+  name: string;
+  code: string;
+};
+
 export type Runtime = {
   name: string;
   summary: string;
@@ -139,19 +144,22 @@ export const principles = [
   "Judge coaching changes against test cases and scoring rubrics — not just whether the wording improved.",
 ];
 
+export const runtimeInstalls: RuntimeInstall[] = [
+  {
+    name: "Codex",
+    code: "git clone https://github.com/NoahJenkins/vgc-coach.git\ncd vgc-coach\npython3 tools/build_plugins.py build\npython3 tools/install_codex_plugin.py",
+  },
+  {
+    name: "Claude Code",
+    code: "claude plugin marketplace add NoahJenkins/vgc-coach \\\n  --sparse .claude-plugin plugins\nclaude plugin install vgc-coach-claude@vgc-coach",
+  },
+  {
+    name: "OpenCode",
+    code: '// opencode.json\n{\n  "plugin": [\n    "vgc-coach-opencode@git+https://github.com/NoahJenkins/vgc-coach.git"\n  ]\n}',
+  },
+];
+
 export const gettingStartedSteps = [
-  {
-    title: "Install as a plugin",
-    body: "The default path is a plugin install — no full repo clone needed. Each supported AI tool has a short install. See the README for per-tool steps.",
-    code: null,
-    isCode: false,
-  },
-  {
-    title: "Restart your AI tool",
-    body: "Plugin installs take effect after a restart. Codex, Claude Code, and OpenCode each pick up the coaching tools automatically on the next launch.",
-    code: null,
-    isCode: false,
-  },
   {
     title: "Ask a real coaching question",
     body: "The fastest way to understand what it can do is to ask a real question.",

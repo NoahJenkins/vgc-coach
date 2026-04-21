@@ -8,6 +8,7 @@ import {
   principles,
   quickFacts,
   repoLayers,
+  runtimeInstalls,
   runtimes,
   supportSkills,
 } from "./siteContent";
@@ -209,9 +210,24 @@ function App() {
             <h2>Use it directly in the AI tool you already prefer.</h2>
           </div>
           <div className="timeline">
+            <article className="timeline-card">
+              <div className="timeline-marker">01</div>
+              <div className="timeline-copy">
+                <h3>Install as a plugin</h3>
+                <p>Pick your AI tool and run the install. Restart after and the coaching tools are ready.</p>
+                <div className="install-grid">
+                  {runtimeInstalls.map((r) => (
+                    <div key={r.name} className="install-card">
+                      <p className="install-label">{r.name}</p>
+                      <pre>{r.code}</pre>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </article>
             {gettingStartedSteps.map((step, index) => (
               <article className="timeline-card" key={step.title}>
-                <div className="timeline-marker">0{index + 1}</div>
+                <div className="timeline-marker">0{index + 2}</div>
                 <div className="timeline-copy">
                   <h3>{step.title}</h3>
                   <p>{step.body}</p>
