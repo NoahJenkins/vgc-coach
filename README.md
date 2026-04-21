@@ -43,6 +43,16 @@ Runtime-specific setup and behavior live here:
 - [Claude Code runtime](./docs/runtime/claude-code.md)
 - [OpenCode runtime](./docs/runtime/opencode.md)
 
+## Web Site Deployment
+
+The marketing/site frontend lives in `site/` and is deployed from that directory on Vercel.
+
+- Canonical production host: Vercel
+- Vercel project Root Directory: `site`
+- Repo-managed Vercel config: [`site/vercel.json`](./site/vercel.json)
+
+For Vercel imports, point the project at this repository and set the Root Directory to `site` so the build runs against the Vite app instead of the repo root.
+
 ## Prerequisites
 
 This repo does not have a root app package to install. The main requirements are:
