@@ -40,6 +40,8 @@ If your change affects skill behavior, validate it against the relevant fixed ev
 
 - fixtures: `data/fixtures/evals/`
 - rubrics: `data/rubrics/`
+- standalone eval runner: `python3 tools/eval_skill.py --skill <skill-name> --provider github-token --model gpt-5.4`
+- nightly/autoresearch harness: `python3 tools/autoresearch.py --mode review --skill <skill-name> --provider github-token --model gpt-5.4`
 
 If your change affects runtime support, also verify the matching discovery layer and runtime docs:
 
@@ -51,7 +53,7 @@ If your change affects packaged installs or runtime metadata, also refresh and v
 
 - `python3 tools/build_plugins.py build`
 - `python3 tools/build_plugins.py check`
-- `python3 -m unittest tests.test_build_plugins`
+- `python3 -m unittest tests.test_autoresearch tests.test_build_plugins tests.test_browser_damage_calc`
 
 If your change touches exact-browser calc behavior, preserve the current limitation honestly: v1 exact support is only for damage, KO, and survival. Speed guidance is still assumption-framed unless a verified exact backend is added.
 

@@ -11,3 +11,4 @@ coverage/
 *.tsbuildinfo
 **/.plugin-eval/
 **/.vercel/
+.artifacts/

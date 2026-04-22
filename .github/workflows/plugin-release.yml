@@ -27,7 +27,7 @@ jobs:
       - name: Run packaging checks
         run: |
           set -euo pipefail
-          python3 -m unittest tests.test_browser_damage_calc tests.test_build_plugins
+          python3 -m unittest tests.test_autoresearch tests.test_browser_damage_calc tests.test_build_plugins
           python3 tools/build_plugins.py build
           python3 tools/build_plugins.py update-release-notes
           python3 tools/build_plugins.py check

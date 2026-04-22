@@ -196,13 +196,14 @@ The repo already includes:
 - Scoring rubrics under `data/rubrics/`
 - Meta snapshot history under `data/snapshots/`
 - Helper tools under `tools/`
+- Local eval and autoresearch tooling under `tools/eval_skill.py` and `tools/autoresearch.py`
 - Exact damage/KO/survival calc support for `vgc-calcs-assistant` via `python3 tools/browser_damage_calc.py`
 
 ## Planned Work
 
 These are still in progress, not yet available:
 
-- Local eval runner tooling
+- Broader eval coverage beyond the current fixed-case autoresearch loop
 - Replay ingestion utilities
 - Battle-state data schema
 - Broader exact calc support beyond damage, KO, and survival

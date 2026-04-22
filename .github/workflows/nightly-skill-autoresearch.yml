@@ -1,0 +1,220 @@
+name: Nightly Skill Autoresearch
+
+on:
+  schedule:
+    - cron: "17 06 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run mode"
+        required: true
+        default: review
+        type: choice
+        options:
+          - review
+          - improve
+      skill:
+        description: "Skill name or auto"
+        required: false
+        default: auto
+        type: string
+      provider:
+        description: "Copilot SDK auth/provider mode"
+        required: true
+        default: github-token
+        type: choice
+        options:
+          - github-token
+          - byok-openai
+      model:
+        description: "Optional model override"
+        required: false
+        default: "gpt-5.4"
+        type: string
+      open_pr:
+        description: "Open/update a draft PR when the candidate is accepted"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: nightly-skill-autoresearch
+  cancel-in-progress: false
+
+jobs:
+  autoresearch:
+    name: autoresearch
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ github.token }}
+      COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
+      OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+      AUTORESEARCH_MODE: ${{ github.event_name == 'schedule' && 'improve' || inputs.mode }}
+      AUTORESEARCH_SKILL: ${{ github.event_name == 'schedule' && 'auto' || inputs.skill }}
+      AUTORESEARCH_PROVIDER: ${{ github.event_name == 'schedule' && 'github-token' || inputs.provider }}
+      AUTORESEARCH_OPEN_PR: ${{ github.event_name == 'schedule' && 'true' || (inputs.open_pr && 'true' || 'false') }}
+      AUTORESEARCH_MODEL: ${{ github.event_name == 'schedule' && 'gpt-5.4' || inputs.model }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install autoresearch dependencies
+        run: |
+          set -euo pipefail
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r tools/requirements-autoresearch.txt
+
+      - name: Run validation first
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests.test_autoresearch tests.test_browser_damage_calc tests.test_build_plugins
+
+      - name: Run autoresearch harness
+        id: autoresearch
+        run: |
+          set -euo pipefail
+          cmd=(python3 tools/autoresearch.py --mode "$AUTORESEARCH_MODE" --provider "$AUTORESEARCH_PROVIDER" --report-dir ".artifacts/autoresearch")
+          cmd+=(--skill "${AUTORESEARCH_SKILL:-auto}")
+          if [ -n "${AUTORESEARCH_MODEL}" ]; then
+            cmd+=(--model "$AUTORESEARCH_MODEL")
+          fi
+          if [ "${AUTORESEARCH_OPEN_PR}" = "true" ]; then
+            cmd+=(--open-pr)
+          fi
+          "${cmd[@]}" | tee /tmp/autoresearch.out
+          RESULT_PATH="$(tail -n 1 /tmp/autoresearch.out)"
+          echo "result_path=$RESULT_PATH" >> "$GITHUB_OUTPUT"
+          python3 - "$RESULT_PATH" "$GITHUB_OUTPUT" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          result_path = Path(sys.argv[1])
+          output_path = Path(sys.argv[2])
+          result = json.loads(result_path.read_text())
+          changed_files_present = bool(result["changed_files"])
+          with output_path.open("a") as handle:
+              handle.write(f"skill={result['skill']}\n")
+              handle.write(f"run_date={result['run_date']}\n")
+              handle.write(f"report_dir={result['report_dir']}\n")
+              handle.write(f"decision={result['decision']}\n")
+              handle.write(f"pr_candidate={'true' if result['pr_candidate'] else 'false'}\n")
+              handle.write(
+                  f"changed_files_present={'true' if changed_files_present else 'false'}\n"
+              )
+          PY
+
+      - name: Rebuild and validate packaged outputs
+        if: steps.autoresearch.outputs.changed_files_present == 'true'
+        run: |
+          set -euo pipefail
+          python3 tools/build_plugins.py build
+          python3 tools/build_plugins.py update-release-notes
+          python3 tools/build_plugins.py check
+          python3 -m unittest tests.test_build_plugins
+
+      - name: Commit accepted candidate
+        if: steps.autoresearch.outputs.pr_candidate == 'true'
+        run: |
+          set -euo pipefail
+          BRANCH="nightly/autoresearch/${{ steps.autoresearch.outputs.run_date }}/${{ steps.autoresearch.outputs.skill }}"
+          git checkout -B "$BRANCH"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No staged changes after accepted candidate." >&2
+            exit 1
+          fi
+          git commit -m "nightly: improve ${{ steps.autoresearch.outputs.skill }} (${{ steps.autoresearch.outputs.run_date }})"
+          git push --force-with-lease origin HEAD:"$BRANCH"
+
+      - name: Open or update draft PR
+        if: steps.autoresearch.outputs.pr_candidate == 'true'
+        run: |
+          set -euo pipefail
+          BRANCH="nightly/autoresearch/${{ steps.autoresearch.outputs.run_date }}/${{ steps.autoresearch.outputs.skill }}"
+          RESULT_PATH="${{ steps.autoresearch.outputs.result_path }}"
+          BODY_FILE="$(mktemp)"
+          python3 - "$RESULT_PATH" "$BODY_FILE" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          result = json.loads(Path(sys.argv[1]).read_text())
+          body = "\n".join(
+              [
+                  "## Autoresearch Summary",
+                  "",
+                  f"- Skill: `{result['skill']}`",
+                  f"- Run date: `{result['run_date']}`",
+                  f"- Baseline score: `{result['baseline_score']}`",
+                  f"- Candidate score: `{result['candidate_score']}`",
+                  "",
+                  "### Changed Files",
+                  *[f"- `{path}`" for path in result["changed_files"]],
+                  "",
+                  "### Regressions",
+                  *([f"- {item}" for item in result["regressions"]] or ["- None"]),
+                  "",
+                  "### Baseline Summary",
+                  result["baseline_summary"],
+                  "",
+                  "### Candidate Summary",
+                  result["candidate_summary"] or "No candidate summary recorded.",
+                  "",
+                  "### Improvement Summary",
+                  result["improvement_summary"] or "No improvement summary recorded.",
+                  "",
+                  "### Sources Used",
+                  *([f"- {url}" for url in result["sources_used"]] or ["- None recorded"]),
+              ]
+          )
+          Path(sys.argv[2]).write_text(body + "\n")
+          PY
+          EXISTING_URL="$(gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url')"
+          if [ -n "$EXISTING_URL" ]; then
+            gh pr edit "$EXISTING_URL" \
+              --title "nightly: improve ${{ steps.autoresearch.outputs.skill }} (${{ steps.autoresearch.outputs.run_date }})" \
+              --body-file "$BODY_FILE"
+            PR_URL="$EXISTING_URL"
+          else
+            PR_URL="$(gh pr create \
+              --draft \
+              --base main \
+              --head "$BRANCH" \
+              --title "nightly: improve ${{ steps.autoresearch.outputs.skill }} (${{ steps.autoresearch.outputs.run_date }})" \
+              --body-file "$BODY_FILE")"
+          fi
+          python3 - "$RESULT_PATH" "$PR_URL" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          result_path = Path(sys.argv[1])
+          result = json.loads(result_path.read_text())
+          result["pr_url"] = sys.argv[2]
+          result_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+          PY
+
+      - name: Upload autoresearch artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: autoresearch-${{ steps.autoresearch.outputs.run_date || github.run_id }}-${{ steps.autoresearch.outputs.skill || 'unknown-skill' }}
+          path: ${{ steps.autoresearch.outputs.report_dir || '.artifacts/autoresearch' }}
