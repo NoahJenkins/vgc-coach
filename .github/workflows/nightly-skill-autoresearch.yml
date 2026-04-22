@@ -156,7 +156,7 @@ jobs:
           python3 -m unittest tests.test_build_plugins
 
       - name: Commit accepted candidate
-        if: steps.autoresearch.outputs.pr_candidate == 'true'
+        if: steps.autoresearch.outputs.pr_candidate == 'true' && env.AUTORESEARCH_OPEN_PR == 'true'
         run: |
           set -euo pipefail
           BRANCH="nightly/autoresearch/${{ steps.autoresearch.outputs.run_date }}/${{ steps.autoresearch.outputs.skill }}"
@@ -172,7 +172,7 @@ jobs:
           git push --force-with-lease origin HEAD:"$BRANCH"
 
       - name: Open or update draft PR
-        if: steps.autoresearch.outputs.pr_candidate == 'true'
+        if: steps.autoresearch.outputs.pr_candidate == 'true' && env.AUTORESEARCH_OPEN_PR == 'true'
         run: |
           set -euo pipefail
           BRANCH="nightly/autoresearch/${{ steps.autoresearch.outputs.run_date }}/${{ steps.autoresearch.outputs.skill }}"
