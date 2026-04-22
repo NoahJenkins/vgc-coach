@@ -126,25 +126,10 @@ pre {
   align-items: center;
   margin-bottom: clamp(0.9rem, 2vw, 1.6rem);
   padding: 0.8rem clamp(0.9rem, 1.6vw, 1.15rem);
-  border: 1px solid oklch(84% 0.035 58 / 0.9);
+  border: 1px solid oklch(82% 0.03 58 / 0.85);
   border-radius: calc(var(--radius) - 0.25rem);
-  background: color-mix(in oklch, white 76%, var(--bg));
-  box-shadow: 0 18px 36px oklch(40% 0.03 35 / 0.08);
-  backdrop-filter: blur(18px) saturate(135%);
-}
-
-.site-header::before {
-  content: "";
-  position: absolute;
-  inset: -1rem -0.85rem -1.2rem;
-  z-index: -1;
-  border-radius: calc(var(--radius) + 0.8rem);
-  background:
-    radial-gradient(circle at 50% 30%, oklch(100% 0 0 / 0.72), transparent 66%),
-    linear-gradient(180deg, oklch(99% 0.015 68 / 0.78), oklch(95% 0.03 58 / 0.48));
-  filter: blur(20px);
-  opacity: 0.95;
-  pointer-events: none;
+  background: color-mix(in oklch, white 92%, var(--bg));
+  box-shadow: 0 4px 16px oklch(40% 0.03 35 / 0.07);
 }
 
 .site-nav-shell {
@@ -172,8 +157,8 @@ pre {
   justify-content: center;
   inline-size: 3rem;
   block-size: 3rem;
-  border-radius: 0.95rem;
-  background: linear-gradient(145deg, oklch(63% 0.12 40), oklch(55% 0.11 20));
+  border-radius: 0.75rem;
+  background: oklch(58% 0.13 38);
   color: oklch(98% 0.01 70);
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -381,6 +366,11 @@ pre {
 
 .button-ghost {
   justify-self: end;
+}
+
+.header-repo-link {
+  border-color: color-mix(in oklch, var(--accent) 35%, var(--line));
+  font-weight: 700;
 }
 
 .header-menu-toggle {
