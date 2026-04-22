@@ -44,6 +44,8 @@ _PROGRESS_EVENT_TYPES = {
 @dataclass
 class SessionRecorder:
     tool_names: list[str] = field(default_factory=list)
+    attempted_urls: list[str] = field(default_factory=list)
+    approved_urls: list[str] = field(default_factory=list)
     source_urls: list[str] = field(default_factory=list)
     read_paths: list[str] = field(default_factory=list)
     write_paths: list[str] = field(default_factory=list)
@@ -89,7 +91,12 @@ class CopilotRuntimeDiagnostics:
 class CopilotRunResult:
     final_text: str
     tool_names: tuple[str, ...]
+    attempted_urls: tuple[str, ...]
+    approved_urls: tuple[str, ...]
     source_urls: tuple[str, ...]
+    read_paths: tuple[str, ...]
+    write_paths: tuple[str, ...]
+    shell_commands: tuple[str, ...]
     runtime_diagnostics: CopilotRuntimeDiagnostics
 
 
@@ -388,7 +395,12 @@ async def _run_session_once(
         return CopilotRunResult(
             final_text=final_text.strip(),
             tool_names=tuple(recorder.tool_names),
+            attempted_urls=tuple(sorted(set(recorder.attempted_urls))),
+            approved_urls=tuple(sorted(set(recorder.approved_urls))),
             source_urls=tuple(sorted(set(recorder.source_urls))),
+            read_paths=tuple(sorted(set(recorder.read_paths))),
+            write_paths=tuple(sorted(set(recorder.write_paths))),
+            shell_commands=tuple(dict.fromkeys(recorder.shell_commands)),
             runtime_diagnostics=tracker.build_diagnostics(),
         )
     finally:

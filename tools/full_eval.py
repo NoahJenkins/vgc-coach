@@ -7,7 +7,7 @@ from pathlib import Path
 
 from autoresearch.config import DEFAULT_REPORT_ROOT, RunProfile, SKILL_CONFIGS, get_skill_config, parse_run_date
 from autoresearch.reporting import current_timestamp, reset_report_dir, write_json, write_run_status, write_summary
-from autoresearch.results import FullEvalResult, FullEvalSkillReport
+from autoresearch.results import FullEvalResult, FullEvalSkillReport, aggregate_verification_state
 from autoresearch.standalone import run_standalone_eval
 
 
@@ -94,6 +94,16 @@ def _suite_summary(*, requested: tuple[str, ...], completed: tuple[str, ...], fa
     )
 
 
+def _aggregate_evidence_valid(skill_reports: list[FullEvalSkillReport]) -> bool | None:
+    if not skill_reports:
+        return None
+    if any(report.evidence_valid is False for report in skill_reports):
+        return False
+    if all(report.evidence_valid is True for report in skill_reports):
+        return True
+    return None
+
+
 async def run_full_eval_suite(
     *,
     skill_names: tuple[str, ...],
@@ -168,6 +178,10 @@ async def run_full_eval_suite(
         failed_skills=failed_skills,
         total_case_count=sum(report.case_count for report in skill_reports),
         skill_reports=tuple(skill_reports),
+        verification_state=aggregate_verification_state(
+            tuple(report.verification_state for report in skill_reports)
+        ),
+        evidence_valid=_aggregate_evidence_valid(skill_reports),
         errors=tuple(suite_errors),
     )
 
@@ -225,6 +239,8 @@ async def main() -> int:
             failed_skills=(),
             total_case_count=0,
             skill_reports=(),
+            verification_state=None,
+            evidence_valid=None,
             errors=(f"{type(exc).__name__}: {exc}",),
         )
         write_json(result_path, result.to_dict())

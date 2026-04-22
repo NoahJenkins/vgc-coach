@@ -8,17 +8,20 @@ import subprocess
 from datetime import date
 from pathlib import Path
 
-from autoresearch.config import DEFAULT_REPORT_ROOT, REPO_ROOT, RunProfile, choose_skill, parse_run_date
+from autoresearch.config import DEFAULT_REPORT_ROOT, REPO_ROOT, choose_skill, parse_run_date
 from autoresearch.context import diff_snapshots, load_skill_context, restore_snapshot, snapshot_paths
 from autoresearch.copilot_sdk import run_session
 from autoresearch.evals import evaluate_skill
 from autoresearch.policy import get_allowed_write_roots
 from autoresearch.results import (
     AutoresearchResult,
+    StandaloneEvalResult,
     baseline_is_clean,
     estimate_premium_requests,
     estimate_prompt_count,
+    score_scale_descriptor,
 )
+from autoresearch.standalone import run_standalone_eval
 
 
 def parse_args() -> argparse.Namespace:
@@ -92,30 +95,43 @@ async def main() -> int:
         case_limit=args.case_limit,
         session_timeout=args.session_timeout,
     )
-    baseline_result_path = report_dir / "baseline.json"
-    baseline_result_path.write_text(
-        json.dumps(baseline.to_dict(), indent=2, sort_keys=True) + "\n"
-    )
+    _write_skill_evaluation(report_dir / "baseline.json", baseline)
     (report_dir / "baseline-summary.md").write_text(baseline.summary + "\n")
 
     candidate = None
+    confirmation_result: StandaloneEvalResult | None = None
     improvement_summary = None
     changed_files: tuple[str, ...] = ()
     regressions: tuple[str, ...] = ()
-    sources_used = sorted({url for case in baseline.cases for url in case.source_urls})
+    sources_used = _collect_sources_from_evaluation(baseline)
     accepted_candidate = False
     pr_candidate = False
-    decision = "no_change"
+    decision = "review_only" if args.mode == "review" else "no_change"
+    decision_reason = "Review mode records the baseline only."
+    verification_state = baseline.verification_state
+    research_trace_summary = baseline.research_trace_summary
     skip_reason = None
+    full_eval_required = False
     errors: list[str] = []
     grading_errors: list[str] = list(baseline.grading_errors)
 
     if args.mode == "improve":
         if not baseline.evaluation_valid:
             errors.extend(baseline.grading_errors)
-            decision = "rejected"
+            decision = "invalid_baseline"
+            decision_reason = "Baseline grading output was invalid, so the run cannot trust its scoring signal."
         elif baseline_is_clean(baseline):
             skip_reason = "clean_baseline"
+            decision = "clean_skip"
+            decision_reason = (
+                "Baseline passed the sentinel checks and recorded enough research evidence, so the run skipped improvement."
+            )
+        elif not baseline.evidence_valid:
+            skip_reason = "inconclusive_baseline"
+            decision = "inconclusive"
+            decision_reason = (
+                "Baseline findings are inconclusive because the currentness-sensitive cases did not record enough live research evidence."
+            )
         else:
             initial_dirty = _write_scope_is_dirty(ctx, args.allow_eval_tightening, args.profile)
             if initial_dirty and not args.allow_dirty_write_scope:
@@ -124,9 +140,7 @@ async def main() -> int:
                     "only if you want autoresearch to work on top of existing edits."
                 )
 
-            before_snapshot = snapshot_paths(
-                _writable_roots(ctx, args.allow_eval_tightening, args.profile)
-            )
+            before_snapshot = snapshot_paths(_writable_roots(ctx, args.allow_eval_tightening, args.profile))
             improvement_result = await _run_improvement(
                 ctx=ctx,
                 report_dir=report_dir,
@@ -138,12 +152,10 @@ async def main() -> int:
                 session_timeout=args.session_timeout,
             )
             improvement_summary = improvement_result["text"].strip()
-            sources_used = sorted(set(sources_used) | set(improvement_result["source_urls"]))
+            sources_used = tuple(sorted(set(sources_used) | set(improvement_result["source_urls"])))
             (report_dir / "improvement-summary.md").write_text(improvement_summary + "\n")
 
-            after_snapshot = snapshot_paths(
-                _writable_roots(ctx, args.allow_eval_tightening, args.profile)
-            )
+            after_snapshot = snapshot_paths(_writable_roots(ctx, args.allow_eval_tightening, args.profile))
             changed_files = diff_snapshots(before_snapshot, after_snapshot)
 
             if changed_files:
@@ -157,27 +169,95 @@ async def main() -> int:
                     case_limit=args.case_limit,
                     session_timeout=args.session_timeout,
                 )
-                (report_dir / "candidate.json").write_text(
-                    json.dumps(candidate.to_dict(), indent=2, sort_keys=True) + "\n"
-                )
+                _write_skill_evaluation(report_dir / "candidate.json", candidate)
                 (report_dir / "candidate-summary.md").write_text(candidate.summary + "\n")
                 grading_errors.extend(candidate.grading_errors)
+                sources_used = tuple(sorted(set(sources_used) | set(_collect_sources_from_evaluation(candidate))))
+                verification_state = candidate.verification_state
+                research_trace_summary = candidate.research_trace_summary
+
                 regressions = (
                     _compute_regressions(baseline, candidate)
                     if baseline.evaluation_valid and candidate.evaluation_valid
                     else ()
                 )
                 accepted_candidate = (
-                    baseline.evaluation_valid
-                    and candidate.evaluation_valid
+                    candidate.evaluation_valid
+                    and candidate.evidence_valid
                     and candidate.average_score > baseline.average_score
                     and not regressions
                     and not candidate.matched_fail_triggers
                 )
-                pr_candidate, decision = _determine_candidate_outcome(
-                    accepted_candidate=accepted_candidate,
-                    open_pr=args.open_pr,
-                )
+
+                if not candidate.evaluation_valid:
+                    decision = "invalid_candidate"
+                    decision_reason = "Candidate grading output was invalid, so the edit was rejected."
+                    accepted_candidate = False
+                elif not candidate.evidence_valid:
+                    decision = "inconclusive"
+                    decision_reason = (
+                        "Candidate output did not record enough live research evidence, so the improvement signal is not trustworthy."
+                    )
+                    accepted_candidate = False
+                elif regressions:
+                    decision = "rejected_regression"
+                    decision_reason = f"Candidate introduced regressions: {', '.join(regressions)}."
+                    accepted_candidate = False
+                elif candidate.average_score <= baseline.average_score:
+                    decision = "rejected_no_improvement"
+                    decision_reason = (
+                        "Candidate did not improve the baseline score after normalization, so the edit was rejected."
+                    )
+                    accepted_candidate = False
+                elif candidate.matched_fail_triggers:
+                    decision = "rejected_candidate_issues"
+                    decision_reason = (
+                        "Candidate still matched rubric fail triggers, so it is not eligible for automatic acceptance."
+                    )
+                    accepted_candidate = False
+
+                if accepted_candidate and args.profile == "daily_sentinel":
+                    full_eval_required = True
+                    confirmation_result = await run_standalone_eval(
+                        config=config,
+                        provider_name=args.provider,
+                        model=args.model,
+                        run_profile="manual",
+                        case_limit=None,
+                        session_timeout=args.session_timeout,
+                        report_dir=report_dir / "confirmation-full-eval",
+                    )
+                    sources_used = tuple(
+                        sorted(set(sources_used) | set(_collect_sources_from_standalone_result(confirmation_result)))
+                    )
+                    verification_state = confirmation_result.verification_state or verification_state
+                    research_trace_summary = confirmation_result.research_trace_summary or research_trace_summary
+                    if not _confirmation_passed(confirmation_result):
+                        accepted_candidate = False
+                        decision = (
+                            "inconclusive"
+                            if confirmation_result.verification_state == "inconclusive"
+                            else "confirmation_failed"
+                        )
+                        decision_reason = (
+                            "Sentinel candidate looked better, but the follow-up full-skill confirmation did not produce a clean, evidence-valid result."
+                        )
+                    else:
+                        pr_candidate, decision = _determine_candidate_outcome(
+                            accepted_candidate=True,
+                            open_pr=args.open_pr,
+                            confirmed=True,
+                        )
+                        decision_reason = (
+                            "Sentinel candidate improved the score and passed full-skill confirmation."
+                        )
+                elif accepted_candidate:
+                    pr_candidate, decision = _determine_candidate_outcome(
+                        accepted_candidate=True,
+                        open_pr=args.open_pr,
+                        confirmed=False,
+                    )
+                    decision_reason = "Candidate improved the baseline score without regressions."
 
                 if not accepted_candidate and not initial_dirty:
                     restore_snapshot(
@@ -186,12 +266,16 @@ async def main() -> int:
                     )
             else:
                 decision = "no_change"
+                decision_reason = "Improvement attempt did not produce any file changes."
 
     prompt_count = estimate_prompt_count(
         mode=args.mode,
         evaluated_case_count=len(baseline.cases),
         skipped_improvement=skip_reason == "clean_baseline",
         candidate_evaluated=candidate is not None,
+        confirmation_evaluated_case_count=0
+        if confirmation_result is None
+        else confirmation_result.case_count,
     )
 
     result = AutoresearchResult(
@@ -208,9 +292,16 @@ async def main() -> int:
         accepted_candidate=accepted_candidate,
         pr_candidate=pr_candidate,
         decision=decision,
+        decision_reason=decision_reason,
+        verification_state=verification_state,
+        research_trace_summary=research_trace_summary,
+        score_scale=score_scale_descriptor(),
+        full_eval_required=full_eval_required,
+        full_eval_status=None if confirmation_result is None else confirmation_result.status,
+        full_eval_report_dir=None if confirmation_result is None else confirmation_result.report_dir,
         changed_files=changed_files,
         regressions=regressions,
-        sources_used=tuple(sources_used),
+        sources_used=sources_used,
         evaluated_case_names=baseline.evaluated_case_names,
         skip_reason=skip_reason,
         estimated_prompt_count=prompt_count,
@@ -361,12 +452,44 @@ def _write_scope_is_dirty(ctx, allow_eval_tightening: bool, run_profile: str) ->
     return bool(result.stdout.strip())
 
 
-def _determine_candidate_outcome(*, accepted_candidate: bool, open_pr: bool) -> tuple[bool, str]:
+def _confirmation_passed(result: StandaloneEvalResult) -> bool:
+    if result.status != "succeeded":
+        return False
+    if result.evaluation_valid is not True or result.evidence_valid is not True:
+        return False
+    if result.verification_state != "verified":
+        return False
+    return all(
+        not case.checks_failed and not case.failure_categories and not case.matched_fail_triggers
+        for case in result.cases
+    )
+
+
+def _determine_candidate_outcome(
+    *,
+    accepted_candidate: bool,
+    open_pr: bool,
+    confirmed: bool,
+) -> tuple[bool, str]:
     if not accepted_candidate:
         return False, "rejected"
+    if confirmed:
+        return open_pr, "accepted_after_confirmation"
     if open_pr:
         return True, "pr_opened"
     return False, "accepted_no_pr"
+
+
+def _collect_sources_from_evaluation(evaluation) -> tuple[str, ...]:
+    return tuple(sorted({url for case in evaluation.cases for url in case.source_urls}))
+
+
+def _collect_sources_from_standalone_result(result: StandaloneEvalResult) -> tuple[str, ...]:
+    return tuple(sorted({url for case in result.cases for url in case.source_urls}))
+
+
+def _write_skill_evaluation(path: Path, evaluation) -> None:
+    path.write_text(json.dumps(evaluation.to_dict(), indent=2, sort_keys=True) + "\n")
 
 
 if __name__ == "__main__":

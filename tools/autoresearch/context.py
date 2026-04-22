@@ -18,6 +18,7 @@ class CaseFile:
     request: str
     checks: tuple[str, ...]
     failure_triggers: tuple[str, ...]
+    research_expectation: str
 
 
 @dataclass(frozen=True)
@@ -42,7 +43,13 @@ class SnapshotEntry:
 def load_skill_context(config: SkillConfig) -> SkillContext:
     skill_text = config.skill_file.read_text()
     rubric_text = config.rubric_file.read_text()
-    cases = tuple(load_case_file(path) for path in sorted(config.fixture_dir.glob("case-*.md")))
+    default_research_expectation = (
+        "repo_only" if config.live_research_policy == "off" else "live_required"
+    )
+    cases = tuple(
+        load_case_file(path, default_research_expectation=default_research_expectation)
+        for path in sorted(config.fixture_dir.glob("case-*.md"))
+    )
     shared_reference_files = tuple(sorted(_collect_shared_reference_files(config)))
     return SkillContext(
         config=config,
@@ -53,13 +60,16 @@ def load_skill_context(config: SkillConfig) -> SkillContext:
     )
 
 
-def load_case_file(path: Path) -> CaseFile:
+def load_case_file(path: Path, *, default_research_expectation: str = "live_required") -> CaseFile:
     raw_text = path.read_text()
     request = _extract_request(raw_text)
     if not request:
         raise ValueError(f"Fixture {path} has an empty Request block.")
     checks = tuple(_extract_bullets_after_label(raw_text, "Checks:"))
     failure_triggers = tuple(_extract_bullets_after_label(raw_text, "Failure triggers:"))
+    research_expectation = _extract_inline_value(raw_text, "Research expectation:")
+    if not research_expectation:
+        research_expectation = default_research_expectation
     return CaseFile(
         name=path.stem,
         path=path,
@@ -67,6 +77,7 @@ def load_case_file(path: Path) -> CaseFile:
         request=request,
         checks=checks,
         failure_triggers=failure_triggers,
+        research_expectation=research_expectation,
     )
 
 
@@ -199,3 +210,10 @@ def _extract_bullets_after_label(text: str, label: str) -> list[str]:
             break
 
     return bullets
+
+
+def _extract_inline_value(text: str, label: str) -> str:
+    for line in text.splitlines():
+        if line.startswith(label):
+            return line.partition(":")[2].strip()
+    return ""

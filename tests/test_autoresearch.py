@@ -44,7 +44,9 @@ from autoresearch.results import (  # noqa: E402
     CaseEvaluation,
     DimensionScore,
     FullEvalResult,
+    ResearchTrace,
     SkillEvaluation,
+    SCORE_DIMENSION_MAX,
     StandaloneEvalResult,
     baseline_is_clean,
     estimate_premium_requests,
@@ -75,6 +77,7 @@ def make_skill_evaluation(
     case_name: str = "case-01",
     score: int = 12,
     summary: str = "ok",
+    evidence_valid: bool = True,
 ) -> SkillEvaluation:
     case = CaseEvaluation(
         case_name=case_name,
@@ -91,6 +94,21 @@ def make_skill_evaluation(
         source_urls=(),
         response_path="response.md",
         evaluation_path="evaluation.json",
+        research_trace=ResearchTrace(
+            expectation="repo_only",
+            live_research_expected=False,
+            attempted_urls=(),
+            approved_urls=(),
+            successful_source_urls=(),
+            tool_names=(),
+            read_paths=("skills/vgc-team-builder/SKILL.md",),
+            shell_commands=(),
+            evidence_valid=evidence_valid,
+            verification_state="verified" if evidence_valid else "inconclusive",
+            summary="test trace",
+        ),
+        verification_state="verified" if evidence_valid else "inconclusive",
+        evidence_valid=evidence_valid,
     )
     return SkillEvaluation(
         skill=skill,
@@ -99,6 +117,9 @@ def make_skill_evaluation(
         failure_categories=(),
         matched_fail_triggers=(),
         summary=summary,
+        verification_state="verified" if evidence_valid else "inconclusive",
+        evidence_valid=evidence_valid,
+        research_trace_summary="test trace",
     )
 
 
@@ -250,6 +271,27 @@ class AutoresearchTests(unittest.TestCase):
         case = load_case_file(REPO_ROOT / "data" / "fixtures" / "evals" / "team-builder" / "case-04.md")
         self.assertIn("Mega Venusaur", case.request)
         self.assertIn("community sources might be missing or down", case.request)
+        self.assertEqual(case.research_expectation, "live_required")
+
+    def test_load_case_file_parses_research_expectation_override(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case-with-research.md"
+            path.write_text(
+                "\n".join(
+                    [
+                        "# Case",
+                        "",
+                        "Research expectation: repo_only",
+                        "",
+                        "Request: summarize this fixture",
+                        "",
+                        "Checks:",
+                        "- one",
+                    ]
+                )
+            )
+            case = load_case_file(path)
+            self.assertEqual(case.research_expectation, "repo_only")
 
     def test_real_multiline_meta_research_request_parses(self):
         case = load_case_file(REPO_ROOT / "data" / "fixtures" / "evals" / "meta-research" / "case-02.md")
@@ -613,7 +655,12 @@ class AutoresearchTests(unittest.TestCase):
         success = CopilotRunResult(
             final_text="ok",
             tool_names=(),
+            attempted_urls=(),
+            approved_urls=(),
             source_urls=(),
+            read_paths=(),
+            write_paths=(),
+            shell_commands=(),
             runtime_diagnostics=CopilotRuntimeDiagnostics(
                 last_event_type="session.idle",
                 recent_event_counts=(("session.idle", 1),),
@@ -726,6 +773,7 @@ class AutoresearchTests(unittest.TestCase):
                 "failure_categories": (),
                 "recommended_smallest_fix": "tighten item verification if possible",
                 "evaluation_valid": True,
+                "evidence_valid": True,
             },
         )()
         dirty_case = type(
@@ -738,6 +786,20 @@ class AutoresearchTests(unittest.TestCase):
                 "failure_categories": (),
                 "recommended_smallest_fix": "",
                 "evaluation_valid": True,
+                "evidence_valid": True,
+            },
+        )()
+        inconclusive_case = type(
+            "CaseStub",
+            (),
+            {
+                "case_name": "case-03",
+                "matched_fail_triggers": (),
+                "checks_failed": (),
+                "failure_categories": (),
+                "recommended_smallest_fix": "",
+                "evaluation_valid": True,
+                "evidence_valid": False,
             },
         )()
         self.assertTrue(
@@ -761,6 +823,21 @@ class AutoresearchTests(unittest.TestCase):
                     failure_categories=(),
                     matched_fail_triggers=(),
                     summary="dirty",
+                    evidence_valid=True,
+                )
+            )
+        )
+        self.assertFalse(
+            baseline_is_clean(
+                SkillEvaluation(
+                    skill="vgc-team-builder",
+                    average_score=60.0,
+                    cases=(inconclusive_case,),
+                    failure_categories=(),
+                    matched_fail_triggers=(),
+                    summary="inconclusive",
+                    verification_state="inconclusive",
+                    evidence_valid=False,
                 )
             )
         )
@@ -799,8 +876,9 @@ class AutoresearchTests(unittest.TestCase):
                 evaluated_case_count=1,
                 skipped_improvement=False,
                 candidate_evaluated=True,
+                confirmation_evaluated_case_count=3,
             ),
-            5,
+            11,
         )
         self.assertEqual(
             estimate_premium_requests(
@@ -870,6 +948,7 @@ class AutoresearchTests(unittest.TestCase):
         pr_candidate, decision = AUTORESEARCH_SCRIPT._determine_candidate_outcome(
             accepted_candidate=False,
             open_pr=False,
+            confirmed=False,
         )
         self.assertFalse(pr_candidate)
         self.assertEqual(decision, "rejected")
@@ -878,6 +957,7 @@ class AutoresearchTests(unittest.TestCase):
         pr_candidate, decision = AUTORESEARCH_SCRIPT._determine_candidate_outcome(
             accepted_candidate=True,
             open_pr=False,
+            confirmed=False,
         )
         self.assertFalse(pr_candidate)
         self.assertEqual(decision, "accepted_no_pr")
@@ -886,9 +966,19 @@ class AutoresearchTests(unittest.TestCase):
         pr_candidate, decision = AUTORESEARCH_SCRIPT._determine_candidate_outcome(
             accepted_candidate=True,
             open_pr=True,
+            confirmed=False,
         )
         self.assertTrue(pr_candidate)
         self.assertEqual(decision, "pr_opened")
+
+    def test_candidate_outcome_marks_confirmed_candidates_explicitly(self):
+        pr_candidate, decision = AUTORESEARCH_SCRIPT._determine_candidate_outcome(
+            accepted_candidate=True,
+            open_pr=False,
+            confirmed=True,
+        )
+        self.assertFalse(pr_candidate)
+        self.assertEqual(decision, "accepted_after_confirmation")
 
     def test_invalid_grading_payload_fails_closed(self):
         payload = _normalize_evaluation_payload(
@@ -913,9 +1003,10 @@ class AutoresearchTests(unittest.TestCase):
     def test_valid_dimension_only_payload_computes_total(self):
         payload = _normalize_evaluation_payload(
             {
+                "overall_score": 3,
                 "dimension_scores": [
-                    {"name": "one", "score": 20, "rationale": "x"},
-                    {"name": "two", "score": 23, "rationale": "y"},
+                    {"name": "one", "score": 1, "rationale": "x"},
+                    {"name": "two", "score": 2, "rationale": "y"},
                 ],
                 "checks_passed": [],
                 "checks_failed": [],
@@ -927,27 +1018,48 @@ class AutoresearchTests(unittest.TestCase):
             "case-04",
         )
         self.assertTrue(payload["evaluation_valid"])
-        self.assertEqual(payload["overall_score"], 43)
-        self.assertIsNone(payload["reported_overall_score"])
+        self.assertEqual(payload["overall_score"], 3)
+        self.assertEqual(payload["reported_overall_score"], 3)
 
-    def test_valid_fail_trigger_payload_caps_after_validation(self):
+    def test_out_of_range_dimension_score_fails_closed(self):
         payload = _normalize_evaluation_payload(
             {
                 "dimension_scores": [
-                    {"name": "one", "score": 20, "rationale": "x"},
-                    {"name": "two", "score": 23, "rationale": "y"},
+                    {"name": "one", "score": SCORE_DIMENSION_MAX + 1, "rationale": "x"},
                 ],
                 "checks_passed": [],
                 "checks_failed": [],
                 "failure_categories": [],
-                "matched_fail_triggers": ["one"],
+                "matched_fail_triggers": [],
                 "summary": "valid total",
                 "recommended_smallest_fix": "none",
             },
             "case-04",
         )
-        self.assertTrue(payload["evaluation_valid"])
-        self.assertEqual(payload["overall_score"], 40)
+        self.assertFalse(payload["evaluation_valid"])
+        self.assertEqual(payload["overall_score"], 0)
+        self.assertIn("outside the allowed scale", payload["grading_errors"][0])
+
+    def test_reported_overall_mismatch_fails_closed(self):
+        payload = _normalize_evaluation_payload(
+            {
+                "overall_score": 1,
+                "dimension_scores": [
+                    {"name": "one", "score": 1, "rationale": "x"},
+                    {"name": "two", "score": 1, "rationale": "y"},
+                ],
+                "checks_passed": [],
+                "checks_failed": [],
+                "failure_categories": [],
+                "matched_fail_triggers": [],
+                "summary": "bad total",
+                "recommended_smallest_fix": "none",
+            },
+            "case-04",
+        )
+        self.assertFalse(payload["evaluation_valid"])
+        self.assertEqual(payload["overall_score"], 0)
+        self.assertIn("does not match computed total", payload["grading_errors"][0])
 
     def test_normalizes_scalar_list_fields(self):
         payload = _normalize_evaluation_payload(
@@ -970,10 +1082,11 @@ class AutoresearchTests(unittest.TestCase):
         self.assertEqual(payload["failure_categories"], ["alpha"])
         self.assertEqual(payload["matched_fail_triggers"], ["trigger"])
 
-    def test_grading_prompt_no_longer_requests_overall_score(self):
+    def test_grading_prompt_requests_fixed_scale_and_total(self):
         source = (REPO_ROOT / "tools" / "autoresearch" / "evals.py").read_text()
         self.assertIn('"dimension_scores"', source)
-        self.assertNotIn('"overall_score": 0,', source)
+        self.assertIn('"overall_score": 0,', source)
+        self.assertIn("Use this fixed integer scoring scale", source)
 
 
 if __name__ == "__main__":

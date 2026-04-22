@@ -8,12 +8,42 @@ COPILOT_MODEL_MULTIPLIERS = {
     "gpt-5.4-mini": 0.33,
 }
 
+SCORE_DIMENSION_MIN = 0
+SCORE_DIMENSION_MAX = 2
+
+
+def score_scale_descriptor() -> dict[str, Any]:
+    return {
+        "per_dimension_min": SCORE_DIMENSION_MIN,
+        "per_dimension_max": SCORE_DIMENSION_MAX,
+        "allowed_values": list(range(SCORE_DIMENSION_MIN, SCORE_DIMENSION_MAX + 1)),
+        "overall_score": "sum(dimension_scores)",
+    }
+
 
 @dataclass(frozen=True)
 class DimensionScore:
     name: str
     score: int
     rationale: str
+
+
+@dataclass(frozen=True)
+class ResearchTrace:
+    expectation: str
+    live_research_expected: bool
+    attempted_urls: tuple[str, ...]
+    approved_urls: tuple[str, ...]
+    successful_source_urls: tuple[str, ...]
+    tool_names: tuple[str, ...]
+    read_paths: tuple[str, ...]
+    shell_commands: tuple[str, ...]
+    evidence_valid: bool
+    verification_state: str
+    summary: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass(frozen=True)
@@ -32,12 +62,16 @@ class CaseEvaluation:
     source_urls: tuple[str, ...]
     response_path: str
     evaluation_path: str
+    research_trace: ResearchTrace
+    verification_state: str
+    evidence_valid: bool
     evaluation_valid: bool = True
     grading_errors: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["dimension_scores"] = [asdict(score) for score in self.dimension_scores]
+        data["research_trace"] = self.research_trace.to_dict()
         return data
 
 
@@ -49,6 +83,9 @@ class SkillEvaluation:
     failure_categories: tuple[str, ...]
     matched_fail_triggers: tuple[str, ...]
     summary: str
+    verification_state: str = "verified"
+    evidence_valid: bool = True
+    research_trace_summary: str = ""
     evaluation_valid: bool = True
     grading_errors: tuple[str, ...] = ()
 
@@ -64,6 +101,9 @@ class SkillEvaluation:
             "failure_categories": list(self.failure_categories),
             "matched_fail_triggers": list(self.matched_fail_triggers),
             "summary": self.summary,
+            "verification_state": self.verification_state,
+            "evidence_valid": self.evidence_valid,
+            "research_trace_summary": self.research_trace_summary,
         }
 
 
@@ -84,6 +124,9 @@ class StandaloneEvalResult:
     evaluated_case_names: tuple[str, ...]
     failure_categories: tuple[str, ...]
     matched_fail_triggers: tuple[str, ...]
+    verification_state: str | None
+    evidence_valid: bool | None
+    research_trace_summary: str | None
     evaluation_valid: bool | None
     errors: tuple[str, ...]
     install_hint: str | None
@@ -117,6 +160,9 @@ class StandaloneEvalResult:
             evaluated_case_names=evaluation.evaluated_case_names,
             failure_categories=evaluation.failure_categories,
             matched_fail_triggers=evaluation.matched_fail_triggers,
+            verification_state=evaluation.verification_state,
+            evidence_valid=evaluation.evidence_valid,
+            research_trace_summary=evaluation.research_trace_summary,
             evaluation_valid=evaluation.evaluation_valid,
             errors=evaluation.grading_errors,
             install_hint=None,
@@ -154,6 +200,9 @@ class StandaloneEvalResult:
             evaluated_case_names=(),
             failure_categories=(),
             matched_fail_triggers=(),
+            verification_state=None,
+            evidence_valid=None,
+            research_trace_summary=None,
             evaluation_valid=None,
             errors=errors,
             install_hint=install_hint,
@@ -177,6 +226,9 @@ class StandaloneEvalResult:
             "evaluated_case_names": list(self.evaluated_case_names),
             "failure_categories": list(self.failure_categories),
             "matched_fail_triggers": list(self.matched_fail_triggers),
+            "verification_state": self.verification_state,
+            "evidence_valid": self.evidence_valid,
+            "research_trace_summary": self.research_trace_summary,
             "evaluation_valid": self.evaluation_valid,
             "errors": list(self.errors),
             "install_hint": self.install_hint,
@@ -199,6 +251,8 @@ class StandaloneEvalResult:
         if self.average_score is not None:
             lines.append(f"- Average score: `{self.average_score}`")
         lines.append(f"- Case count: `{self.case_count}`")
+        if self.verification_state is not None:
+            lines.append(f"- Verification: `{self.verification_state}`")
         if self.evaluated_case_names:
             lines.append(
                 f"- Evaluated cases: {', '.join(f'`{name}`' for name in self.evaluated_case_names)}"
@@ -211,6 +265,8 @@ class StandaloneEvalResult:
                 self.summary or "No summary recorded.",
             ]
         )
+        if self.research_trace_summary:
+            lines.extend(["", "## Research Trace", "", self.research_trace_summary])
         if self.errors:
             lines.extend(["", "## Errors", ""])
             lines.extend(f"- {error}" for error in self.errors)
@@ -230,6 +286,9 @@ class FullEvalSkillReport:
     average_score: float | None
     case_count: int
     evaluated_case_names: tuple[str, ...]
+    verification_state: str | None
+    evidence_valid: bool | None
+    research_trace_summary: str | None
     evaluation_valid: bool | None
     summary: str
     errors: tuple[str, ...]
@@ -253,6 +312,9 @@ class FullEvalSkillReport:
             average_score=result.average_score,
             case_count=result.case_count,
             evaluated_case_names=result.evaluated_case_names,
+            verification_state=result.verification_state,
+            evidence_valid=result.evidence_valid,
+            research_trace_summary=result.research_trace_summary,
             evaluation_valid=result.evaluation_valid,
             summary=result.summary,
             errors=result.errors,
@@ -269,6 +331,9 @@ class FullEvalSkillReport:
             "average_score": self.average_score,
             "case_count": self.case_count,
             "evaluated_case_names": list(self.evaluated_case_names),
+            "verification_state": self.verification_state,
+            "evidence_valid": self.evidence_valid,
+            "research_trace_summary": self.research_trace_summary,
             "evaluation_valid": self.evaluation_valid,
             "summary": self.summary,
             "errors": list(self.errors),
@@ -291,6 +356,8 @@ class FullEvalResult:
     failed_skills: tuple[str, ...]
     total_case_count: int
     skill_reports: tuple[FullEvalSkillReport, ...]
+    verification_state: str | None
+    evidence_valid: bool | None
     errors: tuple[str, ...]
 
     def to_dict(self) -> dict[str, Any]:
@@ -312,6 +379,8 @@ class FullEvalResult:
             "failed_skill_count": len(self.failed_skills),
             "total_case_count": self.total_case_count,
             "skill_reports": [report.to_dict() for report in self.skill_reports],
+            "verification_state": self.verification_state,
+            "evidence_valid": self.evidence_valid,
             "errors": list(self.errors),
         }
 
@@ -330,14 +399,22 @@ class FullEvalResult:
             f"- Completed skills: `{len(self.completed_skills)}`",
             f"- Failed skills: `{len(self.failed_skills)}`",
             f"- Total cases: `{self.total_case_count}`",
-            "",
-            "## Summary",
-            "",
-            self.summary or "No summary recorded.",
-            "",
-            "## Skill Results",
-            "",
         ]
+        if self.verification_state is not None:
+            lines.append(f"- Verification: `{self.verification_state}`")
+        if self.evidence_valid is not None:
+            lines.append(f"- Evidence valid: `{self.evidence_valid}`")
+        lines.extend(
+            [
+                "",
+                "## Summary",
+                "",
+                self.summary or "No summary recorded.",
+                "",
+                "## Skill Results",
+                "",
+            ]
+        )
         for report in self.skill_reports:
             score_text = "n/a" if report.average_score is None else str(report.average_score)
             lines.append(
@@ -365,6 +442,13 @@ class AutoresearchResult:
     accepted_candidate: bool
     pr_candidate: bool
     decision: str
+    decision_reason: str
+    verification_state: str
+    research_trace_summary: str
+    score_scale: dict[str, Any]
+    full_eval_required: bool
+    full_eval_status: str | None
+    full_eval_report_dir: str | None
     changed_files: tuple[str, ...]
     regressions: tuple[str, ...]
     sources_used: tuple[str, ...]
@@ -385,9 +469,21 @@ class AutoresearchResult:
         return asdict(self)
 
 
+def aggregate_verification_state(states: tuple[str | None, ...]) -> str | None:
+    concrete_states = [state for state in states if state is not None]
+    if not concrete_states:
+        return None
+    if "invalid_grading" in concrete_states:
+        return "invalid_grading"
+    if "inconclusive" in concrete_states:
+        return "inconclusive"
+    return "verified"
+
+
 def baseline_is_clean(evaluation: SkillEvaluation) -> bool:
     return all(
         case.evaluation_valid
+        and case.evidence_valid
         and not case.matched_fail_triggers
         and not case.checks_failed
         and not case.failure_categories
@@ -401,13 +497,16 @@ def estimate_prompt_count(
     evaluated_case_count: int,
     skipped_improvement: bool,
     candidate_evaluated: bool,
+    confirmation_evaluated_case_count: int = 0,
 ) -> int:
     baseline_prompts = 2 * evaluated_case_count
     if mode == "review" or skipped_improvement:
         return baseline_prompts
+    prompt_count = baseline_prompts + 1
     if candidate_evaluated:
-        return baseline_prompts * 2 + 1
-    return baseline_prompts + 1
+        prompt_count += baseline_prompts
+    prompt_count += 2 * confirmation_evaluated_case_count
+    return prompt_count
 
 
 def estimate_premium_requests(
