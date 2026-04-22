@@ -1,17 +1,32 @@
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import importlib.util
+import json
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
+from types import SimpleNamespace
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
 from autoresearch.config import choose_skill, get_skill_config  # noqa: E402
+from autoresearch.copilot_sdk import (  # noqa: E402
+    AUTORESEARCH_INSTALL_COMMAND,
+    CopilotRuntimeDiagnostics,
+    CopilotRunResult,
+    CopilotSessionRuntimeError,
+    SessionProgressTracker,
+    compute_hard_cap_timeout,
+    run_session,
+    validate_github_token_auth,
+    wait_for_session_completion,
+)
 from autoresearch.context import (  # noqa: E402
     diff_snapshots,
     extract_rubric_fail_triggers,
@@ -26,11 +41,16 @@ from autoresearch.policy import (  # noqa: E402
     is_path_allowed_for_write,
 )
 from autoresearch.results import (  # noqa: E402
+    CaseEvaluation,
+    DimensionScore,
+    FullEvalResult,
     SkillEvaluation,
+    StandaloneEvalResult,
     baseline_is_clean,
     estimate_premium_requests,
     estimate_prompt_count,
 )
+from autoresearch.standalone import run_standalone_eval  # noqa: E402
 
 AUTORESEARCH_SCRIPT_SPEC = importlib.util.spec_from_file_location(
     "autoresearch_cli_module",
@@ -39,6 +59,68 @@ AUTORESEARCH_SCRIPT_SPEC = importlib.util.spec_from_file_location(
 AUTORESEARCH_SCRIPT = importlib.util.module_from_spec(AUTORESEARCH_SCRIPT_SPEC)
 assert AUTORESEARCH_SCRIPT_SPEC.loader is not None
 AUTORESEARCH_SCRIPT_SPEC.loader.exec_module(AUTORESEARCH_SCRIPT)
+
+FULL_EVAL_SCRIPT_SPEC = importlib.util.spec_from_file_location(
+    "full_eval_cli_module",
+    REPO_ROOT / "tools" / "full_eval.py",
+)
+FULL_EVAL_SCRIPT = importlib.util.module_from_spec(FULL_EVAL_SCRIPT_SPEC)
+assert FULL_EVAL_SCRIPT_SPEC.loader is not None
+FULL_EVAL_SCRIPT_SPEC.loader.exec_module(FULL_EVAL_SCRIPT)
+
+
+def make_skill_evaluation(
+    *,
+    skill: str,
+    case_name: str = "case-01",
+    score: int = 12,
+    summary: str = "ok",
+) -> SkillEvaluation:
+    case = CaseEvaluation(
+        case_name=case_name,
+        case_path=f"data/fixtures/evals/{skill.removeprefix('vgc-')}/{case_name}.md",
+        request="request",
+        overall_score=score,
+        dimension_scores=(DimensionScore(name="accuracy", score=score, rationale="solid"),),
+        checks_passed=(),
+        checks_failed=(),
+        failure_categories=(),
+        matched_fail_triggers=(),
+        summary=summary,
+        recommended_smallest_fix="none",
+        source_urls=(),
+        response_path="response.md",
+        evaluation_path="evaluation.json",
+    )
+    return SkillEvaluation(
+        skill=skill,
+        average_score=float(score),
+        cases=(case,),
+        failure_categories=(),
+        matched_fail_triggers=(),
+        summary=summary,
+    )
+
+
+def make_event(type_name: str, *, content: str | None = None, message: str | None = None):
+    data = SimpleNamespace()
+    if content is not None:
+        data.content = content
+    if message is not None:
+        data.message = message
+    return SimpleNamespace(type=SimpleNamespace(value=type_name), data=data)
+
+
+class FakeSession:
+    def __init__(self, messages: list[object] | None = None) -> None:
+        self.messages = messages or []
+        self.abort_called = False
+
+    async def abort(self) -> None:
+        self.abort_called = True
+
+    async def get_messages(self) -> list[object]:
+        return list(self.messages)
 
 
 class AutoresearchTests(unittest.TestCase):
@@ -75,6 +157,20 @@ class AutoresearchTests(unittest.TestCase):
         ctx = load_skill_context(get_skill_config("vgc-team-builder"))
         selected = select_cases(ctx=ctx, run_profile="manual", case_limit=2)
         self.assertEqual(tuple(case.name for case in selected), ("case-01", "case-02"))
+
+    def test_full_eval_parse_skill_names_defaults_to_all_configured_skills(self):
+        self.assertEqual(
+            FULL_EVAL_SCRIPT._parse_skill_names(None),
+            tuple(FULL_EVAL_SCRIPT.SKILL_CONFIGS.keys()),
+        )
+
+    def test_full_eval_parse_skill_names_splits_and_dedupes(self):
+        self.assertEqual(
+            FULL_EVAL_SCRIPT._parse_skill_names(
+                ["vgc-team-builder,vgc-team-audit", "vgc-team-builder", "vgc-meta-research"]
+            ),
+            ("vgc-team-builder", "vgc-team-audit", "vgc-meta-research"),
+        )
 
     def test_rubric_fail_trigger_extraction_supports_both_formats(self):
         text = "\n".join(
@@ -186,6 +282,405 @@ class AutoresearchTests(unittest.TestCase):
                 self.assertEqual(file_path.read_text(), "before")
             finally:
                 context_module.REPO_ROOT = original_root
+
+    def test_standalone_eval_preflight_failure_writes_failed_artifacts(self):
+        config = get_skill_config("vgc-team-builder")
+        with tempfile.TemporaryDirectory() as tmp:
+            report_dir = Path(tmp) / "standalone"
+            with mock.patch(
+                "autoresearch.standalone.get_copilot_sdk_preflight_error",
+                return_value="Missing local autoresearch dependency.",
+            ):
+                result = asyncio.run(
+                    run_standalone_eval(
+                        config=config,
+                        provider_name="github-token",
+                        model="gpt-5.4-mini",
+                        run_profile="manual",
+                        case_limit=1,
+                        session_timeout=30.0,
+                        report_dir=report_dir,
+                    )
+                )
+
+            payload = json.loads((report_dir / "result.json").read_text())
+            status_payload = json.loads((report_dir / "run-status.json").read_text())
+            self.assertEqual(result.status, "failed")
+            self.assertEqual(payload["status"], "failed")
+            self.assertEqual(status_payload["status"], "failed")
+            self.assertEqual(payload["install_hint"], AUTORESEARCH_INSTALL_COMMAND)
+            self.assertIn("Missing local autoresearch dependency", payload["summary"])
+
+    def test_standalone_eval_rerun_clears_stale_artifacts(self):
+        config = get_skill_config("vgc-team-builder")
+        with tempfile.TemporaryDirectory() as tmp:
+            report_dir = Path(tmp) / "standalone"
+            with mock.patch(
+                "autoresearch.standalone.get_copilot_sdk_preflight_error",
+                return_value=None,
+            ), mock.patch(
+                "autoresearch.standalone.evaluate_skill",
+                new=mock.AsyncMock(
+                    side_effect=[
+                        make_skill_evaluation(
+                            skill="vgc-team-builder",
+                            case_name="case-01",
+                            score=10,
+                            summary="first",
+                        ),
+                        RuntimeError("boom"),
+                    ]
+                ),
+            ):
+                first = asyncio.run(
+                    run_standalone_eval(
+                        config=config,
+                        provider_name="github-token",
+                        model="gpt-5.4-mini",
+                        run_profile="manual",
+                        case_limit=1,
+                        session_timeout=30.0,
+                        report_dir=report_dir,
+                    )
+                )
+                self.assertEqual(first.status, "succeeded")
+                stale_dir = report_dir / "stale-case"
+                stale_dir.mkdir(parents=True)
+                (stale_dir / "leftover.txt").write_text("stale")
+
+                second = asyncio.run(
+                    run_standalone_eval(
+                        config=config,
+                        provider_name="github-token",
+                        model="gpt-5.4-mini",
+                        run_profile="manual",
+                        case_limit=1,
+                        session_timeout=30.0,
+                        report_dir=report_dir,
+                    )
+                )
+
+            payload = json.loads((report_dir / "result.json").read_text())
+            self.assertEqual(second.status, "failed")
+            self.assertEqual(payload["status"], "failed")
+            self.assertFalse(stale_dir.exists())
+            self.assertFalse((report_dir / "case-01").exists())
+
+    def test_standalone_eval_failure_writes_failed_run_status(self):
+        config = get_skill_config("vgc-team-builder")
+        with tempfile.TemporaryDirectory() as tmp:
+            report_dir = Path(tmp) / "standalone"
+            with mock.patch(
+                "autoresearch.standalone.get_copilot_sdk_preflight_error",
+                return_value=None,
+            ), mock.patch(
+                "autoresearch.standalone.evaluate_skill",
+                new=mock.AsyncMock(side_effect=RuntimeError("grader blew up")),
+            ):
+                result = asyncio.run(
+                    run_standalone_eval(
+                        config=config,
+                        provider_name="github-token",
+                        model="gpt-5.4-mini",
+                        run_profile="manual",
+                        case_limit=1,
+                        session_timeout=30.0,
+                        report_dir=report_dir,
+                    )
+                )
+
+            status_payload = json.loads((report_dir / "run-status.json").read_text())
+            self.assertEqual(result.status, "failed")
+            self.assertEqual(status_payload["status"], "failed")
+            self.assertIn("RuntimeError: grader blew up", status_payload["summary"])
+
+    def test_full_eval_aggregate_report_shape(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            report_dir = Path(tmp) / "full-eval"
+            success = StandaloneEvalResult.from_evaluation(
+                evaluation=make_skill_evaluation(
+                    skill="vgc-team-builder",
+                    case_name="case-01",
+                    score=10,
+                    summary="team builder ok",
+                ),
+                started_at="2026-04-22T00:00:00Z",
+                finished_at="2026-04-22T00:01:00Z",
+                report_dir=(report_dir / "skills" / "vgc-team-builder").as_posix(),
+                provider="github-token",
+                model="gpt-5.4-mini",
+                run_profile="manual",
+            )
+            failure = StandaloneEvalResult.failure(
+                skill="vgc-team-audit",
+                started_at="2026-04-22T00:00:00Z",
+                finished_at="2026-04-22T00:01:00Z",
+                report_dir=(report_dir / "skills" / "vgc-team-audit").as_posix(),
+                provider="github-token",
+                model="gpt-5.4-mini",
+                run_profile="manual",
+                errors=("RuntimeError: missing dependency",),
+            )
+            with mock.patch.object(
+                FULL_EVAL_SCRIPT,
+                "run_standalone_eval",
+                new=mock.AsyncMock(side_effect=[success, failure]),
+            ):
+                result = asyncio.run(
+                    FULL_EVAL_SCRIPT.run_full_eval_suite(
+                        skill_names=("vgc-team-builder", "vgc-team-audit"),
+                        provider_name="github-token",
+                        model="gpt-5.4-mini",
+                        run_profile="manual",
+                        case_limit=1,
+                        session_timeout=30.0,
+                        report_dir=report_dir,
+                    )
+                )
+
+            payload = json.loads((report_dir / "result.json").read_text())
+            status_payload = json.loads((report_dir / "run-status.json").read_text())
+            self.assertIsInstance(result, FullEvalResult)
+            self.assertEqual(payload["status"], "partial")
+            self.assertEqual(payload["requested_skill_count"], 2)
+            self.assertEqual(payload["completed_skill_count"], 1)
+            self.assertEqual(payload["failed_skill_count"], 1)
+            self.assertEqual(len(payload["skill_reports"]), 2)
+            self.assertEqual(status_payload["status"], "partial")
+            self.assertEqual(payload["failed_skills"], ["vgc-team-audit"])
+
+    def test_compute_hard_cap_timeout_uses_repo_default_formula(self):
+        self.assertEqual(compute_hard_cap_timeout(30.0), 150.0)
+        self.assertEqual(compute_hard_cap_timeout(180.0), 720.0)
+        self.assertEqual(compute_hard_cap_timeout(600.0), 1800.0)
+
+    def test_validate_github_token_auth_accepts_authenticated_client(self):
+        client = SimpleNamespace(
+            get_auth_status=mock.AsyncMock(
+                return_value=SimpleNamespace(
+                    isAuthenticated=True,
+                    statusMessage="NoahJenkins (via gh)",
+                )
+            )
+        )
+        asyncio.run(validate_github_token_auth(client))
+
+    def test_validate_github_token_auth_rejects_unauthenticated_client(self):
+        client = SimpleNamespace(
+            get_auth_status=mock.AsyncMock(
+                return_value=SimpleNamespace(
+                    isAuthenticated=False,
+                    statusMessage="Not authenticated",
+                )
+            )
+        )
+        with self.assertRaisesRegex(RuntimeError, "auth unavailable: Not authenticated"):
+            asyncio.run(validate_github_token_auth(client))
+
+    def test_wait_for_session_completion_succeeds_on_session_idle(self):
+        async def run() -> None:
+            tracker = SessionProgressTracker(loop=asyncio.get_running_loop())
+            session = FakeSession()
+
+            async def emit() -> None:
+                await asyncio.sleep(0.01)
+                tracker.on_event(make_event("assistant.message", content="OK"))
+                tracker.on_event(make_event("session.idle"))
+
+            task = asyncio.create_task(emit())
+            await wait_for_session_completion(
+                session=session,
+                tracker=tracker,
+                inactivity_timeout=0.2,
+                hard_cap_timeout=1.0,
+            )
+            await task
+            self.assertTrue(tracker.assistant_message_received)
+
+        asyncio.run(run())
+
+    def test_wait_for_session_completion_succeeds_on_session_task_complete(self):
+        async def run() -> None:
+            tracker = SessionProgressTracker(loop=asyncio.get_running_loop())
+            session = FakeSession()
+
+            async def emit() -> None:
+                await asyncio.sleep(0.01)
+                tracker.on_event(make_event("assistant.turn_start"))
+                tracker.on_event(make_event("assistant.message", content="done"))
+                tracker.on_event(make_event("session.task_complete"))
+
+            task = asyncio.create_task(emit())
+            await wait_for_session_completion(
+                session=session,
+                tracker=tracker,
+                inactivity_timeout=0.2,
+                hard_cap_timeout=1.0,
+            )
+            await task
+            self.assertEqual(tracker.completion_event_type, "session.task_complete")
+
+        asyncio.run(run())
+
+    def test_wait_for_session_completion_times_out_after_inactivity(self):
+        async def run() -> None:
+            tracker = SessionProgressTracker(loop=asyncio.get_running_loop())
+            session = FakeSession()
+            with self.assertRaises(CopilotSessionRuntimeError) as ctx:
+                await wait_for_session_completion(
+                    session=session,
+                    tracker=tracker,
+                    inactivity_timeout=0.02,
+                    hard_cap_timeout=1.0,
+                )
+            self.assertTrue(session.abort_called)
+            self.assertEqual(ctx.exception.diagnostics.timeout_kind, "inactivity")
+
+        asyncio.run(run())
+
+    def test_wait_for_session_completion_does_not_timeout_while_progress_continues(self):
+        async def run() -> None:
+            tracker = SessionProgressTracker(loop=asyncio.get_running_loop())
+            session = FakeSession()
+
+            async def emit() -> None:
+                for _ in range(5):
+                    await asyncio.sleep(0.01)
+                    tracker.on_event(make_event("assistant.streaming_delta"))
+                tracker.on_event(make_event("assistant.message", content="eventual answer"))
+                tracker.on_event(make_event("session.idle"))
+
+            task = asyncio.create_task(emit())
+            await wait_for_session_completion(
+                session=session,
+                tracker=tracker,
+                inactivity_timeout=0.03,
+                hard_cap_timeout=1.0,
+            )
+            await task
+            self.assertEqual(tracker.last_assistant_text, "eventual answer")
+
+        asyncio.run(run())
+
+    def test_wait_for_session_completion_hits_hard_cap_despite_progress(self):
+        async def run() -> None:
+            tracker = SessionProgressTracker(loop=asyncio.get_running_loop())
+            session = FakeSession()
+            keep_running = True
+
+            async def emit() -> None:
+                while keep_running:
+                    await asyncio.sleep(0.01)
+                    tracker.on_event(make_event("assistant.streaming_delta"))
+
+            task = asyncio.create_task(emit())
+            try:
+                with self.assertRaises(CopilotSessionRuntimeError) as ctx:
+                    await wait_for_session_completion(
+                        session=session,
+                        tracker=tracker,
+                        inactivity_timeout=0.05,
+                        hard_cap_timeout=0.08,
+                    )
+                self.assertTrue(session.abort_called)
+                self.assertEqual(ctx.exception.diagnostics.timeout_kind, "hard_cap")
+            finally:
+                keep_running = False
+                await task
+
+        asyncio.run(run())
+
+    def test_timeout_failure_includes_last_event_and_partial_text(self):
+        async def run() -> None:
+            tracker = SessionProgressTracker(loop=asyncio.get_running_loop())
+            history = [make_event("assistant.message", content="partial answer")]
+            session = FakeSession(messages=history)
+            tracker.on_event(make_event("assistant.message", content="partial answer"))
+            with self.assertRaises(CopilotSessionRuntimeError) as ctx:
+                await wait_for_session_completion(
+                    session=session,
+                    tracker=tracker,
+                    inactivity_timeout=0.02,
+                    hard_cap_timeout=1.0,
+                )
+            text = str(ctx.exception)
+            self.assertIn("assistant.message", text)
+            self.assertIn("partial answer", text)
+
+        asyncio.run(run())
+
+    def test_run_session_falls_back_to_byok_only_for_auth_failures(self):
+        success = CopilotRunResult(
+            final_text="ok",
+            tool_names=(),
+            source_urls=(),
+            runtime_diagnostics=CopilotRuntimeDiagnostics(
+                last_event_type="session.idle",
+                recent_event_counts=(("session.idle", 1),),
+                assistant_message_received=True,
+                last_assistant_text="ok",
+                timeout_kind=None,
+            ),
+        )
+        with mock.patch.dict(
+            "os.environ",
+            {"OPENAI_API_KEY": "test-key", "OPENAI_MODEL": "gpt-5.4-mini"},
+            clear=False,
+        ), mock.patch(
+            "autoresearch.copilot_sdk._run_session_once",
+            new=mock.AsyncMock(
+                side_effect=[RuntimeError("GitHub-token Copilot auth unavailable: Not authenticated"), success]
+            ),
+        ) as run_once:
+            result = asyncio.run(
+                run_session(
+                    prompt="hello",
+                    attachments=[],
+                    provider_name="github-token",
+                    model=None,
+                    allow_writes=False,
+                    allow_eval_tightening=False,
+                    run_profile="manual",
+                    allow_live_research=False,
+                    config=get_skill_config("vgc-team-builder"),
+                    system_message="system",
+                    timeout=30.0,
+                )
+            )
+        self.assertEqual(result.final_text, "ok")
+        self.assertEqual(run_once.await_count, 2)
+        self.assertEqual(run_once.await_args_list[1].kwargs["provider_name"], "byok-openai")
+
+    def test_run_session_does_not_fall_back_for_timeout_failures(self):
+        with mock.patch.dict(
+            "os.environ",
+            {"OPENAI_API_KEY": "test-key", "OPENAI_MODEL": "gpt-5.4-mini"},
+            clear=False,
+        ), mock.patch(
+            "autoresearch.copilot_sdk._run_session_once",
+            new=mock.AsyncMock(
+                side_effect=RuntimeError(
+                    "Copilot session timed out after 30.0s of inactivity before reaching completion."
+                )
+            ),
+        ) as run_once:
+            with self.assertRaisesRegex(RuntimeError, "timed out after 30.0s of inactivity"):
+                asyncio.run(
+                    run_session(
+                        prompt="hello",
+                        attachments=[],
+                        provider_name="github-token",
+                        model=None,
+                        allow_writes=False,
+                        allow_eval_tightening=False,
+                        run_profile="manual",
+                        allow_live_research=False,
+                        config=get_skill_config("vgc-team-builder"),
+                        system_message="system",
+                        timeout=30.0,
+                    )
+                )
+        self.assertEqual(run_once.await_count, 1)
 
     def test_write_policy_stays_inside_skill_scope(self):
         config = get_skill_config("vgc-team-builder")

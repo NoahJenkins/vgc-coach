@@ -18,14 +18,22 @@ Use `plugin-eval` to measure whether skill changes actually improve output quali
 
 ## Recommended Loop
 
-1. Pick one skill to change.
-2. Run the fixed eval cases for that skill with `python3 tools/eval_skill.py --skill <skill-name> --provider github-token --model gpt-5.4-mini --profile manual`.
-3. Review failures by category, not just by score.
-4. Update the skill instructions or examples.
-5. Re-run the same eval cases.
-6. Record regressions before merging changes.
+1. Install the local eval dependency with `python3 -m pip install -r tools/requirements-autoresearch.txt`.
+2. Pick one skill to change.
+3. Run the fixed eval cases for that skill with `python3 tools/eval_skill.py --skill <skill-name> --provider github-token --model gpt-5.4-mini --profile manual`.
+4. Review failures by category, not just by score.
+5. Update the skill instructions or examples.
+6. Re-run the same eval cases.
+7. Record regressions before merging changes.
 
-For a bounded smoke test, add `--case-limit 1 --session-timeout 180`. For routine manual testing, prefer `gpt-5.4-mini`; keep the scheduled nightly run on `gpt-5.4`.
+For a bounded smoke test, add `--case-limit 1 --session-timeout 180`. Here `--session-timeout` means inactivity timeout, not total wall-clock time. For routine manual testing, prefer `gpt-5.4-mini`; keep the scheduled nightly run on `gpt-5.4`.
+
+## Local Reports
+
+- `python3 tools/eval_skill.py` writes `run-status.json`, `result.json`, and `summary.md` under `.artifacts/autoresearch/<date>/<skill>/standalone-eval/`.
+- `python3 tools/full_eval.py` runs the whole configured local suite by default and writes the aggregate `run-status.json`, `result.json`, and `summary.md` under `.artifacts/autoresearch/<date>/full-eval/`.
+- Full-suite runs also write one per-skill report directory under `.artifacts/autoresearch/<date>/full-eval/skills/<skill>/`.
+- Both local runners clear their target artifact directory before each run so stale case folders or old success reports do not survive a rerun.
 
 ## Nightly Automation
 

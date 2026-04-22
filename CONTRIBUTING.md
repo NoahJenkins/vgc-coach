@@ -40,9 +40,14 @@ If your change affects skill behavior, validate it against the relevant fixed ev
 
 - fixtures: `data/fixtures/evals/`
 - rubrics: `data/rubrics/`
+- install local eval dependency first: `python3 -m pip install -r tools/requirements-autoresearch.txt`
 - standalone eval runner: `python3 tools/eval_skill.py --skill <skill-name> --provider github-token --model gpt-5.4-mini --profile manual`
 - bounded smoke test: `python3 tools/eval_skill.py --skill <skill-name> --provider github-token --model gpt-5.4-mini --profile manual --case-limit 1 --session-timeout 180`
+- local full-suite runner: `python3 tools/full_eval.py --provider github-token --model gpt-5.4-mini --profile manual`
 - nightly/autoresearch harness: `python3 tools/autoresearch.py --mode review --skill <skill-name> --provider github-token --model gpt-5.4-mini --profile manual`
+
+Both local runners write `run-status.json`, `result.json`, and `summary.md` into their target artifact directories under `.artifacts/autoresearch/`. The full-suite aggregate report lives under `.artifacts/autoresearch/<date>/full-eval/`.
+For local eval commands, `--session-timeout` is an inactivity timeout. Active tool or assistant progress can continue past that window until the runtime hard cap is reached.
 
 If your change affects runtime support, also verify the matching discovery layer and runtime docs:
 
