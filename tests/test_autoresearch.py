@@ -14,6 +14,7 @@ from autoresearch.config import choose_skill, get_skill_config  # noqa: E402
 from autoresearch.context import (  # noqa: E402
     diff_snapshots,
     extract_rubric_fail_triggers,
+    load_case_file,
     load_skill_context,
     restore_snapshot,
     snapshot_paths,
@@ -73,6 +74,80 @@ class AutoresearchTests(unittest.TestCase):
             ]
         )
         self.assertEqual(extract_rubric_fail_triggers(text), ("one", "two"))
+
+    def test_load_case_file_supports_inline_request(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case-inline.md"
+            path.write_text(
+                "\n".join(
+                    [
+                        "# Case",
+                        "",
+                        "Request: build around Mega Venusaur",
+                        "",
+                        "Checks:",
+                        "- one",
+                    ]
+                )
+            )
+            case = load_case_file(path)
+            self.assertEqual(case.request, "build around Mega Venusaur")
+
+    def test_load_case_file_supports_multiline_request(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case-multiline.md"
+            path.write_text(
+                "\n".join(
+                    [
+                        "# Case",
+                        "",
+                        "Request:",
+                        "",
+                        "`Build me an anti-meta Mega Venusaur team for current Champions.`",
+                        "",
+                        "Checks:",
+                        "- one",
+                    ]
+                )
+            )
+            case = load_case_file(path)
+            self.assertEqual(
+                case.request,
+                "`Build me an anti-meta Mega Venusaur team for current Champions.`",
+            )
+
+    def test_load_case_file_rejects_empty_request(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case-empty.md"
+            path.write_text(
+                "\n".join(
+                    [
+                        "# Case",
+                        "",
+                        "Request:",
+                        "",
+                        "Checks:",
+                        "- one",
+                    ]
+                )
+            )
+            with self.assertRaisesRegex(ValueError, "empty Request block"):
+                load_case_file(path)
+
+    def test_real_multiline_team_builder_request_parses(self):
+        case = load_case_file(REPO_ROOT / "data" / "fixtures" / "evals" / "team-builder" / "case-04.md")
+        self.assertIn("Mega Venusaur", case.request)
+        self.assertIn("community sources might be missing or down", case.request)
+
+    def test_real_multiline_meta_research_request_parses(self):
+        case = load_case_file(REPO_ROOT / "data" / "fixtures" / "evals" / "meta-research" / "case-02.md")
+        self.assertIn("Terastallization", case.request)
+        self.assertIn("current Pokemon Champions regulation", case.request)
+
+    def test_real_multiline_team_audit_request_parses(self):
+        case = load_case_file(REPO_ROOT / "data" / "fixtures" / "evals" / "team-audit" / "case-02.md")
+        self.assertIn("too many fast attackers", case.request)
+        self.assertIn("positioning tools", case.request)
 
     def test_snapshot_diff_and_restore_round_trip(self):
         with tempfile.TemporaryDirectory() as tmp:
