@@ -207,10 +207,12 @@ async def _grade_case_response(
             "",
             "Grade the candidate response using the attached rubric and fixture.",
             "Use the rubric's language exactly when possible.",
+            "Score only the rubric dimensions explicitly named in the attached rubric.",
+            "If the rubric does not support a requested field, return an empty list instead of inventing structure.",
+            "If fail-trigger language exists in the rubric or fixture, map it into `matched_fail_triggers`.",
             "Return JSON with this shape:",
             json.dumps(
                 {
-                    "overall_score": 0,
                     "dimension_scores": [{"name": "string", "score": 0, "rationale": "string"}],
                     "checks_passed": ["string"],
                     "checks_failed": ["string"],
@@ -260,15 +262,6 @@ def _normalize_evaluation_payload(payload: dict[str, Any], case_name: str) -> di
     normalized = dict(payload)
     errors: list[str] = []
 
-    reported_overall = normalized.get("overall_score")
-    try:
-        raw_overall_score = int(reported_overall)
-    except (TypeError, ValueError):
-        raw_overall_score = None
-        errors.append(
-            f"grader returned a non-numeric overall_score for {case_name}: {reported_overall!r}"
-        )
-
     raw_dimension_scores = normalized.get("dimension_scores", [])
     if not isinstance(raw_dimension_scores, list):
         raw_dimension_scores = []
@@ -278,6 +271,10 @@ def _normalize_evaluation_payload(payload: dict[str, Any], case_name: str) -> di
     for index, raw_score in enumerate(raw_dimension_scores):
         if not isinstance(raw_score, dict):
             errors.append(f"dimension_scores[{index}] is not an object for {case_name}")
+            continue
+        name = str(raw_score.get("name", "")).strip()
+        if not name:
+            errors.append(f"dimension_scores[{index}].name is empty for {case_name}")
             continue
         try:
             score_value = int(raw_score.get("score"))
@@ -289,7 +286,7 @@ def _normalize_evaluation_payload(payload: dict[str, Any], case_name: str) -> di
             continue
         dimension_scores.append(
             {
-                "name": str(raw_score.get("name", "")).strip(),
+                "name": name,
                 "score": score_value,
                 "rationale": str(raw_score.get("rationale", "")).strip(),
             }
@@ -299,22 +296,21 @@ def _normalize_evaluation_payload(payload: dict[str, Any], case_name: str) -> di
         errors.append(f"grader returned no usable dimension_scores for {case_name}")
 
     computed_overall = sum(score["score"] for score in dimension_scores)
-    if raw_overall_score is not None and dimension_scores and raw_overall_score != computed_overall:
-        errors.append(
-            f"reported overall_score {raw_overall_score} does not match dimension-score sum "
-            f"{computed_overall} for {case_name}"
-        )
-
-    normalized["checks_passed"] = list(normalized.get("checks_passed", []))
-    normalized["checks_failed"] = list(normalized.get("checks_failed", []))
-    normalized["failure_categories"] = list(normalized.get("failure_categories", []))
-    normalized["matched_fail_triggers"] = sorted(set(normalized.get("matched_fail_triggers", [])))
+    normalized["checks_passed"] = _normalize_string_list(normalized.get("checks_passed"))
+    normalized["checks_failed"] = _normalize_string_list(normalized.get("checks_failed"))
+    normalized["failure_categories"] = _normalize_string_list(normalized.get("failure_categories"))
+    normalized["matched_fail_triggers"] = sorted(
+        set(_normalize_string_list(normalized.get("matched_fail_triggers")))
+    )
     normalized["summary"] = str(normalized.get("summary", "")).strip()
     normalized["recommended_smallest_fix"] = str(
         normalized.get("recommended_smallest_fix", "")
     ).strip()
     normalized["dimension_scores"] = dimension_scores
-    normalized["reported_overall_score"] = reported_overall
+    if "overall_score" in normalized:
+        normalized["reported_overall_score"] = normalized.get("overall_score")
+    else:
+        normalized["reported_overall_score"] = None
     normalized["evaluation_valid"] = not errors
     normalized["grading_errors"] = errors
 
@@ -322,9 +318,22 @@ def _normalize_evaluation_payload(payload: dict[str, Any], case_name: str) -> di
         normalized["overall_score"] = 0
         return normalized
 
-    normalized["overall_score"] = raw_overall_score
+    normalized["overall_score"] = computed_overall
     if normalized["matched_fail_triggers"]:
-        normalized["overall_score"] = min(raw_overall_score, 40)
+        normalized["overall_score"] = min(computed_overall, 40)
+    return normalized
+
+
+def _normalize_string_list(raw_value: Any) -> list[str]:
+    if raw_value is None:
+        return []
+    if not isinstance(raw_value, list):
+        return [str(raw_value).strip()] if str(raw_value).strip() else []
+    normalized = []
+    for item in raw_value:
+        text = str(item).strip()
+        if text:
+            normalized.append(text)
     return normalized
 
 

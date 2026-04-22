@@ -87,6 +87,10 @@ class AutoresearchTests(unittest.TestCase):
         )
         self.assertEqual(extract_rubric_fail_triggers(text), ("one", "two"))
 
+    def test_rubric_fail_trigger_extraction_tolerates_missing_section(self):
+        rubric = (REPO_ROOT / "data" / "rubrics" / "lead-planner-rubric.md").read_text()
+        self.assertEqual(extract_rubric_fail_triggers(rubric), ())
+
     def test_load_case_file_supports_inline_request(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "case-inline.md"
@@ -354,9 +358,8 @@ class AutoresearchTests(unittest.TestCase):
     def test_invalid_grading_payload_fails_closed(self):
         payload = _normalize_evaluation_payload(
             {
-                "overall_score": 4,
                 "dimension_scores": [
-                    {"name": "one", "score": 5, "rationale": "x"},
+                    {"name": "", "score": 5, "rationale": "x"},
                     {"name": "two", "score": 4, "rationale": "y"},
                 ],
                 "checks_passed": [],
@@ -370,12 +373,31 @@ class AutoresearchTests(unittest.TestCase):
         )
         self.assertFalse(payload["evaluation_valid"])
         self.assertEqual(payload["overall_score"], 0)
-        self.assertIn("does not match dimension-score sum", payload["grading_errors"][0])
+        self.assertIn("name is empty", payload["grading_errors"][0])
+
+    def test_valid_dimension_only_payload_computes_total(self):
+        payload = _normalize_evaluation_payload(
+            {
+                "dimension_scores": [
+                    {"name": "one", "score": 20, "rationale": "x"},
+                    {"name": "two", "score": 23, "rationale": "y"},
+                ],
+                "checks_passed": [],
+                "checks_failed": [],
+                "failure_categories": [],
+                "matched_fail_triggers": [],
+                "summary": "valid total",
+                "recommended_smallest_fix": "none",
+            },
+            "case-04",
+        )
+        self.assertTrue(payload["evaluation_valid"])
+        self.assertEqual(payload["overall_score"], 43)
+        self.assertIsNone(payload["reported_overall_score"])
 
     def test_valid_fail_trigger_payload_caps_after_validation(self):
         payload = _normalize_evaluation_payload(
             {
-                "overall_score": 43,
                 "dimension_scores": [
                     {"name": "one", "score": 20, "rationale": "x"},
                     {"name": "two", "score": 23, "rationale": "y"},
@@ -391,6 +413,32 @@ class AutoresearchTests(unittest.TestCase):
         )
         self.assertTrue(payload["evaluation_valid"])
         self.assertEqual(payload["overall_score"], 40)
+
+    def test_normalizes_scalar_list_fields(self):
+        payload = _normalize_evaluation_payload(
+            {
+                "dimension_scores": [
+                    {"name": "one", "score": 2, "rationale": "x"},
+                ],
+                "checks_passed": "first check",
+                "checks_failed": None,
+                "failure_categories": [" alpha ", ""],
+                "matched_fail_triggers": "trigger",
+                "summary": "ok",
+                "recommended_smallest_fix": "none",
+            },
+            "case-04",
+        )
+        self.assertTrue(payload["evaluation_valid"])
+        self.assertEqual(payload["checks_passed"], ["first check"])
+        self.assertEqual(payload["checks_failed"], [])
+        self.assertEqual(payload["failure_categories"], ["alpha"])
+        self.assertEqual(payload["matched_fail_triggers"], ["trigger"])
+
+    def test_grading_prompt_no_longer_requests_overall_score(self):
+        source = (REPO_ROOT / "tools" / "autoresearch" / "evals.py").read_text()
+        self.assertIn('"dimension_scores"', source)
+        self.assertNotIn('"overall_score": 0,', source)
 
 
 if __name__ == "__main__":
