@@ -203,6 +203,7 @@ The repo already includes:
 
 These are still in progress, not yet available:
 
+- A more complete autoresearch workflow beyond the current local/nightly harness
 - Broader eval coverage beyond the current fixed-case autoresearch loop
 - Replay ingestion utilities
 - Battle-state data schema
