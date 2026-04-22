@@ -52,7 +52,7 @@ on:
       session_timeout:
         description: "Per-model-call timeout in seconds"
         required: false
-        default: "180"
+        default: "600"
         type: string
 
 permissions:
@@ -82,7 +82,7 @@ jobs:
       AUTORESEARCH_OPEN_PR: ${{ github.event_name == 'schedule' && 'true' || (inputs.open_pr && 'true' || 'false') }}
       AUTORESEARCH_MODEL: ${{ github.event_name == 'schedule' && 'gpt-5.4' || inputs.model }}
       AUTORESEARCH_CASE_LIMIT: ${{ github.event_name == 'schedule' && '' || inputs.case_limit }}
-      AUTORESEARCH_SESSION_TIMEOUT: ${{ github.event_name == 'schedule' && '180' || inputs.session_timeout }}
+      AUTORESEARCH_SESSION_TIMEOUT: ${{ github.event_name == 'schedule' && '600' || inputs.session_timeout }}
     steps:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
