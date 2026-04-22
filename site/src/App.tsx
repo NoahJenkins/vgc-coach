@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import {
   coreSkills,
   footerLinks,
@@ -356,6 +357,7 @@ function App() {
         </nav>
       </footer>
       </div>
+      <Analytics />
     </>
   );
 }
