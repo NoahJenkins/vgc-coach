@@ -37,7 +37,7 @@ on:
       model:
         description: "Optional model override"
         required: false
-        default: "gpt-5.4"
+        default: "gpt-5.4-mini"
         type: string
       open_pr:
         description: "Open/update a draft PR when the candidate is accepted"

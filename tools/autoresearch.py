@@ -174,8 +174,10 @@ async def main() -> int:
                     and not regressions
                     and not candidate.matched_fail_triggers
                 )
-                pr_candidate = accepted_candidate
-                decision = "pr_opened" if accepted_candidate and args.open_pr else "rejected"
+                pr_candidate, decision = _determine_candidate_outcome(
+                    accepted_candidate=accepted_candidate,
+                    open_pr=args.open_pr,
+                )
 
                 if not accepted_candidate and not initial_dirty:
                     restore_snapshot(
@@ -357,6 +359,14 @@ def _write_scope_is_dirty(ctx, allow_eval_tightening: bool, run_profile: str) ->
         text=True,
     )
     return bool(result.stdout.strip())
+
+
+def _determine_candidate_outcome(*, accepted_candidate: bool, open_pr: bool) -> tuple[bool, str]:
+    if not accepted_candidate:
+        return False, "rejected"
+    if open_pr:
+        return True, "pr_opened"
+    return False, "accepted_no_pr"
 
 
 if __name__ == "__main__":

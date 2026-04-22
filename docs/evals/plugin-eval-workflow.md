@@ -19,13 +19,13 @@ Use `plugin-eval` to measure whether skill changes actually improve output quali
 ## Recommended Loop
 
 1. Pick one skill to change.
-2. Run the fixed eval cases for that skill with `python3 tools/eval_skill.py --skill <skill-name> --provider github-token --model gpt-5.4 --profile manual`.
+2. Run the fixed eval cases for that skill with `python3 tools/eval_skill.py --skill <skill-name> --provider github-token --model gpt-5.4-mini --profile manual`.
 3. Review failures by category, not just by score.
 4. Update the skill instructions or examples.
 5. Re-run the same eval cases.
 6. Record regressions before merging changes.
 
-For a bounded smoke test, add `--case-limit 1 --session-timeout 180`.
+For a bounded smoke test, add `--case-limit 1 --session-timeout 180`. For routine manual testing, prefer `gpt-5.4-mini`; keep the scheduled nightly run on `gpt-5.4`.
 
 ## Nightly Automation
 

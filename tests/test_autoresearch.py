@@ -355,6 +355,30 @@ class AutoresearchTests(unittest.TestCase):
         self.assertIn("Currently passing checks:", prompt)
         self.assertIn("do not upgrade an `inference-heavy early read`", prompt)
 
+    def test_candidate_outcome_rejected_only_for_failed_candidate(self):
+        pr_candidate, decision = AUTORESEARCH_SCRIPT._determine_candidate_outcome(
+            accepted_candidate=False,
+            open_pr=False,
+        )
+        self.assertFalse(pr_candidate)
+        self.assertEqual(decision, "rejected")
+
+    def test_candidate_outcome_accepts_without_pr_when_open_pr_disabled(self):
+        pr_candidate, decision = AUTORESEARCH_SCRIPT._determine_candidate_outcome(
+            accepted_candidate=True,
+            open_pr=False,
+        )
+        self.assertFalse(pr_candidate)
+        self.assertEqual(decision, "accepted_no_pr")
+
+    def test_candidate_outcome_opens_pr_when_enabled(self):
+        pr_candidate, decision = AUTORESEARCH_SCRIPT._determine_candidate_outcome(
+            accepted_candidate=True,
+            open_pr=True,
+        )
+        self.assertTrue(pr_candidate)
+        self.assertEqual(decision, "pr_opened")
+
     def test_invalid_grading_payload_fails_closed(self):
         payload = _normalize_evaluation_payload(
             {
