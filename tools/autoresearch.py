@@ -8,11 +8,16 @@ import subprocess
 from datetime import date
 from pathlib import Path
 
-from autoresearch.config import DEFAULT_REPORT_ROOT, choose_skill, parse_run_date
+from autoresearch.config import DEFAULT_REPORT_ROOT, REPO_ROOT, RunProfile, choose_skill, parse_run_date
 from autoresearch.context import diff_snapshots, load_skill_context, restore_snapshot, snapshot_paths
 from autoresearch.copilot_sdk import run_session
 from autoresearch.evals import evaluate_skill
-from autoresearch.results import AutoresearchResult
+from autoresearch.results import (
+    AutoresearchResult,
+    baseline_is_clean,
+    estimate_premium_requests,
+    estimate_prompt_count,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -26,7 +31,25 @@ def parse_args() -> argparse.Namespace:
         default="github-token",
         help="Copilot SDK auth/provider mode",
     )
+    parser.add_argument(
+        "--profile",
+        choices=("daily_sentinel", "manual"),
+        default="manual",
+        help="Run profile",
+    )
     parser.add_argument("--model", default=None, help="Model override")
+    parser.add_argument(
+        "--case-limit",
+        type=int,
+        default=None,
+        help="Limit evals to the first N cases for smoke testing",
+    )
+    parser.add_argument(
+        "--session-timeout",
+        type=float,
+        default=900.0,
+        help="Per-model-call timeout in seconds",
+    )
     parser.add_argument(
         "--report-dir",
         default=str(DEFAULT_REPORT_ROOT),
@@ -64,8 +87,12 @@ async def main() -> int:
         provider_name=args.provider,
         model=args.model,
         output_dir=baseline_dir,
+        run_profile=args.profile,
+        case_limit=args.case_limit,
+        session_timeout=args.session_timeout,
     )
-    (report_dir / "baseline.json").write_text(
+    baseline_result_path = report_dir / "baseline.json"
+    baseline_result_path.write_text(
         json.dumps(baseline.to_dict(), indent=2, sort_keys=True) + "\n"
     )
     (report_dir / "baseline-summary.md").write_text(baseline.summary + "\n")
@@ -78,61 +105,79 @@ async def main() -> int:
     accepted_candidate = False
     pr_candidate = False
     decision = "no_change"
+    skip_reason = None
     errors: list[str] = []
 
     if args.mode == "improve":
-        initial_dirty = _write_scope_is_dirty(ctx, args.allow_eval_tightening)
-        if initial_dirty and not args.allow_dirty_write_scope:
-            raise RuntimeError(
-                "The target write scope is already dirty. Re-run with --allow-dirty-write-scope "
-                "only if you want autoresearch to work on top of existing edits."
-            )
+        if baseline_is_clean(baseline):
+            skip_reason = "clean_baseline"
+        else:
+            initial_dirty = _write_scope_is_dirty(ctx, args.allow_eval_tightening)
+            if initial_dirty and not args.allow_dirty_write_scope:
+                raise RuntimeError(
+                    "The target write scope is already dirty. Re-run with --allow-dirty-write-scope "
+                    "only if you want autoresearch to work on top of existing edits."
+                )
 
-        before_snapshot = snapshot_paths(_writable_roots(ctx, args.allow_eval_tightening))
-        improvement_result = await _run_improvement(
-            ctx=ctx,
-            baseline=baseline,
-            provider_name=args.provider,
-            model=args.model,
-            allow_eval_tightening=args.allow_eval_tightening,
-        )
-        improvement_summary = improvement_result["text"].strip()
-        sources_used = sorted(set(sources_used) | set(improvement_result["source_urls"]))
-        (report_dir / "improvement-summary.md").write_text(improvement_summary + "\n")
-
-        after_snapshot = snapshot_paths(_writable_roots(ctx, args.allow_eval_tightening))
-        changed_files = diff_snapshots(before_snapshot, after_snapshot)
-
-        if changed_files:
-            candidate_dir = report_dir / "candidate"
-            candidate = await evaluate_skill(
+            before_snapshot = snapshot_paths(_writable_roots(ctx, args.allow_eval_tightening))
+            improvement_result = await _run_improvement(
                 ctx=ctx,
+                report_dir=report_dir,
+                baseline=baseline,
                 provider_name=args.provider,
                 model=args.model,
-                output_dir=candidate_dir,
+                allow_eval_tightening=args.allow_eval_tightening,
+                session_timeout=args.session_timeout,
             )
-            (report_dir / "candidate.json").write_text(
-                json.dumps(candidate.to_dict(), indent=2, sort_keys=True) + "\n"
-            )
-            (report_dir / "candidate-summary.md").write_text(candidate.summary + "\n")
-            regressions = _compute_regressions(baseline, candidate)
-            accepted_candidate = (
-                candidate.average_score > baseline.average_score
-                and not regressions
-                and not candidate.matched_fail_triggers
-            )
-            pr_candidate = accepted_candidate
-            decision = "pr_opened" if accepted_candidate and args.open_pr else "rejected"
+            improvement_summary = improvement_result["text"].strip()
+            sources_used = sorted(set(sources_used) | set(improvement_result["source_urls"]))
+            (report_dir / "improvement-summary.md").write_text(improvement_summary + "\n")
 
-            if not accepted_candidate and not initial_dirty:
-                restore_snapshot(before_snapshot, _writable_roots(ctx, args.allow_eval_tightening))
-        else:
-            decision = "no_change"
+            after_snapshot = snapshot_paths(_writable_roots(ctx, args.allow_eval_tightening))
+            changed_files = diff_snapshots(before_snapshot, after_snapshot)
+
+            if changed_files:
+                candidate_dir = report_dir / "candidate"
+                candidate = await evaluate_skill(
+                    ctx=ctx,
+                    provider_name=args.provider,
+                    model=args.model,
+                    output_dir=candidate_dir,
+                    run_profile=args.profile,
+                    case_limit=args.case_limit,
+                    session_timeout=args.session_timeout,
+                )
+                (report_dir / "candidate.json").write_text(
+                    json.dumps(candidate.to_dict(), indent=2, sort_keys=True) + "\n"
+                )
+                (report_dir / "candidate-summary.md").write_text(candidate.summary + "\n")
+                regressions = _compute_regressions(baseline, candidate)
+                accepted_candidate = (
+                    candidate.average_score > baseline.average_score
+                    and not regressions
+                    and not candidate.matched_fail_triggers
+                )
+                pr_candidate = accepted_candidate
+                decision = "pr_opened" if accepted_candidate and args.open_pr else "rejected"
+
+                if not accepted_candidate and not initial_dirty:
+                    restore_snapshot(before_snapshot, _writable_roots(ctx, args.allow_eval_tightening))
+            else:
+                decision = "no_change"
+
+    prompt_count = estimate_prompt_count(
+        mode=args.mode,
+        evaluated_case_count=len(baseline.cases),
+        skipped_improvement=skip_reason == "clean_baseline",
+        candidate_evaluated=candidate is not None,
+    )
 
     result = AutoresearchResult(
         skill=config.name,
         run_date=run_date.isoformat(),
         mode=args.mode,
+        run_profile=args.profile,
+        runtime_engine="copilot-sdk",
         provider=args.provider,
         model=args.model,
         baseline_score=baseline.average_score,
@@ -144,6 +189,14 @@ async def main() -> int:
         changed_files=changed_files,
         regressions=regressions,
         sources_used=tuple(sources_used),
+        evaluated_case_names=baseline.evaluated_case_names,
+        skip_reason=skip_reason,
+        estimated_prompt_count=prompt_count,
+        estimated_premium_requests=estimate_premium_requests(
+            provider=args.provider,
+            model=args.model,
+            prompt_count=prompt_count,
+        ),
         baseline_summary=baseline.summary,
         candidate_summary=None if candidate is None else candidate.summary,
         improvement_summary=improvement_summary,
@@ -159,22 +212,29 @@ async def main() -> int:
 async def _run_improvement(
     *,
     ctx,
+    report_dir: Path,
     baseline,
     provider_name: str,
     model: str | None,
     allow_eval_tightening: bool,
+    session_timeout: float,
 ) -> dict[str, object]:
+    weakest_case = min(baseline.cases, key=lambda case: case.overall_score)
     prompt = "\n".join(
         [
             f"Target skill: {ctx.config.name}",
             "",
-            "Review the attached baseline results and improve the target skill with the smallest useful change.",
+            "Review the attached baseline artifacts and improve the target skill with the smallest useful change.",
+            "Use the weakest evaluated case as the primary target unless the baseline artifacts prove a different single fix is more important.",
             "Hard rules:",
             "- Edit only the approved write scope for this session.",
             "- Do not touch generated plugin outputs directly.",
             "- Preserve the published output contract unless the baseline evidence proves it is broken.",
             "- Never invent current-format facts.",
             "- If the skill needs live currentness checks, use absolute dates and keep uncertainty explicit.",
+            "",
+            f"Weakest evaluated case: {weakest_case.case_name} ({weakest_case.overall_score})",
+            f"Recommended smallest fix: {weakest_case.recommended_smallest_fix or 'none recorded'}",
             "",
             "Baseline summary:",
             baseline.summary,
@@ -193,6 +253,9 @@ async def _run_improvement(
         {"type": "directory", "path": str(ctx.config.docs_dir)},
         {"type": "directory", "path": str(ctx.config.fixture_dir)},
         {"type": "file", "path": str(ctx.config.rubric_file)},
+        {"type": "file", "path": str(report_dir / "baseline.json")},
+        {"type": "file", "path": str(REPO_ROOT / weakest_case.response_path)},
+        {"type": "file", "path": str(REPO_ROOT / weakest_case.evaluation_path)},
     ]
     attachments.extend({"type": "file", "path": str(path)} for path in ctx.shared_reference_files)
     result = await run_session(
@@ -207,6 +270,7 @@ async def _run_improvement(
         system_message=(
             "You are the vgc-coach nightly autoresearch worker. Make small, evidence-backed edits only."
         ),
+        timeout=session_timeout,
     )
     return {"text": result.final_text, "source_urls": result.source_urls}
 

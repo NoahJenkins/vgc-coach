@@ -5,7 +5,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from .config import REPO_ROOT
+from .config import REPO_ROOT, RunProfile
 from .context import CaseFile, SkillContext, extract_rubric_fail_triggers
 from .copilot_sdk import run_session
 from .results import CaseEvaluation, DimensionScore, SkillEvaluation
@@ -32,12 +32,16 @@ async def evaluate_skill(
     provider_name: str,
     model: str | None,
     output_dir: Path,
+    run_profile: RunProfile = "manual",
+    case_limit: int | None = None,
+    session_timeout: float = 900.0,
 ) -> SkillEvaluation:
     output_dir.mkdir(parents=True, exist_ok=True)
     rubric_fail_triggers = extract_rubric_fail_triggers(ctx.rubric_text)
     case_results: list[CaseEvaluation] = []
+    cases = select_cases(ctx=ctx, run_profile=run_profile, case_limit=case_limit)
 
-    for case in ctx.cases:
+    for case in cases:
         case_dir = output_dir / case.name
         case_dir.mkdir(parents=True, exist_ok=True)
 
@@ -46,9 +50,11 @@ async def evaluate_skill(
             case=case,
             provider_name=provider_name,
             model=model,
+            session_timeout=session_timeout,
         )
         response_path = case_dir / "response.md"
         response_path.write_text(response["text"].strip() + "\n")
+        response_path_abs = response_path.resolve()
 
         evaluation_payload = await _grade_case_response(
             ctx=ctx,
@@ -57,9 +63,11 @@ async def evaluate_skill(
             rubric_fail_triggers=rubric_fail_triggers,
             provider_name=provider_name,
             model=model,
+            session_timeout=session_timeout,
         )
         evaluation_path = case_dir / "evaluation.json"
         evaluation_path.write_text(json.dumps(evaluation_payload, indent=2, sort_keys=True) + "\n")
+        evaluation_path_abs = evaluation_path.resolve()
 
         case_results.append(
             CaseEvaluation(
@@ -84,8 +92,8 @@ async def evaluate_skill(
                     evaluation_payload.get("recommended_smallest_fix", "")
                 ).strip(),
                 source_urls=tuple(response["source_urls"]),
-                response_path=response_path.relative_to(REPO_ROOT).as_posix(),
-                evaluation_path=evaluation_path.relative_to(REPO_ROOT).as_posix(),
+                response_path=response_path_abs.relative_to(REPO_ROOT).as_posix(),
+                evaluation_path=evaluation_path_abs.relative_to(REPO_ROOT).as_posix(),
             )
         )
 
@@ -106,12 +114,34 @@ async def evaluate_skill(
     )
 
 
+def select_cases(
+    *,
+    ctx: SkillContext,
+    run_profile: RunProfile,
+    case_limit: int | None,
+) -> tuple[CaseFile, ...]:
+    if run_profile == "daily_sentinel":
+        sentinel_case_name = ctx.config.sentinel_case_name
+        if not sentinel_case_name:
+            raise ValueError(f"No sentinel case is configured for {ctx.config.name}")
+        for case in ctx.cases:
+            if case.name == sentinel_case_name:
+                return (case,)
+        raise ValueError(
+            f"Sentinel case '{sentinel_case_name}' was not found for {ctx.config.name}"
+        )
+    if run_profile != "manual":
+        raise ValueError(f"Unsupported run profile '{run_profile}'")
+    return ctx.cases if case_limit is None else ctx.cases[:case_limit]
+
+
 async def _generate_case_response(
     *,
     ctx: SkillContext,
     case: CaseFile,
     provider_name: str,
     model: str | None,
+    session_timeout: float,
 ) -> dict[str, Any]:
     prompt = "\n".join(
         [
@@ -141,6 +171,7 @@ async def _generate_case_response(
         allow_live_research=ctx.config.live_research_policy != "off",
         config=ctx.config,
         system_message=GENERATION_SYSTEM_MESSAGE,
+        timeout=session_timeout,
     )
     return {"text": result.final_text, "source_urls": result.source_urls}
 
@@ -153,6 +184,7 @@ async def _grade_case_response(
     rubric_fail_triggers: tuple[str, ...],
     provider_name: str,
     model: str | None,
+    session_timeout: float,
 ) -> dict[str, Any]:
     prompt = "\n".join(
         [
@@ -195,6 +227,7 @@ async def _grade_case_response(
         allow_live_research=False,
         config=ctx.config,
         system_message=GRADING_SYSTEM_MESSAGE,
+        timeout=session_timeout,
     )
     payload = _parse_json_response(result.final_text)
     payload.setdefault("dimension_scores", [])

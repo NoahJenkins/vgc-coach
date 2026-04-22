@@ -18,7 +18,14 @@ from autoresearch.context import (  # noqa: E402
     restore_snapshot,
     snapshot_paths,
 )
+from autoresearch.evals import select_cases  # noqa: E402
 from autoresearch.policy import is_path_allowed_for_write  # noqa: E402
+from autoresearch.results import (  # noqa: E402
+    SkillEvaluation,
+    baseline_is_clean,
+    estimate_premium_requests,
+    estimate_prompt_count,
+)
 
 
 class AutoresearchTests(unittest.TestCase):
@@ -35,6 +42,26 @@ class AutoresearchTests(unittest.TestCase):
             ctx.config.docs_dir,
             REPO_ROOT / "docs" / "skills" / "vgc-meta-research",
         )
+
+    def test_priority_skills_have_explicit_sentinel_cases(self):
+        for skill_name in (
+            "vgc-meta-research",
+            "vgc-team-builder",
+            "vgc-team-audit",
+            "vgc-lead-planner",
+            "vgc-battle-review",
+        ):
+            self.assertIsNotNone(get_skill_config(skill_name).sentinel_case_name)
+
+    def test_daily_sentinel_profile_uses_configured_case(self):
+        ctx = load_skill_context(get_skill_config("vgc-team-builder"))
+        selected = select_cases(ctx=ctx, run_profile="daily_sentinel", case_limit=99)
+        self.assertEqual(tuple(case.name for case in selected), ("case-04",))
+
+    def test_manual_profile_still_honors_case_limit(self):
+        ctx = load_skill_context(get_skill_config("vgc-team-builder"))
+        selected = select_cases(ctx=ctx, run_profile="manual", case_limit=2)
+        self.assertEqual(tuple(case.name for case in selected), ("case-01", "case-02"))
 
     def test_rubric_fail_trigger_extraction_supports_both_formats(self):
         text = "\n".join(
@@ -75,6 +102,107 @@ class AutoresearchTests(unittest.TestCase):
         denied = REPO_ROOT / "plugins" / "vgc-coach-codex" / "README.md"
         self.assertTrue(is_path_allowed_for_write(str(allowed), config, allow_eval_tightening=False))
         self.assertFalse(is_path_allowed_for_write(str(denied), config, allow_eval_tightening=False))
+
+    def test_baseline_is_clean_requires_no_actionable_issues(self):
+        clean_case = type(
+            "CaseStub",
+            (),
+            {
+                "case_name": "case-01",
+                "matched_fail_triggers": (),
+                "checks_failed": (),
+                "failure_categories": (),
+                "recommended_smallest_fix": "",
+            },
+        )()
+        dirty_case = type(
+            "CaseStub",
+            (),
+            {
+                "case_name": "case-02",
+                "matched_fail_triggers": (),
+                "checks_failed": ("one",),
+                "failure_categories": (),
+                "recommended_smallest_fix": "",
+            },
+        )()
+        self.assertTrue(
+            baseline_is_clean(
+                SkillEvaluation(
+                    skill="vgc-team-builder",
+                    average_score=80.0,
+                    cases=(clean_case,),
+                    failure_categories=(),
+                    matched_fail_triggers=(),
+                    summary="clean",
+                )
+            )
+        )
+        self.assertFalse(
+            baseline_is_clean(
+                SkillEvaluation(
+                    skill="vgc-team-builder",
+                    average_score=60.0,
+                    cases=(dirty_case,),
+                    failure_categories=(),
+                    matched_fail_triggers=(),
+                    summary="dirty",
+                )
+            )
+        )
+
+    def test_prompt_and_premium_estimates_match_branch_shape(self):
+        self.assertEqual(
+            estimate_prompt_count(
+                mode="review",
+                evaluated_case_count=1,
+                skipped_improvement=False,
+                candidate_evaluated=False,
+            ),
+            2,
+        )
+        self.assertEqual(
+            estimate_prompt_count(
+                mode="improve",
+                evaluated_case_count=1,
+                skipped_improvement=True,
+                candidate_evaluated=False,
+            ),
+            2,
+        )
+        self.assertEqual(
+            estimate_prompt_count(
+                mode="improve",
+                evaluated_case_count=1,
+                skipped_improvement=False,
+                candidate_evaluated=False,
+            ),
+            3,
+        )
+        self.assertEqual(
+            estimate_prompt_count(
+                mode="improve",
+                evaluated_case_count=1,
+                skipped_improvement=False,
+                candidate_evaluated=True,
+            ),
+            5,
+        )
+        self.assertEqual(
+            estimate_premium_requests(
+                provider="github-token",
+                model="gpt-5.4",
+                prompt_count=5,
+            ),
+            5,
+        )
+        self.assertIsNone(
+            estimate_premium_requests(
+                provider="byok-openai",
+                model="gpt-5.4",
+                prompt_count=5,
+            )
+        )
 
 
 if __name__ == "__main__":

@@ -43,6 +43,10 @@ class SkillEvaluation:
     matched_fail_triggers: tuple[str, ...]
     summary: str
 
+    @property
+    def evaluated_case_names(self) -> tuple[str, ...]:
+        return tuple(case.case_name for case in self.cases)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "skill": self.skill,
@@ -59,6 +63,8 @@ class AutoresearchResult:
     skill: str
     run_date: str
     mode: str
+    run_profile: str
+    runtime_engine: str
     provider: str
     model: str | None
     baseline_score: float
@@ -70,6 +76,10 @@ class AutoresearchResult:
     changed_files: tuple[str, ...]
     regressions: tuple[str, ...]
     sources_used: tuple[str, ...]
+    evaluated_case_names: tuple[str, ...]
+    skip_reason: str | None
+    estimated_prompt_count: int
+    estimated_premium_requests: int | None
     baseline_summary: str
     candidate_summary: str | None
     improvement_summary: str | None
@@ -78,3 +88,41 @@ class AutoresearchResult:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def baseline_is_clean(evaluation: SkillEvaluation) -> bool:
+    return all(
+        not case.matched_fail_triggers
+        and not case.checks_failed
+        and not case.failure_categories
+        and not case.recommended_smallest_fix.strip()
+        for case in evaluation.cases
+    )
+
+
+def estimate_prompt_count(
+    *,
+    mode: str,
+    evaluated_case_count: int,
+    skipped_improvement: bool,
+    candidate_evaluated: bool,
+) -> int:
+    baseline_prompts = 2 * evaluated_case_count
+    if mode == "review" or skipped_improvement:
+        return baseline_prompts
+    if candidate_evaluated:
+        return baseline_prompts * 2 + 1
+    return baseline_prompts + 1
+
+
+def estimate_premium_requests(
+    *,
+    provider: str,
+    model: str | None,
+    prompt_count: int,
+) -> int | None:
+    if provider != "github-token":
+        return None
+    if model != "gpt-5.4":
+        return None
+    return prompt_count
