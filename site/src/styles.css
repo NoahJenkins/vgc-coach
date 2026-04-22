@@ -914,7 +914,7 @@ pre {
   }
 
   .brand {
-    align-items: start;
+    align-items: center;
   }
 
   .brand-copy strong {
@@ -922,7 +922,7 @@ pre {
   }
 
   .brand-copy span:last-child {
-    font-size: 0.82rem;
+    display: none;
   }
 
   .hero {
@@ -963,10 +963,6 @@ pre {
 }
 
 @media (max-width: 560px) {
-  .brand-copy span:last-child {
-    max-width: 18ch;
-  }
-
   .header-menu-toggle {
     min-width: auto;
     padding-inline: 0.95rem;
