@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Literal
 
 LiveResearchPolicy = Literal["off", "conditional", "required"]
+RunProfile = Literal["daily_sentinel", "manual"]
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REPORT_ROOT = REPO_ROOT / ".artifacts" / "autoresearch"
@@ -18,12 +19,21 @@ PRIORITY_SKILLS: tuple[str, ...] = (
     "vgc-battle-review",
 )
 
+PRIORITY_SENTINEL_CASES: dict[str, str] = {
+    "vgc-meta-research": "case-01",
+    "vgc-team-builder": "case-04",
+    "vgc-team-audit": "case-01",
+    "vgc-lead-planner": "case-02",
+    "vgc-battle-review": "case-02",
+}
+
 
 @dataclass(frozen=True)
 class SkillConfig:
     name: str
     fixture_slug: str
     live_research_policy: LiveResearchPolicy
+    sentinel_case_name: str | None = None
 
     @property
     def skill_file(self) -> Path:
@@ -47,6 +57,7 @@ def _skill(name: str, live_research_policy: LiveResearchPolicy) -> SkillConfig:
         name=name,
         fixture_slug=name.removeprefix("vgc-"),
         live_research_policy=live_research_policy,
+        sentinel_case_name=PRIORITY_SENTINEL_CASES.get(name),
     )
 
 

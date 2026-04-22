@@ -3,6 +3,11 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
+COPILOT_MODEL_MULTIPLIERS = {
+    "gpt-5.4": 1.0,
+    "gpt-5.4-mini": 0.33,
+}
+
 
 @dataclass(frozen=True)
 class DimensionScore:
@@ -27,6 +32,8 @@ class CaseEvaluation:
     source_urls: tuple[str, ...]
     response_path: str
     evaluation_path: str
+    evaluation_valid: bool = True
+    grading_errors: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -42,6 +49,12 @@ class SkillEvaluation:
     failure_categories: tuple[str, ...]
     matched_fail_triggers: tuple[str, ...]
     summary: str
+    evaluation_valid: bool = True
+    grading_errors: tuple[str, ...] = ()
+
+    @property
+    def evaluated_case_names(self) -> tuple[str, ...]:
+        return tuple(case.case_name for case in self.cases)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -59,6 +72,8 @@ class AutoresearchResult:
     skill: str
     run_date: str
     mode: str
+    run_profile: str
+    runtime_engine: str
     provider: str
     model: str | None
     baseline_score: float
@@ -70,11 +85,59 @@ class AutoresearchResult:
     changed_files: tuple[str, ...]
     regressions: tuple[str, ...]
     sources_used: tuple[str, ...]
+    evaluated_case_names: tuple[str, ...]
+    skip_reason: str | None
+    estimated_prompt_count: int
+    estimated_premium_requests: float | None
     baseline_summary: str
     candidate_summary: str | None
     improvement_summary: str | None
     report_dir: str
     errors: tuple[str, ...]
+    baseline_eval_valid: bool
+    candidate_eval_valid: bool | None
+    grading_errors: tuple[str, ...]
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def baseline_is_clean(evaluation: SkillEvaluation) -> bool:
+    return all(
+        case.evaluation_valid
+        and not case.matched_fail_triggers
+        and not case.checks_failed
+        and not case.failure_categories
+        for case in evaluation.cases
+    )
+
+
+def estimate_prompt_count(
+    *,
+    mode: str,
+    evaluated_case_count: int,
+    skipped_improvement: bool,
+    candidate_evaluated: bool,
+) -> int:
+    baseline_prompts = 2 * evaluated_case_count
+    if mode == "review" or skipped_improvement:
+        return baseline_prompts
+    if candidate_evaluated:
+        return baseline_prompts * 2 + 1
+    return baseline_prompts + 1
+
+
+def estimate_premium_requests(
+    *,
+    provider: str,
+    model: str | None,
+    prompt_count: int,
+) -> float | None:
+    if provider != "github-token":
+        return None
+    if model is None:
+        return None
+    multiplier = COPILOT_MODEL_MULTIPLIERS.get(model.lower())
+    if multiplier is None:
+        return None
+    return round(prompt_count * multiplier, 2)

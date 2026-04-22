@@ -55,11 +55,9 @@ def load_skill_context(config: SkillConfig) -> SkillContext:
 
 def load_case_file(path: Path) -> CaseFile:
     raw_text = path.read_text()
-    request = ""
-    for line in raw_text.splitlines():
-        if line.startswith("Request:"):
-            request = line.partition(":")[2].strip()
-            break
+    request = _extract_request(raw_text)
+    if not request:
+        raise ValueError(f"Fixture {path} has an empty Request block.")
     checks = tuple(_extract_bullets_after_label(raw_text, "Checks:"))
     failure_triggers = tuple(_extract_bullets_after_label(raw_text, "Failure triggers:"))
     return CaseFile(
@@ -150,6 +148,31 @@ def resolve_markdown_links(path: Path) -> tuple[Path, ...]:
         if resolved.exists():
             referenced.append(resolved)
     return tuple(sorted(set(referenced)))
+
+
+def _extract_request(text: str) -> str:
+    lines = text.splitlines()
+    collecting = False
+    request_lines: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if not collecting:
+            if line.startswith("Request:"):
+                collecting = True
+                initial = line.partition(":")[2].strip()
+                if initial:
+                    request_lines.append(initial)
+            continue
+
+        if stripped in ("Checks:", "Failure triggers:"):
+            break
+        request_lines.append(line)
+
+    while request_lines and not request_lines[0].strip():
+        request_lines.pop(0)
+    while request_lines and not request_lines[-1].strip():
+        request_lines.pop()
+    return "\n".join(request_lines).strip()
 
 
 def _extract_bullets_after_label(text: str, label: str) -> list[str]:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .config import REPO_ROOT, SkillConfig
+from .config import REPO_ROOT, RunProfile, SkillConfig
 
 if TYPE_CHECKING:
     from copilot.generated.session_events import PermissionRequest
@@ -20,7 +20,27 @@ SAFE_GIT_PREFIXES = (
 )
 
 
-def is_path_allowed_for_write(path: str | None, config: SkillConfig, allow_eval_tightening: bool) -> bool:
+def get_allowed_write_roots(
+    config: SkillConfig,
+    *,
+    allow_eval_tightening: bool,
+    run_profile: RunProfile,
+) -> tuple[Path, ...]:
+    roots = [config.skill_file]
+    if run_profile != "daily_sentinel":
+        roots.append(config.docs_dir)
+    if allow_eval_tightening:
+        roots.extend((config.fixture_dir, config.rubric_file))
+    return tuple(roots)
+
+
+def is_path_allowed_for_write(
+    path: str | None,
+    config: SkillConfig,
+    allow_eval_tightening: bool,
+    *,
+    run_profile: RunProfile = "manual",
+) -> bool:
     if not path:
         return False
     candidate = Path(path)
@@ -29,9 +49,11 @@ def is_path_allowed_for_write(path: str | None, config: SkillConfig, allow_eval_
     else:
         candidate = candidate.resolve()
 
-    allowed_roots = [config.skill_file, config.docs_dir]
-    if allow_eval_tightening:
-        allowed_roots.extend((config.fixture_dir, config.rubric_file))
+    allowed_roots = get_allowed_write_roots(
+        config,
+        allow_eval_tightening=allow_eval_tightening,
+        run_profile=run_profile,
+    )
 
     for root in allowed_roots:
         root = root.resolve()
@@ -47,6 +69,7 @@ def make_permission_handler(
     config: SkillConfig,
     allow_writes: bool,
     allow_eval_tightening: bool,
+    run_profile: RunProfile,
     allow_live_research: bool,
     recorder: Any,
 ):
@@ -66,7 +89,13 @@ def make_permission_handler(
                     message="This session is read-only.",
                 )
             if paths and all(
-                is_path_allowed_for_write(path, config, allow_eval_tightening) for path in paths
+                is_path_allowed_for_write(
+                    path,
+                    config,
+                    allow_eval_tightening,
+                    run_profile=run_profile,
+                )
+                for path in paths
             ):
                 recorder.write_paths.extend(paths)
                 return PermissionRequestResult(kind="approved")

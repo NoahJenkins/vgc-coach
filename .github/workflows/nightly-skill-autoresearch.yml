@@ -26,16 +26,34 @@ on:
         options:
           - github-token
           - byok-openai
+      profile:
+        description: "Run profile"
+        required: true
+        default: manual
+        type: choice
+        options:
+          - manual
+          - daily_sentinel
       model:
         description: "Optional model override"
         required: false
-        default: "gpt-5.4"
+        default: "gpt-5.4-mini"
         type: string
       open_pr:
         description: "Open/update a draft PR when the candidate is accepted"
         required: true
         default: false
         type: boolean
+      case_limit:
+        description: "Optional number of fixture cases to run"
+        required: false
+        default: "1"
+        type: string
+      session_timeout:
+        description: "Per-model-call timeout in seconds"
+        required: false
+        default: "600"
+        type: string
 
 permissions:
   contents: write
@@ -60,8 +78,11 @@ jobs:
       AUTORESEARCH_MODE: ${{ github.event_name == 'schedule' && 'improve' || inputs.mode }}
       AUTORESEARCH_SKILL: ${{ github.event_name == 'schedule' && 'auto' || inputs.skill }}
       AUTORESEARCH_PROVIDER: ${{ github.event_name == 'schedule' && 'github-token' || inputs.provider }}
+      AUTORESEARCH_PROFILE: ${{ github.event_name == 'schedule' && 'daily_sentinel' || inputs.profile }}
       AUTORESEARCH_OPEN_PR: ${{ github.event_name == 'schedule' && 'true' || (inputs.open_pr && 'true' || 'false') }}
       AUTORESEARCH_MODEL: ${{ github.event_name == 'schedule' && 'gpt-5.4' || inputs.model }}
+      AUTORESEARCH_CASE_LIMIT: ${{ github.event_name == 'schedule' && '' || inputs.case_limit }}
+      AUTORESEARCH_SESSION_TIMEOUT: ${{ github.event_name == 'schedule' && '600' || inputs.session_timeout }}
     steps:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -88,10 +109,16 @@ jobs:
         id: autoresearch
         run: |
           set -euo pipefail
-          cmd=(python3 tools/autoresearch.py --mode "$AUTORESEARCH_MODE" --provider "$AUTORESEARCH_PROVIDER" --report-dir ".artifacts/autoresearch")
+          cmd=(python3 tools/autoresearch.py --mode "$AUTORESEARCH_MODE" --provider "$AUTORESEARCH_PROVIDER" --profile "$AUTORESEARCH_PROFILE" --report-dir ".artifacts/autoresearch")
           cmd+=(--skill "${AUTORESEARCH_SKILL:-auto}")
           if [ -n "${AUTORESEARCH_MODEL}" ]; then
             cmd+=(--model "$AUTORESEARCH_MODEL")
+          fi
+          if [ -n "${AUTORESEARCH_CASE_LIMIT}" ]; then
+            cmd+=(--case-limit "$AUTORESEARCH_CASE_LIMIT")
+          fi
+          if [ -n "${AUTORESEARCH_SESSION_TIMEOUT}" ]; then
+            cmd+=(--session-timeout "$AUTORESEARCH_SESSION_TIMEOUT")
           fi
           if [ "${AUTORESEARCH_OPEN_PR}" = "true" ]; then
             cmd+=(--open-pr)
@@ -129,7 +156,7 @@ jobs:
           python3 -m unittest tests.test_build_plugins
 
       - name: Commit accepted candidate
-        if: steps.autoresearch.outputs.pr_candidate == 'true'
+        if: steps.autoresearch.outputs.pr_candidate == 'true' && env.AUTORESEARCH_OPEN_PR == 'true'
         run: |
           set -euo pipefail
           BRANCH="nightly/autoresearch/${{ steps.autoresearch.outputs.run_date }}/${{ steps.autoresearch.outputs.skill }}"
@@ -145,7 +172,7 @@ jobs:
           git push --force-with-lease origin HEAD:"$BRANCH"
 
       - name: Open or update draft PR
-        if: steps.autoresearch.outputs.pr_candidate == 'true'
+        if: steps.autoresearch.outputs.pr_candidate == 'true' && env.AUTORESEARCH_OPEN_PR == 'true'
         run: |
           set -euo pipefail
           BRANCH="nightly/autoresearch/${{ steps.autoresearch.outputs.run_date }}/${{ steps.autoresearch.outputs.skill }}"
