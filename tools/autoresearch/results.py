@@ -3,6 +3,11 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
+COPILOT_MODEL_MULTIPLIERS = {
+    "gpt-5.4": 1.0,
+    "gpt-5.4-mini": 0.33,
+}
+
 
 @dataclass(frozen=True)
 class DimensionScore:
@@ -83,7 +88,7 @@ class AutoresearchResult:
     evaluated_case_names: tuple[str, ...]
     skip_reason: str | None
     estimated_prompt_count: int
-    estimated_premium_requests: int | None
+    estimated_premium_requests: float | None
     baseline_summary: str
     candidate_summary: str | None
     improvement_summary: str | None
@@ -127,9 +132,12 @@ def estimate_premium_requests(
     provider: str,
     model: str | None,
     prompt_count: int,
-) -> int | None:
+) -> float | None:
     if provider != "github-token":
         return None
-    if model != "gpt-5.4":
+    if model is None:
         return None
-    return prompt_count
+    multiplier = COPILOT_MODEL_MULTIPLIERS.get(model.lower())
+    if multiplier is None:
+        return None
+    return round(prompt_count * multiplier, 2)

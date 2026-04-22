@@ -315,6 +315,22 @@ class AutoresearchTests(unittest.TestCase):
             ),
             5,
         )
+        self.assertEqual(
+            estimate_premium_requests(
+                provider="github-token",
+                model="gpt-5.4-mini",
+                prompt_count=5,
+            ),
+            1.65,
+        )
+        self.assertEqual(
+            estimate_premium_requests(
+                provider="github-token",
+                model="GPT-5.4-MINI",
+                prompt_count=3,
+            ),
+            0.99,
+        )
         self.assertIsNone(
             estimate_premium_requests(
                 provider="byok-openai",
