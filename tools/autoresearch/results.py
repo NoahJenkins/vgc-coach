@@ -27,6 +27,8 @@ class CaseEvaluation:
     source_urls: tuple[str, ...]
     response_path: str
     evaluation_path: str
+    evaluation_valid: bool = True
+    grading_errors: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -42,6 +44,8 @@ class SkillEvaluation:
     failure_categories: tuple[str, ...]
     matched_fail_triggers: tuple[str, ...]
     summary: str
+    evaluation_valid: bool = True
+    grading_errors: tuple[str, ...] = ()
 
     @property
     def evaluated_case_names(self) -> tuple[str, ...]:
@@ -85,6 +89,9 @@ class AutoresearchResult:
     improvement_summary: str | None
     report_dir: str
     errors: tuple[str, ...]
+    baseline_eval_valid: bool
+    candidate_eval_valid: bool | None
+    grading_errors: tuple[str, ...]
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -92,10 +99,10 @@ class AutoresearchResult:
 
 def baseline_is_clean(evaluation: SkillEvaluation) -> bool:
     return all(
-        not case.matched_fail_triggers
+        case.evaluation_valid
+        and not case.matched_fail_triggers
         and not case.checks_failed
         and not case.failure_categories
-        and not case.recommended_smallest_fix.strip()
         for case in evaluation.cases
     )
 

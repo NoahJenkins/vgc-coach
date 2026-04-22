@@ -12,6 +12,7 @@ from autoresearch.config import DEFAULT_REPORT_ROOT, REPO_ROOT, RunProfile, choo
 from autoresearch.context import diff_snapshots, load_skill_context, restore_snapshot, snapshot_paths
 from autoresearch.copilot_sdk import run_session
 from autoresearch.evals import evaluate_skill
+from autoresearch.policy import get_allowed_write_roots
 from autoresearch.results import (
     AutoresearchResult,
     baseline_is_clean,
@@ -107,19 +108,25 @@ async def main() -> int:
     decision = "no_change"
     skip_reason = None
     errors: list[str] = []
+    grading_errors: list[str] = list(baseline.grading_errors)
 
     if args.mode == "improve":
-        if baseline_is_clean(baseline):
+        if not baseline.evaluation_valid:
+            errors.extend(baseline.grading_errors)
+            decision = "rejected"
+        elif baseline_is_clean(baseline):
             skip_reason = "clean_baseline"
         else:
-            initial_dirty = _write_scope_is_dirty(ctx, args.allow_eval_tightening)
+            initial_dirty = _write_scope_is_dirty(ctx, args.allow_eval_tightening, args.profile)
             if initial_dirty and not args.allow_dirty_write_scope:
                 raise RuntimeError(
                     "The target write scope is already dirty. Re-run with --allow-dirty-write-scope "
                     "only if you want autoresearch to work on top of existing edits."
                 )
 
-            before_snapshot = snapshot_paths(_writable_roots(ctx, args.allow_eval_tightening))
+            before_snapshot = snapshot_paths(
+                _writable_roots(ctx, args.allow_eval_tightening, args.profile)
+            )
             improvement_result = await _run_improvement(
                 ctx=ctx,
                 report_dir=report_dir,
@@ -127,13 +134,16 @@ async def main() -> int:
                 provider_name=args.provider,
                 model=args.model,
                 allow_eval_tightening=args.allow_eval_tightening,
+                run_profile=args.profile,
                 session_timeout=args.session_timeout,
             )
             improvement_summary = improvement_result["text"].strip()
             sources_used = sorted(set(sources_used) | set(improvement_result["source_urls"]))
             (report_dir / "improvement-summary.md").write_text(improvement_summary + "\n")
 
-            after_snapshot = snapshot_paths(_writable_roots(ctx, args.allow_eval_tightening))
+            after_snapshot = snapshot_paths(
+                _writable_roots(ctx, args.allow_eval_tightening, args.profile)
+            )
             changed_files = diff_snapshots(before_snapshot, after_snapshot)
 
             if changed_files:
@@ -151,9 +161,16 @@ async def main() -> int:
                     json.dumps(candidate.to_dict(), indent=2, sort_keys=True) + "\n"
                 )
                 (report_dir / "candidate-summary.md").write_text(candidate.summary + "\n")
-                regressions = _compute_regressions(baseline, candidate)
+                grading_errors.extend(candidate.grading_errors)
+                regressions = (
+                    _compute_regressions(baseline, candidate)
+                    if baseline.evaluation_valid and candidate.evaluation_valid
+                    else ()
+                )
                 accepted_candidate = (
-                    candidate.average_score > baseline.average_score
+                    baseline.evaluation_valid
+                    and candidate.evaluation_valid
+                    and candidate.average_score > baseline.average_score
                     and not regressions
                     and not candidate.matched_fail_triggers
                 )
@@ -161,7 +178,10 @@ async def main() -> int:
                 decision = "pr_opened" if accepted_candidate and args.open_pr else "rejected"
 
                 if not accepted_candidate and not initial_dirty:
-                    restore_snapshot(before_snapshot, _writable_roots(ctx, args.allow_eval_tightening))
+                    restore_snapshot(
+                        before_snapshot,
+                        _writable_roots(ctx, args.allow_eval_tightening, args.profile),
+                    )
             else:
                 decision = "no_change"
 
@@ -202,6 +222,9 @@ async def main() -> int:
         improvement_summary=improvement_summary,
         report_dir=report_dir.as_posix(),
         errors=tuple(errors),
+        baseline_eval_valid=baseline.evaluation_valid,
+        candidate_eval_valid=None if candidate is None else candidate.evaluation_valid,
+        grading_errors=tuple(dict.fromkeys(grading_errors)),
     )
     result_path = report_dir / "result.json"
     result_path.write_text(json.dumps(result.to_dict(), indent=2, sort_keys=True) + "\n")
@@ -217,24 +240,54 @@ async def _run_improvement(
     provider_name: str,
     model: str | None,
     allow_eval_tightening: bool,
+    run_profile: str,
     session_timeout: float,
 ) -> dict[str, object]:
     weakest_case = min(baseline.cases, key=lambda case: case.overall_score)
-    prompt = "\n".join(
+    prompt = _build_improvement_prompt(ctx.config.name, baseline, weakest_case)
+    attachments = _build_improvement_attachments(ctx, report_dir, weakest_case)
+    result = await run_session(
+        prompt=prompt,
+        attachments=attachments,
+        provider_name=provider_name,
+        model=model,
+        allow_writes=True,
+        allow_eval_tightening=allow_eval_tightening,
+        run_profile=run_profile,
+        allow_live_research=ctx.config.live_research_policy != "off",
+        config=ctx.config,
+        system_message=(
+            "You are the vgc-coach nightly autoresearch worker. Make small, evidence-backed edits only."
+        ),
+        timeout=session_timeout,
+    )
+    return {"text": result.final_text, "source_urls": result.source_urls}
+
+
+def _build_improvement_prompt(skill_name: str, baseline, weakest_case) -> str:
+    passing_checks = ", ".join(weakest_case.checks_passed) or "none recorded"
+    failing_checks = ", ".join(weakest_case.checks_failed) or "none recorded"
+    return "\n".join(
         [
-            f"Target skill: {ctx.config.name}",
+            f"Target skill: {skill_name}",
             "",
             "Review the attached baseline artifacts and improve the target skill with the smallest useful change.",
             "Use the weakest evaluated case as the primary target unless the baseline artifacts prove a different single fix is more important.",
+            "Recommended smallest fix is advisory only. Do not chase it if doing so would break currently passing checks.",
             "Hard rules:",
             "- Edit only the approved write scope for this session.",
             "- Do not touch generated plugin outputs directly.",
             "- Preserve the published output contract unless the baseline evidence proves it is broken.",
+            "- Preserve all currently passing checks unless the baseline artifacts prove a direct conflict.",
+            "- Preserve existing pass-worthy section order and confidence framing unless the baseline evidence proves they are wrong.",
             "- Never invent current-format facts.",
+            "- Do not widen freshness or source-stack confidence without newly demonstrated evidence in the edited contract.",
             "- If the skill needs live currentness checks, use absolute dates and keep uncertainty explicit.",
             "",
             f"Weakest evaluated case: {weakest_case.case_name} ({weakest_case.overall_score})",
             f"Recommended smallest fix: {weakest_case.recommended_smallest_fix or 'none recorded'}",
+            f"Currently passing checks: {passing_checks}",
+            f"Currently failing checks: {failing_checks}",
             "",
             "Baseline summary:",
             baseline.summary,
@@ -245,9 +298,18 @@ async def _run_improvement(
             "Matched fail triggers:",
             ", ".join(baseline.matched_fail_triggers) or "none",
             "",
-            "After editing, reply with a concise summary of what changed and why.",
+            (
+                "If the baseline already passes freshness/currentness framing, do not upgrade an "
+                "`inference-heavy early read` to `current-field recommendation` unless the edited "
+                "contract now proves the minimum live source stack requirement."
+            ),
+            "",
+            "After editing, reply with a concise summary of what exact issue you targeted and what existing behavior you intentionally preserved.",
         ]
     )
+
+
+def _build_improvement_attachments(ctx, report_dir: Path, weakest_case) -> list[dict[str, str]]:
     attachments = [
         {"type": "file", "path": str(ctx.config.skill_file)},
         {"type": "directory", "path": str(ctx.config.docs_dir)},
@@ -258,21 +320,7 @@ async def _run_improvement(
         {"type": "file", "path": str(REPO_ROOT / weakest_case.evaluation_path)},
     ]
     attachments.extend({"type": "file", "path": str(path)} for path in ctx.shared_reference_files)
-    result = await run_session(
-        prompt=prompt,
-        attachments=attachments,
-        provider_name=provider_name,
-        model=model,
-        allow_writes=True,
-        allow_eval_tightening=allow_eval_tightening,
-        allow_live_research=ctx.config.live_research_policy != "off",
-        config=ctx.config,
-        system_message=(
-            "You are the vgc-coach nightly autoresearch worker. Make small, evidence-backed edits only."
-        ),
-        timeout=session_timeout,
-    )
-    return {"text": result.final_text, "source_urls": result.source_urls}
+    return attachments
 
 
 def _compute_regressions(baseline, candidate) -> tuple[str, ...]:
@@ -289,15 +337,19 @@ def _compute_regressions(baseline, candidate) -> tuple[str, ...]:
     return tuple(regressions)
 
 
-def _writable_roots(ctx, allow_eval_tightening: bool) -> tuple[Path, ...]:
-    roots = [ctx.config.skill_file, ctx.config.docs_dir]
-    if allow_eval_tightening:
-        roots.extend((ctx.config.fixture_dir, ctx.config.rubric_file))
-    return tuple(roots)
+def _writable_roots(ctx, allow_eval_tightening: bool, run_profile: str) -> tuple[Path, ...]:
+    return get_allowed_write_roots(
+        ctx.config,
+        allow_eval_tightening=allow_eval_tightening,
+        run_profile=run_profile,
+    )
 
 
-def _write_scope_is_dirty(ctx, allow_eval_tightening: bool) -> bool:
-    paths = [path.relative_to(Path.cwd()).as_posix() for path in _writable_roots(ctx, allow_eval_tightening)]
+def _write_scope_is_dirty(ctx, allow_eval_tightening: bool, run_profile: str) -> bool:
+    paths = [
+        path.relative_to(Path.cwd()).as_posix()
+        for path in _writable_roots(ctx, allow_eval_tightening, run_profile)
+    ]
     result = subprocess.run(
         ["git", "status", "--porcelain", "--", *paths],
         check=True,

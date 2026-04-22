@@ -50,13 +50,14 @@ async def evaluate_skill(
             case=case,
             provider_name=provider_name,
             model=model,
+            run_profile=run_profile,
             session_timeout=session_timeout,
         )
         response_path = case_dir / "response.md"
         response_path.write_text(response["text"].strip() + "\n")
         response_path_abs = response_path.resolve()
 
-        evaluation_payload = await _grade_case_response(
+        raw_evaluation_payload = await _grade_case_response(
             ctx=ctx,
             case=case,
             response_text=response["text"],
@@ -65,6 +66,7 @@ async def evaluate_skill(
             model=model,
             session_timeout=session_timeout,
         )
+        evaluation_payload = _normalize_evaluation_payload(raw_evaluation_payload, case.name)
         evaluation_path = case_dir / "evaluation.json"
         evaluation_path.write_text(json.dumps(evaluation_payload, indent=2, sort_keys=True) + "\n")
         evaluation_path_abs = evaluation_path.resolve()
@@ -94,6 +96,8 @@ async def evaluate_skill(
                 source_urls=tuple(response["source_urls"]),
                 response_path=response_path_abs.relative_to(REPO_ROOT).as_posix(),
                 evaluation_path=evaluation_path_abs.relative_to(REPO_ROOT).as_posix(),
+                evaluation_valid=bool(evaluation_payload.get("evaluation_valid", True)),
+                grading_errors=tuple(evaluation_payload.get("grading_errors", [])),
             )
         )
 
@@ -104,6 +108,13 @@ async def evaluate_skill(
     failure_categories = tuple(_top_items(case_results, "failure_categories"))
     matched_fail_triggers = tuple(_top_items(case_results, "matched_fail_triggers"))
     summary = _build_skill_summary(case_results)
+    grading_errors = tuple(
+        error
+        for case in case_results
+        for error in (
+            f"{case.case_name}: {message}" for message in case.grading_errors
+        )
+    )
     return SkillEvaluation(
         skill=ctx.config.name,
         average_score=average_score,
@@ -111,6 +122,8 @@ async def evaluate_skill(
         failure_categories=failure_categories,
         matched_fail_triggers=matched_fail_triggers,
         summary=summary,
+        evaluation_valid=all(case.evaluation_valid for case in case_results),
+        grading_errors=grading_errors,
     )
 
 
@@ -141,6 +154,7 @@ async def _generate_case_response(
     case: CaseFile,
     provider_name: str,
     model: str | None,
+    run_profile: RunProfile,
     session_timeout: float,
 ) -> dict[str, Any]:
     prompt = "\n".join(
@@ -168,6 +182,7 @@ async def _generate_case_response(
         model=model,
         allow_writes=False,
         allow_eval_tightening=False,
+        run_profile=run_profile,
         allow_live_research=ctx.config.live_research_policy != "off",
         config=ctx.config,
         system_message=GENERATION_SYSTEM_MESSAGE,
@@ -224,6 +239,7 @@ async def _grade_case_response(
         model=model,
         allow_writes=False,
         allow_eval_tightening=False,
+        run_profile="manual",
         allow_live_research=False,
         config=ctx.config,
         system_message=GRADING_SYSTEM_MESSAGE,
@@ -237,10 +253,79 @@ async def _grade_case_response(
     payload.setdefault("matched_fail_triggers", [])
     payload.setdefault("summary", "")
     payload.setdefault("recommended_smallest_fix", "")
-    payload["matched_fail_triggers"] = sorted(set(payload.get("matched_fail_triggers", [])))
-    if payload["matched_fail_triggers"]:
-        payload["overall_score"] = min(int(payload["overall_score"]), 40)
     return payload
+
+
+def _normalize_evaluation_payload(payload: dict[str, Any], case_name: str) -> dict[str, Any]:
+    normalized = dict(payload)
+    errors: list[str] = []
+
+    reported_overall = normalized.get("overall_score")
+    try:
+        raw_overall_score = int(reported_overall)
+    except (TypeError, ValueError):
+        raw_overall_score = None
+        errors.append(
+            f"grader returned a non-numeric overall_score for {case_name}: {reported_overall!r}"
+        )
+
+    raw_dimension_scores = normalized.get("dimension_scores", [])
+    if not isinstance(raw_dimension_scores, list):
+        raw_dimension_scores = []
+        errors.append(f"grader returned non-list dimension_scores for {case_name}")
+
+    dimension_scores: list[dict[str, Any]] = []
+    for index, raw_score in enumerate(raw_dimension_scores):
+        if not isinstance(raw_score, dict):
+            errors.append(f"dimension_scores[{index}] is not an object for {case_name}")
+            continue
+        try:
+            score_value = int(raw_score.get("score"))
+        except (TypeError, ValueError):
+            errors.append(
+                f"dimension_scores[{index}].score is not numeric for {case_name}: "
+                f"{raw_score.get('score')!r}"
+            )
+            continue
+        dimension_scores.append(
+            {
+                "name": str(raw_score.get("name", "")).strip(),
+                "score": score_value,
+                "rationale": str(raw_score.get("rationale", "")).strip(),
+            }
+        )
+
+    if not dimension_scores:
+        errors.append(f"grader returned no usable dimension_scores for {case_name}")
+
+    computed_overall = sum(score["score"] for score in dimension_scores)
+    if raw_overall_score is not None and dimension_scores and raw_overall_score != computed_overall:
+        errors.append(
+            f"reported overall_score {raw_overall_score} does not match dimension-score sum "
+            f"{computed_overall} for {case_name}"
+        )
+
+    normalized["checks_passed"] = list(normalized.get("checks_passed", []))
+    normalized["checks_failed"] = list(normalized.get("checks_failed", []))
+    normalized["failure_categories"] = list(normalized.get("failure_categories", []))
+    normalized["matched_fail_triggers"] = sorted(set(normalized.get("matched_fail_triggers", [])))
+    normalized["summary"] = str(normalized.get("summary", "")).strip()
+    normalized["recommended_smallest_fix"] = str(
+        normalized.get("recommended_smallest_fix", "")
+    ).strip()
+    normalized["dimension_scores"] = dimension_scores
+    normalized["reported_overall_score"] = reported_overall
+    normalized["evaluation_valid"] = not errors
+    normalized["grading_errors"] = errors
+
+    if errors:
+        normalized["overall_score"] = 0
+        return normalized
+
+    normalized["overall_score"] = raw_overall_score
+    if normalized["matched_fail_triggers"]:
+        normalized["overall_score"] = min(raw_overall_score, 40)
+    return normalized
 
 
 def _parse_json_response(text: str) -> dict[str, Any]:
@@ -272,6 +357,11 @@ def _top_items(cases: list[CaseEvaluation], attribute: str) -> list[str]:
 def _build_skill_summary(cases: list[CaseEvaluation]) -> str:
     if not cases:
         return "No eval cases were available."
+
+    invalid_cases = [case for case in cases if not case.evaluation_valid]
+    if invalid_cases:
+        invalid_names = ", ".join(case.case_name for case in invalid_cases)
+        return f"Invalid grading output for: {invalid_names}."
 
     weakest = min(cases, key=lambda case: case.overall_score)
     strongest = max(cases, key=lambda case: case.overall_score)

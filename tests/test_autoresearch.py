@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import importlib.util
 import sys
 import tempfile
 import unittest
@@ -19,14 +20,25 @@ from autoresearch.context import (  # noqa: E402
     restore_snapshot,
     snapshot_paths,
 )
-from autoresearch.evals import select_cases  # noqa: E402
-from autoresearch.policy import is_path_allowed_for_write  # noqa: E402
+from autoresearch.evals import _normalize_evaluation_payload, select_cases  # noqa: E402
+from autoresearch.policy import (  # noqa: E402
+    get_allowed_write_roots,
+    is_path_allowed_for_write,
+)
 from autoresearch.results import (  # noqa: E402
     SkillEvaluation,
     baseline_is_clean,
     estimate_premium_requests,
     estimate_prompt_count,
 )
+
+AUTORESEARCH_SCRIPT_SPEC = importlib.util.spec_from_file_location(
+    "autoresearch_cli_module",
+    REPO_ROOT / "tools" / "autoresearch.py",
+)
+AUTORESEARCH_SCRIPT = importlib.util.module_from_spec(AUTORESEARCH_SCRIPT_SPEC)
+assert AUTORESEARCH_SCRIPT_SPEC.loader is not None
+AUTORESEARCH_SCRIPT_SPEC.loader.exec_module(AUTORESEARCH_SCRIPT)
 
 
 class AutoresearchTests(unittest.TestCase):
@@ -178,6 +190,32 @@ class AutoresearchTests(unittest.TestCase):
         self.assertTrue(is_path_allowed_for_write(str(allowed), config, allow_eval_tightening=False))
         self.assertFalse(is_path_allowed_for_write(str(denied), config, allow_eval_tightening=False))
 
+    def test_daily_sentinel_write_scope_is_skill_only_by_default(self):
+        config = get_skill_config("vgc-team-builder")
+        roots = get_allowed_write_roots(
+            config,
+            allow_eval_tightening=False,
+            run_profile="daily_sentinel",
+        )
+        self.assertEqual(roots, (config.skill_file,))
+        self.assertFalse(
+            is_path_allowed_for_write(
+                str(config.docs_dir / "references" / "build-principles.md"),
+                config,
+                allow_eval_tightening=False,
+                run_profile="daily_sentinel",
+            )
+        )
+
+    def test_manual_write_scope_still_allows_skill_docs(self):
+        config = get_skill_config("vgc-team-builder")
+        roots = get_allowed_write_roots(
+            config,
+            allow_eval_tightening=False,
+            run_profile="manual",
+        )
+        self.assertEqual(roots, (config.skill_file, config.docs_dir))
+
     def test_baseline_is_clean_requires_no_actionable_issues(self):
         clean_case = type(
             "CaseStub",
@@ -187,7 +225,8 @@ class AutoresearchTests(unittest.TestCase):
                 "matched_fail_triggers": (),
                 "checks_failed": (),
                 "failure_categories": (),
-                "recommended_smallest_fix": "",
+                "recommended_smallest_fix": "tighten item verification if possible",
+                "evaluation_valid": True,
             },
         )()
         dirty_case = type(
@@ -199,6 +238,7 @@ class AutoresearchTests(unittest.TestCase):
                 "checks_failed": ("one",),
                 "failure_categories": (),
                 "recommended_smallest_fix": "",
+                "evaluation_valid": True,
             },
         )()
         self.assertTrue(
@@ -278,6 +318,79 @@ class AutoresearchTests(unittest.TestCase):
                 prompt_count=5,
             )
         )
+
+    def test_improvement_prompt_requires_preserving_passing_checks(self):
+        weakest_case = type(
+            "CaseStub",
+            (),
+            {
+                "case_name": "case-04",
+                "overall_score": 43,
+                "recommended_smallest_fix": "verify non-Mega held items",
+                "checks_passed": (
+                    "uses `inference-heavy early read` if the minimum live source stack is incomplete",
+                ),
+                "checks_failed": (),
+            },
+        )()
+        baseline = type(
+            "BaselineStub",
+            (),
+            {
+                "summary": "Strong pass.",
+                "failure_categories": (),
+                "matched_fail_triggers": (),
+            },
+        )()
+        prompt = AUTORESEARCH_SCRIPT._build_improvement_prompt(
+            "vgc-team-builder",
+            baseline,
+            weakest_case,
+        )
+        self.assertIn("Preserve all currently passing checks", prompt)
+        self.assertIn("Currently passing checks:", prompt)
+        self.assertIn("do not upgrade an `inference-heavy early read`", prompt)
+
+    def test_invalid_grading_payload_fails_closed(self):
+        payload = _normalize_evaluation_payload(
+            {
+                "overall_score": 4,
+                "dimension_scores": [
+                    {"name": "one", "score": 5, "rationale": "x"},
+                    {"name": "two", "score": 4, "rationale": "y"},
+                ],
+                "checks_passed": [],
+                "checks_failed": [],
+                "failure_categories": [],
+                "matched_fail_triggers": [],
+                "summary": "bad total",
+                "recommended_smallest_fix": "none",
+            },
+            "case-04",
+        )
+        self.assertFalse(payload["evaluation_valid"])
+        self.assertEqual(payload["overall_score"], 0)
+        self.assertIn("does not match dimension-score sum", payload["grading_errors"][0])
+
+    def test_valid_fail_trigger_payload_caps_after_validation(self):
+        payload = _normalize_evaluation_payload(
+            {
+                "overall_score": 43,
+                "dimension_scores": [
+                    {"name": "one", "score": 20, "rationale": "x"},
+                    {"name": "two", "score": 23, "rationale": "y"},
+                ],
+                "checks_passed": [],
+                "checks_failed": [],
+                "failure_categories": [],
+                "matched_fail_triggers": ["one"],
+                "summary": "valid total",
+                "recommended_smallest_fix": "none",
+            },
+            "case-04",
+        )
+        self.assertTrue(payload["evaluation_valid"])
+        self.assertEqual(payload["overall_score"], 40)
 
 
 if __name__ == "__main__":
