@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import os
+import re
 from collections import Counter, deque
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 from .config import REPO_ROOT, SkillConfig
 from .policy import make_permission_handler
@@ -40,12 +42,27 @@ _PROGRESS_EVENT_TYPES = {
     "tool.execution_start",
 }
 
+_WEB_TOOL_NAMES = {
+    "click",
+    "find",
+    "open",
+    "screenshot",
+    "search_query",
+    "view",
+    "web_fetch",
+}
+_URL_PATTERN = re.compile(r"https?://[^\s<>'\"`]+")
+_TRAILING_URL_PUNCTUATION = ".,);:!?]}>\"'"
+
 
 @dataclass
 class SessionRecorder:
     tool_names: list[str] = field(default_factory=list)
+    requested_urls: list[str] = field(default_factory=list)
     attempted_urls: list[str] = field(default_factory=list)
     approved_urls: list[str] = field(default_factory=list)
+    tool_arg_urls: list[str] = field(default_factory=list)
+    event_urls: list[str] = field(default_factory=list)
     source_urls: list[str] = field(default_factory=list)
     read_paths: list[str] = field(default_factory=list)
     write_paths: list[str] = field(default_factory=list)
@@ -57,13 +74,67 @@ class SessionRecorder:
     ) -> dict[str, Any]:
         tool_name = input_data.get("toolName")
         if tool_name:
-            self.tool_names.append(str(tool_name))
+            normalized_tool_name = str(tool_name)
+            self.tool_names.append(normalized_tool_name)
+            if _is_web_facing_tool(normalized_tool_name):
+                urls = _extract_urls_from_value(input_data.get("toolArgs"))
+                if urls:
+                    self.tool_arg_urls.extend(urls)
+                    self.attempted_urls.extend(urls)
+                    self.source_urls.extend(urls)
         return {"permissionDecision": "allow"}
 
     def on_event(self, event: Any) -> None:
         event_type = _event_type_name(event)
         if event_type:
             self.event_types.append(event_type)
+        if event_type not in {
+            "permission.requested",
+            "permission.completed",
+            "tool.execution_start",
+            "tool.execution_complete",
+            "tool.execution_partial_result",
+            "tool.execution_progress",
+        }:
+            return
+
+        data = _as_mapping(getattr(event, "data", None))
+        if not data:
+            return
+
+        if event_type.startswith("tool.execution"):
+            tool_name = _extract_tool_name_from_payload(data)
+            if tool_name and tool_name not in self.tool_names:
+                self.tool_names.append(tool_name)
+            urls: list[str] = []
+            for payload in (
+                data.get("arguments"),
+                data.get("toolArgs"),
+                data.get("url"),
+                data.get("urls"),
+                data.get("result"),
+                data.get("toolTelemetry"),
+                data.get("tool_telemetry"),
+            ):
+                urls.extend(_extract_urls_from_value(payload))
+            if urls:
+                self.event_urls.extend(urls)
+                self.attempted_urls.extend(urls)
+                self.source_urls.extend(urls)
+            return
+
+        urls: list[str] = []
+        for payload in (
+            data.get("request"),
+            data.get("result"),
+            data.get("url"),
+            data.get("urls"),
+        ):
+            urls.extend(_extract_urls_from_value(payload))
+        if urls:
+            self.requested_urls.extend(urls)
+            if event_type == "permission.completed":
+                self.approved_urls.extend(urls)
 
 
 @dataclass(frozen=True)
@@ -91,8 +162,11 @@ class CopilotRuntimeDiagnostics:
 class CopilotRunResult:
     final_text: str
     tool_names: tuple[str, ...]
+    requested_urls: tuple[str, ...]
     attempted_urls: tuple[str, ...]
     approved_urls: tuple[str, ...]
+    tool_arg_urls: tuple[str, ...]
+    event_urls: tuple[str, ...]
     source_urls: tuple[str, ...]
     read_paths: tuple[str, ...]
     write_paths: tuple[str, ...]
@@ -395,8 +469,11 @@ async def _run_session_once(
         return CopilotRunResult(
             final_text=final_text.strip(),
             tool_names=tuple(recorder.tool_names),
+            requested_urls=tuple(sorted(set(recorder.requested_urls))),
             attempted_urls=tuple(sorted(set(recorder.attempted_urls))),
             approved_urls=tuple(sorted(set(recorder.approved_urls))),
+            tool_arg_urls=tuple(sorted(set(recorder.tool_arg_urls))),
+            event_urls=tuple(sorted(set(recorder.event_urls))),
             source_urls=tuple(sorted(set(recorder.source_urls))),
             read_paths=tuple(sorted(set(recorder.read_paths))),
             write_paths=tuple(sorted(set(recorder.write_paths))),
@@ -534,3 +611,84 @@ def _event_type_name(event: Any) -> str | None:
     if event_type is None:
         return None
     return getattr(event_type, "value", str(event_type))
+
+
+def _is_web_facing_tool(tool_name: str) -> bool:
+    normalized = tool_name.strip().lower()
+    return normalized in _WEB_TOOL_NAMES or normalized.startswith("web_")
+
+
+def _extract_tool_name_from_payload(payload: dict[str, Any]) -> str | None:
+    for key in ("toolName", "tool_name", "name"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _as_mapping(value: Any) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return value
+    if hasattr(value, "__dict__"):
+        return {
+            str(key): item
+            for key, item in vars(value).items()
+            if not key.startswith("_")
+        }
+    return {}
+
+
+def _extract_urls_from_value(value: Any, *, _seen: set[int] | None = None) -> list[str]:
+    if _seen is None:
+        _seen = set()
+
+    if value is None or isinstance(value, (int, float, bool)):
+        return []
+
+    if isinstance(value, str):
+        return _extract_urls_from_text(value)
+
+    value_id = id(value)
+    if value_id in _seen:
+        return []
+    _seen.add(value_id)
+
+    if isinstance(value, dict):
+        urls: list[str] = []
+        for key, item in value.items():
+            if isinstance(key, str):
+                urls.extend(_extract_urls_from_text(key))
+            urls.extend(_extract_urls_from_value(item, _seen=_seen))
+        return urls
+
+    if isinstance(value, (list, tuple, set)):
+        urls: list[str] = []
+        for item in value:
+            urls.extend(_extract_urls_from_value(item, _seen=_seen))
+        return urls
+
+    if hasattr(value, "__dict__"):
+        return _extract_urls_from_value(_as_mapping(value), _seen=_seen)
+
+    return []
+
+
+def _extract_urls_from_text(text: str) -> list[str]:
+    urls: list[str] = []
+    for match in _URL_PATTERN.findall(text):
+        normalized = _normalize_url(match)
+        if normalized:
+            urls.append(normalized)
+    return urls
+
+
+def _normalize_url(candidate: str) -> str | None:
+    trimmed = candidate.strip().rstrip(_TRAILING_URL_PUNCTUATION)
+    if not trimmed:
+        return None
+    parsed = urlsplit(trimmed)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+    return urlunsplit(parsed)

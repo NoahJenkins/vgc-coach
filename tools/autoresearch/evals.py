@@ -33,6 +33,16 @@ Use the attached rubric and fixture literally. Return strict JSON only.
 Do not wrap the JSON in markdown fences. Do not add prose before or after it.
 """.strip()
 
+WEB_EVIDENCE_TOOL_NAMES = {
+    "click",
+    "find",
+    "open",
+    "screenshot",
+    "search_query",
+    "view",
+    "web_fetch",
+}
+
 
 async def evaluate_skill(
     *,
@@ -208,8 +218,11 @@ async def _generate_case_response(
     return {
         "text": result.final_text,
         "source_urls": result.source_urls,
+        "requested_urls": result.requested_urls,
         "attempted_urls": result.attempted_urls,
         "approved_urls": result.approved_urls,
+        "tool_arg_urls": result.tool_arg_urls,
+        "event_urls": result.event_urls,
         "tool_names": result.tool_names,
         "read_paths": result.read_paths,
         "write_paths": result.write_paths,
@@ -453,21 +466,39 @@ def _build_skill_summary(cases: list[CaseEvaluation], *, verification_state: str
 def _build_research_trace(case: CaseFile, response: dict[str, Any]) -> ResearchTrace:
     expectation = case.research_expectation
     live_research_expected = expectation != "repo_only"
+    requested_urls = tuple(sorted(set(response.get("requested_urls", ()))))
+    tool_arg_urls = tuple(sorted(set(response.get("tool_arg_urls", ()))))
+    event_urls = tuple(sorted(set(response.get("event_urls", ()))))
     successful_source_urls = tuple(sorted(set(response.get("source_urls", ()))))
     attempted_urls = tuple(sorted(set(response.get("attempted_urls", ()))))
     approved_urls = tuple(sorted(set(response.get("approved_urls", ()))))
     tool_names = tuple(sorted(set(response.get("tool_names", ()))))
     read_paths = tuple(sorted(set(response.get("read_paths", ()))))
     shell_commands = tuple(dict.fromkeys(response.get("shell_commands", ())))
+    web_tool_names = tuple(name for name in tool_names if _is_web_evidence_tool(name))
 
     evidence_valid = bool(successful_source_urls) if live_research_expected else True
     verification_state = "verified" if evidence_valid else "inconclusive"
+    evidence_source = _describe_evidence_source(
+        requested_urls=requested_urls,
+        tool_arg_urls=tool_arg_urls,
+        event_urls=event_urls,
+    )
+    url_resolution_detail = _describe_url_resolution(
+        live_research_expected=live_research_expected,
+        evidence_valid=evidence_valid,
+        evidence_source=evidence_source,
+        successful_source_urls=successful_source_urls,
+        web_tool_names=web_tool_names,
+        requested_urls=requested_urls,
+    )
 
     if live_research_expected:
         summary = (
-            f"Expected live research. Recorded {len(attempted_urls)} URL attempts, "
-            f"{len(approved_urls)} approved URL accesses, and "
-            f"{len(successful_source_urls)} successful source URLs."
+            f"Expected live research. Evidence source: {evidence_source}. "
+            f"{url_resolution_detail} Recorded {len(requested_urls)} requested URL accesses, "
+            f"{len(approved_urls)} approved URL accesses, {len(attempted_urls)} executed URL observations, "
+            f"and {len(successful_source_urls)} successful source URLs."
         )
     else:
         summary = (
@@ -478,14 +509,19 @@ def _build_research_trace(case: CaseFile, response: dict[str, Any]) -> ResearchT
     return ResearchTrace(
         expectation=expectation,
         live_research_expected=live_research_expected,
+        requested_urls=requested_urls,
         attempted_urls=attempted_urls,
         approved_urls=approved_urls,
+        tool_arg_urls=tool_arg_urls,
+        event_urls=event_urls,
         successful_source_urls=successful_source_urls,
         tool_names=tool_names,
         read_paths=read_paths,
         shell_commands=shell_commands,
         evidence_valid=evidence_valid,
         verification_state=verification_state,
+        evidence_source=evidence_source,
+        url_resolution_detail=url_resolution_detail,
         summary=summary,
     )
 
@@ -495,11 +531,66 @@ def _build_research_trace_summary(cases: list[CaseEvaluation]) -> str:
         return "No research trace data recorded."
 
     verified_count = sum(1 for case in cases if case.evidence_valid)
+    requested_urls = sum(len(case.research_trace.requested_urls) for case in cases)
     attempted_urls = sum(len(case.research_trace.attempted_urls) for case in cases)
     approved_urls = sum(len(case.research_trace.approved_urls) for case in cases)
     successful_urls = sum(len(case.research_trace.successful_source_urls) for case in cases)
+    sources = Counter(case.research_trace.evidence_source for case in cases)
+    source_summary = ", ".join(
+        f"{source} x{count}" for source, count in sorted(sources.items())
+    )
     return (
         f"Verified evidence for {verified_count}/{len(cases)} cases. "
-        f"Recorded {attempted_urls} URL attempts, {approved_urls} approved URL accesses, "
-        f"and {successful_urls} successful source URLs."
+        f"Recorded {requested_urls} requested URL accesses, {approved_urls} approved URL accesses, "
+        f"{attempted_urls} executed URL observations, and {successful_urls} successful source URLs. "
+        f"Evidence sources: {source_summary or 'none'}."
     )
+
+
+def _is_web_evidence_tool(tool_name: str) -> bool:
+    normalized = tool_name.strip().lower()
+    return normalized in WEB_EVIDENCE_TOOL_NAMES or normalized.startswith("web_")
+
+
+def _describe_evidence_source(
+    *,
+    requested_urls: tuple[str, ...],
+    tool_arg_urls: tuple[str, ...],
+    event_urls: tuple[str, ...],
+) -> str:
+    channels = []
+    if requested_urls or event_urls or tool_arg_urls:
+        if requested_urls:
+            channels.append("permission-path")
+        if tool_arg_urls:
+            channels.append("tool-arg")
+        if event_urls:
+            channels.append("tool-event/result")
+    if not channels:
+        return "none"
+    if len(channels) == 1:
+        return f"{channels[0]} only"
+    return "mixed"
+
+
+def _describe_url_resolution(
+    *,
+    live_research_expected: bool,
+    evidence_valid: bool,
+    evidence_source: str,
+    successful_source_urls: tuple[str, ...],
+    web_tool_names: tuple[str, ...],
+    requested_urls: tuple[str, ...],
+) -> str:
+    if not live_research_expected:
+        return "Local-only verification was sufficient."
+    if evidence_valid:
+        return (
+            f"Resolved {len(successful_source_urls)} concrete source URLs from {evidence_source}."
+        )
+    if web_tool_names:
+        tools = ", ".join(f"`{name}`" for name in web_tool_names)
+        return f"Web tools ran ({tools}) but URL resolution stayed unresolved, so evidence is inconclusive."
+    if requested_urls:
+        return "Only permission-path URL requests were recorded, which is not enough to prove a live source was actually used."
+    return "No concrete live-research URL evidence was recorded."

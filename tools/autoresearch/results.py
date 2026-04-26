@@ -32,14 +32,19 @@ class DimensionScore:
 class ResearchTrace:
     expectation: str
     live_research_expected: bool
+    requested_urls: tuple[str, ...]
     attempted_urls: tuple[str, ...]
     approved_urls: tuple[str, ...]
+    tool_arg_urls: tuple[str, ...]
+    event_urls: tuple[str, ...]
     successful_source_urls: tuple[str, ...]
     tool_names: tuple[str, ...]
     read_paths: tuple[str, ...]
     shell_commands: tuple[str, ...]
     evidence_valid: bool
     verification_state: str
+    evidence_source: str
+    url_resolution_detail: str
     summary: str
 
     def to_dict(self) -> dict[str, Any]:

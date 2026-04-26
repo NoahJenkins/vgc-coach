@@ -21,6 +21,7 @@ from autoresearch.copilot_sdk import (  # noqa: E402
     CopilotRuntimeDiagnostics,
     CopilotRunResult,
     CopilotSessionRuntimeError,
+    SessionRecorder,
     SessionProgressTracker,
     compute_hard_cap_timeout,
     run_session,
@@ -35,7 +36,11 @@ from autoresearch.context import (  # noqa: E402
     restore_snapshot,
     snapshot_paths,
 )
-from autoresearch.evals import _normalize_evaluation_payload, select_cases  # noqa: E402
+from autoresearch.evals import (  # noqa: E402
+    _build_research_trace,
+    _normalize_evaluation_payload,
+    select_cases,
+)
 from autoresearch.policy import (  # noqa: E402
     get_allowed_write_roots,
     is_path_allowed_for_write,
@@ -97,14 +102,19 @@ def make_skill_evaluation(
         research_trace=ResearchTrace(
             expectation="repo_only",
             live_research_expected=False,
+            requested_urls=(),
             attempted_urls=(),
             approved_urls=(),
+            tool_arg_urls=(),
+            event_urls=(),
             successful_source_urls=(),
             tool_names=(),
             read_paths=("skills/vgc-team-builder/SKILL.md",),
             shell_commands=(),
             evidence_valid=evidence_valid,
             verification_state="verified" if evidence_valid else "inconclusive",
+            evidence_source="none",
+            url_resolution_detail="Local-only verification was sufficient.",
             summary="test trace",
         ),
         verification_state="verified" if evidence_valid else "inconclusive",
@@ -655,8 +665,11 @@ class AutoresearchTests(unittest.TestCase):
         success = CopilotRunResult(
             final_text="ok",
             tool_names=(),
+            requested_urls=(),
             attempted_urls=(),
             approved_urls=(),
+            tool_arg_urls=(),
+            event_urls=(),
             source_urls=(),
             read_paths=(),
             write_paths=(),
@@ -761,6 +774,137 @@ class AutoresearchTests(unittest.TestCase):
             run_profile="manual",
         )
         self.assertEqual(roots, (config.skill_file, config.docs_dir))
+
+    def test_session_recorder_extracts_direct_url_from_web_fetch_tool_args(self):
+        async def run() -> None:
+            recorder = SessionRecorder()
+            await recorder.on_pre_tool_use(
+                {
+                    "toolName": "web_fetch",
+                    "toolArgs": {"url": "https://example.com/meta"},
+                },
+                {},
+            )
+            self.assertEqual(tuple(sorted(set(recorder.tool_arg_urls))), ("https://example.com/meta",))
+            self.assertEqual(tuple(sorted(set(recorder.attempted_urls))), ("https://example.com/meta",))
+            self.assertEqual(tuple(sorted(set(recorder.source_urls))), ("https://example.com/meta",))
+
+        asyncio.run(run())
+
+    def test_session_recorder_dedupes_nested_urls_from_tool_args(self):
+        async def run() -> None:
+            recorder = SessionRecorder()
+            await recorder.on_pre_tool_use(
+                {
+                    "toolName": "view",
+                    "toolArgs": {
+                        "targets": [
+                            {"url": "https://example.com/a"},
+                            {"details": "backup https://example.com/b and https://example.com/a"},
+                        ]
+                    },
+                },
+                {},
+            )
+            self.assertEqual(
+                tuple(sorted(set(recorder.tool_arg_urls))),
+                ("https://example.com/a", "https://example.com/b"),
+            )
+
+        asyncio.run(run())
+
+    def test_session_recorder_extracts_urls_from_tool_execution_events(self):
+        recorder = SessionRecorder()
+        recorder.on_event(
+            SimpleNamespace(
+                type=SimpleNamespace(value="tool.execution_complete"),
+                data=SimpleNamespace(
+                    toolName="view",
+                    result={"source": {"url": "https://example.com/report"}},
+                ),
+            )
+        )
+        self.assertEqual(tuple(sorted(set(recorder.event_urls))), ("https://example.com/report",))
+        self.assertEqual(tuple(sorted(set(recorder.source_urls))), ("https://example.com/report",))
+
+    def test_live_required_trace_accepts_tool_arg_only_evidence(self):
+        case = SimpleNamespace(research_expectation="live_required")
+        trace = _build_research_trace(
+            case,
+            {
+                "requested_urls": (),
+                "attempted_urls": ("https://example.com/meta",),
+                "approved_urls": (),
+                "tool_arg_urls": ("https://example.com/meta",),
+                "event_urls": (),
+                "source_urls": ("https://example.com/meta",),
+                "tool_names": ("web_fetch", "view"),
+                "read_paths": (),
+                "shell_commands": (),
+            },
+        )
+        self.assertTrue(trace.evidence_valid)
+        self.assertEqual(trace.verification_state, "verified")
+        self.assertEqual(trace.evidence_source, "tool-arg only")
+        self.assertIn("Resolved 1 concrete source URLs", trace.summary)
+
+    def test_live_required_trace_flags_unresolved_web_tool_usage(self):
+        case = SimpleNamespace(research_expectation="live_required")
+        trace = _build_research_trace(
+            case,
+            {
+                "requested_urls": (),
+                "attempted_urls": (),
+                "approved_urls": (),
+                "tool_arg_urls": (),
+                "event_urls": (),
+                "source_urls": (),
+                "tool_names": ("view", "web_fetch"),
+                "read_paths": (),
+                "shell_commands": (),
+            },
+        )
+        self.assertFalse(trace.evidence_valid)
+        self.assertEqual(trace.verification_state, "inconclusive")
+        self.assertIn("URL resolution stayed unresolved", trace.summary)
+
+    def test_repo_only_trace_does_not_require_url_evidence(self):
+        case = SimpleNamespace(research_expectation="repo_only")
+        trace = _build_research_trace(
+            case,
+            {
+                "requested_urls": (),
+                "attempted_urls": (),
+                "approved_urls": (),
+                "tool_arg_urls": (),
+                "event_urls": (),
+                "source_urls": (),
+                "tool_names": (),
+                "read_paths": ("skills/vgc-team-builder/SKILL.md",),
+                "shell_commands": ("git status",),
+            },
+        )
+        self.assertTrue(trace.evidence_valid)
+        self.assertEqual(trace.verification_state, "verified")
+
+    def test_live_required_trace_stays_inconclusive_without_any_url_evidence(self):
+        case = SimpleNamespace(research_expectation="live_required")
+        trace = _build_research_trace(
+            case,
+            {
+                "requested_urls": (),
+                "attempted_urls": (),
+                "approved_urls": (),
+                "tool_arg_urls": (),
+                "event_urls": (),
+                "source_urls": (),
+                "tool_names": (),
+                "read_paths": (),
+                "shell_commands": (),
+            },
+        )
+        self.assertFalse(trace.evidence_valid)
+        self.assertEqual(trace.verification_state, "inconclusive")
 
     def test_baseline_is_clean_requires_no_actionable_issues(self):
         clean_case = type(
