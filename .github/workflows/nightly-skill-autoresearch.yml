@@ -1,8 +1,7 @@
 name: Nightly Skill Autoresearch
 
 on:
-  schedule:
-    - cron: "17 06 * * *"
+  # Scheduled runs are temporarily disabled. Re-add the cron block to resume nightly execution.
   workflow_dispatch:
     inputs:
       mode:
