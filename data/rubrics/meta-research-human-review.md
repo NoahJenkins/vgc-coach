@@ -16,6 +16,7 @@ Would a competitive Pokemon player trust this answer and use it for real prep ri
 ### `Source trust`
 
 - Are official rules used for legality and mechanics?
+- Did the answer satisfy the shared minimum live stack before making present-tense meta claims?
 - Are current meta claims backed by live sources instead of vibes?
 
 ### `Competitive usefulness`
@@ -40,6 +41,7 @@ Reject or heavily mark down the output if it:
 - treats inactive mechanics as active
 - uses stale Scarlet/Violet assumptions as current Champions truth
 - invents precise usage support without evidence
+- treats a supporting source as the legality authority or sole meta-proof
 - gives generic “be different” anti-meta advice
 - sounds confident without showing enough current-source grounding
 

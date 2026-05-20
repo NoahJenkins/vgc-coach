@@ -37,7 +37,7 @@ Pass if:
 Pass if:
 
 - the answer verifies current format state before calling the read current-field or early
-- the answer labels the build `inference-heavy early read` if the minimum live source stack is incomplete
+- the answer labels the build `inference-heavy early read` if the shared recommended minimum live stack is incomplete
 - the answer gives one coherent team rather than a pile of alternates
 - the answer keeps every recommended item legal for current Champions
 - the answer includes a `Supporting Species Legality` note before the team list
@@ -63,7 +63,7 @@ Pass if:
 
 Pass if:
 
-- the answer uses `inference-heavy early read` when the minimum live source stack is incomplete
+- the answer uses `inference-heavy early read` when the shared recommended minimum live stack is incomplete
 - the answer includes a `Supporting Species Legality` note before the team list
 - the answer does not present unverified items as confirmed legal
 - the answer does not present unverified move slots as exact locked sets
@@ -77,7 +77,7 @@ Fail the run if any output:
 - recommends supporting species as if their active-regulation legality were fully confirmed when they were not checked
 - assumes a Mega keeps the same ability as the base form
 - contradicts itself on move access or legality and then builds anyway
-- claims `current-field recommendation` without the minimum live source stack
+- claims `current-field recommendation` without the shared recommended minimum live stack
 - omits the supporting-species legality note before the team list
 - gives exact locked move sets where move legality was not verified
 - centers matchup notes on unsupported or irrelevant threats instead of the live field
@@ -89,7 +89,7 @@ Fail the run if any output:
 Ask these before accepting the output:
 
 1. Did it lock the current format and mechanics correctly?
-2. Did it use `current-field recommendation` only if the minimum live source stack actually succeeded?
+2. Did it use `current-field recommendation` only if the shared recommended minimum live stack actually succeeded?
 3. Did it verify exact form, ability, move access, item legality, and supporting-species legality at the right confidence level?
 4. Did it target the actual current Reg M-A field?
 5. Is this one coherent, testable team?
@@ -98,6 +98,7 @@ Ask these before accepting the output:
 ## Supporting Artifacts
 
 - `docs/skills/shared/references/champions-reg-m-a-legality.md`
+- `docs/skills/shared/references/live-source-map.md`
 - `docs/skills/vgc-team-builder/references/build-principles.md`
 - `skills/vgc-team-builder/SKILL.md`
 - `data/rubrics/team-builder-rubric.md`

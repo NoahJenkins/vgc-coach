@@ -42,12 +42,9 @@ Return these sections in order:
 
 ## Required behavior
 - Read [build-principles](../../docs/skills/vgc-team-builder/references/build-principles.md) and [output-rubric](../../docs/skills/vgc-team-builder/references/output-rubric.md) before finalizing.
-- Read [Champions Reg M-A legality](../../docs/skills/shared/references/champions-reg-m-a-legality.md) before finalizing current-format Champions builds.
+- Read [Champions Reg M-A legality](../../docs/skills/shared/references/champions-reg-m-a-legality.md) and [Shared Live Source Map](../../docs/skills/shared/references/live-source-map.md) before finalizing current-format Champions builds.
 - Use live verification by default when current meta context materially affects the build.
-- Use `current-field recommendation` only if the minimum live source stack succeeds:
-  - one official regulation source
-  - one tournament-focused community source
-  - one broader usage/community source
+- Use `current-field recommendation` only if the shared recommended minimum live stack succeeds.
 - If that stack is incomplete, label the build `inference-heavy early read`.
 - Include `Supporting Species Legality` before the team list and explicitly say whether the five supporting species were officially verified, partially verified, or remain unverified for the active regulation.
 - Keep optional swaps only in `Weaknesses and Next Refinements`.

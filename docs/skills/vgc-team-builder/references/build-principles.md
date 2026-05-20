@@ -25,10 +25,7 @@ Before finalizing the draft, answer:
 
 - Build one primary team, not a menu of branches.
 - If you mention optional swaps, keep them for the final refinement section only.
-- Use `current-field recommendation` only when the minimum live source stack succeeds:
-  - one official regulation source
-  - one tournament-focused community source
-  - one broader usage/community source
+- Use `current-field recommendation` only when the shared recommended minimum live stack in [Shared Live Source Map](../../shared/references/live-source-map.md) succeeds.
 - If that stack is incomplete, call the build an `inference-heavy early read`.
 
 ## Supporting Species Legality

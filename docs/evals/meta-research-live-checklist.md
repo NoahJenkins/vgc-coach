@@ -50,11 +50,13 @@ Fail the run if any output:
 - treats inactive mechanics as active
 - presents memory as live fact
 - gives unsourced confidence on current popularity
+- skips the shared minimum live stack for present-tense meta claims
 - confuses official legality with community usage data
 
 ## Supporting Artifacts
 
+- `docs/skills/shared/references/live-source-registry.yaml`
+- `docs/skills/shared/references/live-source-map.md`
 - `data/snapshots/champions-reg-m-a-2026-04-18.json`
 - `docs/skills/vgc-meta-research/references/source-policy.md`
-- `docs/skills/vgc-meta-research/references/current-source-map.md`
 - `data/rubrics/meta-research-rubric.md`

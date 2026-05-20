@@ -3,7 +3,7 @@
 A strong team-builder answer:
 
 - states the build goal clearly
-- uses `current-field recommendation` only when the minimum live source stack succeeded, otherwise labels the answer `inference-heavy early read`
+- uses `current-field recommendation` only when the shared recommended minimum live stack succeeded, otherwise labels the answer `inference-heavy early read`
 - includes a `Supporting Species Legality` note before the team list
 - recommends one real team
 - gives every slot a concrete job
@@ -25,7 +25,7 @@ A weak answer:
 - gives roster-only output with no practical set direction
 - avoids making an actual recommendation
 - ignores current meta context or freshness discipline when current positioning materially matters
-- claims `current-field recommendation` without the minimum live source stack
+- claims `current-field recommendation` without the shared recommended minimum live stack
 - omits the supporting-species legality note before recommending the team
 - recommends `Terastallization` in a regulation where it is not active
 - recommends legacy held items as if their current legality is confirmed

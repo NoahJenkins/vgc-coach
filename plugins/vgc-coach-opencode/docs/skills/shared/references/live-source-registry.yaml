@@ -1,0 +1,134 @@
+version: "1"
+summary: "Use these shared live-source roles when researching the current Pokemon Champions meta or making current-field team recommendations."
+usage: "Official sources define legality and active mechanics. Community sources describe what players are doing inside that legal format. Supporting sources sharpen set and event context after the core format and usage picture are grounded."
+minimum_stack:
+  official: 1
+  tournament_meta: 1
+  broader_meta: 1
+sources:
+  - id: regulation-set-m-a
+    display_name: Regulation Set M-A
+    role: official_regulation
+    priority: 1
+    allowed_claim_types:
+      - legality
+      - mechanics
+      - format_dates
+      - held_item_rules
+      - timers
+    required_for_minimum_stack: true
+    use_for:
+      - active regulation dates
+      - active mechanics
+      - held item rules
+      - timers
+    do_not_use_for:
+      - tournament usage claims
+      - prevalence claims about specific teams or cores
+      - set tendency claims
+    fallback_if_unavailable:
+      - Use the next current official Champions rules surface and label the swap explicitly.
+      - If no current official rules source is available, do not make present-tense legality or mechanics claims.
+  - id: play-pokemon-transition-announcement
+    display_name: Play! Pokemon transition announcement
+    role: official_transition
+    priority: 2
+    allowed_claim_types:
+      - event_timing
+      - transition_context
+    required_for_minimum_stack: false
+    use_for:
+      - when official VGC events move to Champions
+      - how Regulation I and Regulation M-A overlap during transition
+      - timing context for current official play
+    do_not_use_for:
+      - legality or mechanics overrides
+      - usage claims
+      - set tendency claims
+    fallback_if_unavailable:
+      - Use another dated official Play! Pokemon scheduling or transition source.
+      - If no official timing source is available, omit transition claims rather than guessing.
+  - id: championsmeta
+    display_name: ChampionsMeta
+    role: tournament_meta
+    priority: 3
+    allowed_claim_types:
+      - tournament_usage
+      - top_teams
+      - current_snapshot
+    required_for_minimum_stack: true
+    use_for:
+      - tournament-weighted usage leaders
+      - top tournament teams
+      - quick current competitive snapshots
+    do_not_use_for:
+      - legality or mechanics claims
+      - broader ladder usage claims
+      - exact set legality claims
+    fallback_if_unavailable:
+      - Use another dated tournament-focused community tracker and say which source replaced it.
+      - If no tournament-focused source is available, downgrade current-field conclusions to early-read language.
+  - id: champions-lab
+    display_name: Champions Lab
+    role: broader_meta
+    priority: 4
+    allowed_claim_types:
+      - ladder_usage
+      - win_rate
+      - winning_teams
+      - core_pairs
+    required_for_minimum_stack: true
+    use_for:
+      - ladder plus tournament usage trends
+      - usage percentages with win-rate context
+      - winning teams
+      - core pairs
+    do_not_use_for:
+      - legality or mechanics claims
+      - official event timing claims
+      - exact move or item legality claims
+    fallback_if_unavailable:
+      - Use another broader dated usage source and label the replacement.
+      - If broader usage coverage is missing, keep current-field claims directional and label them inference-heavy.
+  - id: pikalytics-champions
+    display_name: Pikalytics Champions
+    role: supporting_sets
+    priority: 5
+    allowed_claim_types:
+      - set_tendencies
+      - common_partners
+      - move_tendencies
+      - item_tendencies
+      - ability_tendencies
+    required_for_minimum_stack: false
+    use_for:
+      - set tendencies
+      - common partners
+      - move, item, and ability expectations
+    do_not_use_for:
+      - legality or mechanics claims
+      - source-of-truth usage claims
+      - official event timing claims
+    fallback_if_unavailable:
+      - Use another supporting set database only after the official and core meta stack is already grounded.
+      - If no supporting set source is available, keep set details broader instead of inventing exact tendencies.
+  - id: victory-road
+    display_name: Victory Road
+    role: editorial_context
+    priority: 6
+    allowed_claim_types:
+      - event_context
+      - tournament_coverage
+      - editorial_interpretation
+    required_for_minimum_stack: false
+    use_for:
+      - event context
+      - tournament coverage
+      - human-written competitive interpretation
+    do_not_use_for:
+      - legality or mechanics claims
+      - sole proof of current prevalence
+      - exact set legality claims
+    fallback_if_unavailable:
+      - Use another dated editorial or event-coverage source after the official and community stack is grounded.
+      - If no editorial context exists, answer from the verified official and meta tracker stack without adding extra narrative certainty.

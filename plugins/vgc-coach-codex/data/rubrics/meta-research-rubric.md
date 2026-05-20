@@ -32,7 +32,12 @@ The response:
 The response:
 
 - uses official sources first for legality, rules, dates, and mechanics
+- uses at least the shared minimum live stack for present-tense meta claims:
+  - one official regulation source
+  - one tournament-focused community source
+  - one broader usage/community source
 - uses current community trackers for usage, cores, and trend claims
+- uses supporting sources like Pikalytics only for set and partner tendency context
 - does not blur official rules with community inference
 - cites enough sources for the reader to check the answer
 
@@ -97,6 +102,7 @@ Fail the response if any of these happen:
 - stale SV-era assumptions are presented as current Champions truth
 - invented usage figures or unsupported certainty appear
 - official rules and community inference are conflated
+- a supporting source is treated as the legality authority or sole prevalence proof
 - the answer is too vague for a competitive player to use
 
 ## Suggested Human Scorecard

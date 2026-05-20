@@ -39,6 +39,8 @@ class BuildPluginsTests(unittest.TestCase):
 
             plugin_root = root / "plugins" / "vgc-coach-opencode"
             self.assertTrue((plugin_root / "docs" / "skills" / "vgc-team-builder" / "references" / "build-principles.md").exists())
+            self.assertTrue((plugin_root / "docs" / "skills" / "shared" / "references" / "live-source-registry.yaml").exists())
+            self.assertTrue((plugin_root / "docs" / "skills" / "shared" / "references" / "live-source-map.md").exists())
             self.assertTrue((plugin_root / "tools" / "browser_damage_calc.py").exists())
             self.assertTrue((plugin_root / "skills" / "vgc-team-builder" / "agents" / "openai.yaml").exists())
 
