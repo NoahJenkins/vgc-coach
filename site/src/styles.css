@@ -1,6 +1,7 @@
 :root {
   font-family: "Manrope", sans-serif;
-  color: oklch(26% 0.025 38);
+  color: var(--ink);
+  color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -16,11 +17,132 @@
   --accent-soft: oklch(79% 0.08 45);
   --accent-2: oklch(60% 0.09 115);
   --shadow: 0 28px 70px oklch(40% 0.03 35 / 0.13);
+  --shadow-soft: 0 4px 16px oklch(40% 0.03 35 / 0.07);
+  --body-bg:
+    radial-gradient(circle at top left, oklch(94% 0.055 88), transparent 30%),
+    radial-gradient(circle at 85% 10%, oklch(92% 0.08 35), transparent 24%),
+    linear-gradient(180deg, oklch(98% 0.015 70), oklch(96% 0.02 45));
+  --texture-line-x: oklch(82% 0.02 55 / 0.2);
+  --texture-line-y: oklch(82% 0.02 55 / 0.12);
+  --selection-bg: color-mix(in oklch, var(--accent-soft) 60%, white);
+  --skip-bg: oklch(22% 0.025 34);
+  --skip-ink: oklch(98% 0.01 70);
+  --skip-shadow: 0 18px 38px oklch(20% 0.03 30 / 0.24);
+  --header-bg: color-mix(in oklch, white 92%, var(--bg));
+  --header-border: oklch(82% 0.03 58 / 0.85);
+  --brand-mark-bg: oklch(58% 0.13 38);
+  --brand-mark-ink: oklch(98% 0.01 70);
+  --nav-hover-bg: color-mix(in oklch, white 58%, var(--accent-soft));
+  --focus-ring: color-mix(in oklch, var(--accent) 82%, white);
+  --eyebrow: oklch(48% 0.065 48);
+  --button-primary-bg: linear-gradient(140deg, var(--accent), oklch(55% 0.14 20));
+  --button-primary-ink: oklch(98% 0.01 70);
+  --button-primary-shadow: 0 18px 45px oklch(58% 0.11 32 / 0.28);
+  --button-primary-shadow-hover: 0 24px 52px oklch(58% 0.11 32 / 0.34);
+  --button-subtle-bg: color-mix(in oklch, white 62%, transparent);
+  --button-subtle-hover-bg: color-mix(in oklch, white 54%, var(--accent-soft));
+  --button-subtle-hover-line: color-mix(in oklch, var(--accent) 28%, var(--line));
+  --hero-bullet-ring: oklch(88% 0.055 48 / 0.55);
+  --card-bg: color-mix(in oklch, white 72%, transparent);
+  --spotlight-bg:
+    linear-gradient(160deg, oklch(96% 0.05 88), oklch(93% 0.05 42)),
+    color-mix(in oklch, white 70%, transparent);
+  --inline-code-bg: oklch(92% 0.03 48);
+  --skill-emphasis: oklch(42% 0.08 38);
+  --timeline-example-bg: oklch(95% 0.025 55);
+  --timeline-marker-bg: oklch(90% 0.07 50);
+  --timeline-marker-ink: oklch(38% 0.07 34);
+  --pre-bg: oklch(25% 0.02 34);
+  --pre-ink: oklch(95% 0.01 55);
+  --link-accent: oklch(43% 0.075 48);
+  --link-accent-hover: color-mix(in oklch, var(--accent) 78%, oklch(24% 0.03 36));
+  --principle-bg:
+    linear-gradient(180deg, oklch(95% 0.035 78), color-mix(in oklch, white 74%, transparent));
+  --cta-bg:
+    linear-gradient(135deg, oklch(92% 0.08 90), oklch(92% 0.06 28)),
+    color-mix(in oklch, white 72%, transparent);
+  --footer-line: oklch(82% 0.03 55 / 0.55);
+  --footer-legal: color-mix(in oklch, var(--ink) 72%, white);
+  --mobile-nav-border: oklch(82% 0.04 52 / 0.8);
+  --mobile-nav-bg:
+    linear-gradient(180deg, oklch(98% 0.018 68 / 0.92), oklch(95% 0.03 58 / 0.82));
+  --mobile-nav-shadow: 0 10px 24px oklch(44% 0.03 34 / 0.08);
+  --mobile-link-border: oklch(80% 0.03 50 / 0.78);
+  --mobile-link-bg: color-mix(in oklch, white 78%, oklch(94% 0.05 52));
+  --mobile-link-shadow: 0 1px 0 oklch(100% 0 0 / 0.6);
   --radius: 1.6rem;
   --display-font: "Sora", "Manrope", sans-serif;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --header-offset: clamp(0.65rem, 1.8vw, 1rem);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: oklch(18% 0.028 42);
+  --bg-strong: oklch(22% 0.04 44);
+  --surface: color-mix(in oklch, oklch(27% 0.035 42) 86%, oklch(36% 0.07 35));
+  --surface-strong: oklch(31% 0.05 42);
+  --ink: oklch(92% 0.018 70);
+  --ink-soft: oklch(76% 0.028 70);
+  --line: oklch(48% 0.045 48 / 0.72);
+  --accent: oklch(70% 0.135 36);
+  --accent-soft: oklch(43% 0.085 42);
+  --accent-2: oklch(72% 0.11 125);
+  --shadow: 0 28px 70px oklch(6% 0.025 35 / 0.48);
+  --shadow-soft: 0 4px 18px oklch(5% 0.025 35 / 0.38);
+  --body-bg:
+    radial-gradient(circle at top left, oklch(30% 0.075 112 / 0.6), transparent 28%),
+    radial-gradient(circle at 85% 10%, oklch(34% 0.1 28 / 0.55), transparent 26%),
+    linear-gradient(180deg, oklch(16% 0.032 44), oklch(12% 0.026 36));
+  --texture-line-x: oklch(68% 0.025 62 / 0.13);
+  --texture-line-y: oklch(68% 0.025 62 / 0.08);
+  --selection-bg: color-mix(in oklch, var(--accent) 52%, oklch(22% 0.03 42));
+  --skip-bg: oklch(91% 0.02 72);
+  --skip-ink: oklch(17% 0.025 38);
+  --skip-shadow: 0 18px 38px oklch(4% 0.02 35 / 0.54);
+  --header-bg: color-mix(in oklch, oklch(21% 0.032 42) 88%, var(--surface));
+  --header-border: oklch(50% 0.045 52 / 0.8);
+  --brand-mark-bg: oklch(70% 0.13 36);
+  --brand-mark-ink: oklch(15% 0.025 36);
+  --nav-hover-bg: color-mix(in oklch, var(--accent-soft) 52%, oklch(18% 0.03 42));
+  --focus-ring: color-mix(in oklch, var(--accent) 78%, oklch(94% 0.01 72));
+  --eyebrow: oklch(78% 0.09 72);
+  --button-primary-bg: linear-gradient(140deg, var(--accent), oklch(64% 0.15 18));
+  --button-primary-ink: oklch(13% 0.025 36);
+  --button-primary-shadow: 0 18px 45px oklch(9% 0.05 28 / 0.5);
+  --button-primary-shadow-hover: 0 24px 52px oklch(9% 0.05 28 / 0.58);
+  --button-subtle-bg: color-mix(in oklch, oklch(28% 0.04 42) 78%, transparent);
+  --button-subtle-hover-bg: color-mix(in oklch, var(--accent-soft) 58%, oklch(22% 0.03 42));
+  --button-subtle-hover-line: color-mix(in oklch, var(--accent) 36%, var(--line));
+  --hero-bullet-ring: oklch(42% 0.075 45 / 0.65);
+  --card-bg: color-mix(in oklch, oklch(24% 0.035 42) 84%, transparent);
+  --spotlight-bg:
+    linear-gradient(160deg, oklch(29% 0.06 96), oklch(27% 0.07 34)),
+    color-mix(in oklch, oklch(22% 0.035 42) 82%, transparent);
+  --inline-code-bg: oklch(29% 0.04 48);
+  --skill-emphasis: oklch(80% 0.11 62);
+  --timeline-example-bg: oklch(25% 0.035 48);
+  --timeline-marker-bg: oklch(34% 0.075 52);
+  --timeline-marker-ink: oklch(88% 0.045 66);
+  --pre-bg: oklch(11% 0.018 36);
+  --pre-ink: oklch(89% 0.018 70);
+  --link-accent: oklch(80% 0.105 68);
+  --link-accent-hover: oklch(88% 0.09 74);
+  --principle-bg:
+    linear-gradient(180deg, oklch(28% 0.055 78), color-mix(in oklch, oklch(22% 0.035 42) 82%, transparent));
+  --cta-bg:
+    linear-gradient(135deg, oklch(33% 0.085 94), oklch(31% 0.08 28)),
+    color-mix(in oklch, oklch(22% 0.035 42) 80%, transparent);
+  --footer-line: oklch(48% 0.045 52 / 0.55);
+  --footer-legal: color-mix(in oklch, var(--ink) 72%, oklch(52% 0.03 62));
+  --mobile-nav-border: oklch(50% 0.045 52 / 0.78);
+  --mobile-nav-bg:
+    linear-gradient(180deg, oklch(24% 0.035 48 / 0.96), oklch(20% 0.033 42 / 0.94));
+  --mobile-nav-shadow: 0 10px 24px oklch(4% 0.02 34 / 0.36);
+  --mobile-link-border: oklch(47% 0.04 50 / 0.8);
+  --mobile-link-bg: color-mix(in oklch, oklch(28% 0.04 42) 80%, var(--accent-soft));
+  --mobile-link-shadow: 0 1px 0 oklch(58% 0.03 58 / 0.28);
 }
 
 * {
@@ -35,15 +157,12 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, oklch(94% 0.055 88), transparent 30%),
-    radial-gradient(circle at 85% 10%, oklch(92% 0.08 35), transparent 24%),
-    linear-gradient(180deg, oklch(98% 0.015 70), oklch(96% 0.02 45));
+  background: var(--body-bg);
   color: var(--ink);
 }
 
 ::selection {
-  background: color-mix(in oklch, var(--accent-soft) 60%, white);
+  background: var(--selection-bg);
   color: var(--ink);
 }
 
@@ -80,8 +199,8 @@ pre {
   inset: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(to right, transparent 0, transparent calc(100% - 1px), oklch(82% 0.02 55 / 0.2) 100%),
-    linear-gradient(to bottom, transparent 0, transparent calc(100% - 1px), oklch(82% 0.02 55 / 0.12) 100%);
+    linear-gradient(to right, transparent 0, transparent calc(100% - 1px), var(--texture-line-x) 100%),
+    linear-gradient(to bottom, transparent 0, transparent calc(100% - 1px), var(--texture-line-y) 100%);
   background-size: 72px 72px;
   mask-image: linear-gradient(180deg, black 0%, black 48%, transparent 100%);
   opacity: 0.35;
@@ -94,16 +213,16 @@ pre {
   z-index: 7;
   padding: 0.85rem 1.15rem;
   border-radius: 999px;
-  background: oklch(22% 0.025 34);
-  color: oklch(98% 0.01 70);
-  box-shadow: 0 18px 38px oklch(20% 0.03 30 / 0.24);
+  background: var(--skip-bg);
+  color: var(--skip-ink);
+  box-shadow: var(--skip-shadow);
   transform: translateY(-180%);
   transition: transform 200ms var(--ease-out);
 }
 
 .skip-link:focus-visible {
   transform: translateY(0);
-  outline: 2px solid color-mix(in oklch, var(--accent) 82%, white);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
 }
 
@@ -126,10 +245,10 @@ pre {
   align-items: center;
   margin-bottom: clamp(0.9rem, 2vw, 1.6rem);
   padding: 0.8rem clamp(0.9rem, 1.6vw, 1.15rem);
-  border: 1px solid oklch(82% 0.03 58 / 0.85);
+  border: 1px solid var(--header-border);
   border-radius: calc(var(--radius) - 0.25rem);
-  background: color-mix(in oklch, white 92%, var(--bg));
-  box-shadow: 0 4px 16px oklch(40% 0.03 35 / 0.07);
+  background: var(--header-bg);
+  box-shadow: var(--shadow-soft);
 }
 
 .site-nav-shell {
@@ -145,6 +264,82 @@ pre {
   gap: 0.75rem;
 }
 
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: 3.2rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--button-subtle-bg);
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    transform 180ms var(--ease-out),
+    background-color 180ms var(--ease-out),
+    border-color 180ms var(--ease-out),
+    box-shadow 220ms var(--ease-out);
+}
+
+.theme-toggle:hover,
+.theme-toggle:focus-visible {
+  transform: translateY(-1px);
+  border-color: var(--button-subtle-hover-line);
+  background: var(--button-subtle-hover-bg);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.theme-toggle:active {
+  transform: translateY(0);
+}
+
+.theme-toggle-track {
+  position: relative;
+  inline-size: 2.35rem;
+  block-size: 1.35rem;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--ink-soft) 22%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.theme-toggle-icon {
+  position: absolute;
+  inset-block-start: 0.22rem;
+  inset-inline-start: 0.24rem;
+  inline-size: 0.9rem;
+  block-size: 0.9rem;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow:
+    0 0 0 0.22rem color-mix(in oklch, var(--accent) 16%, transparent),
+    0 4px 10px oklch(12% 0.02 36 / 0.22);
+  transition:
+    transform 220ms var(--ease-out),
+    background-color 220ms var(--ease-out),
+    box-shadow 220ms var(--ease-out);
+}
+
+.theme-toggle[data-theme-mode="dark"] .theme-toggle-icon {
+  transform: translateX(1rem);
+  background: var(--accent-2);
+  box-shadow:
+    -0.24rem -0.08rem 0 -0.12rem var(--card-bg),
+    0 4px 10px oklch(5% 0.02 36 / 0.38);
+}
+
+.theme-toggle-label {
+  min-width: 2.4rem;
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .brand {
   display: inline-flex;
   align-items: center;
@@ -158,8 +353,8 @@ pre {
   inline-size: 3rem;
   block-size: 3rem;
   border-radius: 0.75rem;
-  background: oklch(58% 0.13 38);
-  color: oklch(98% 0.01 70);
+  background: var(--brand-mark-bg);
+  color: var(--brand-mark-ink);
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -215,7 +410,7 @@ pre {
 .footer-links a:hover,
 .footer-links a:focus-visible {
   color: var(--ink);
-  background: color-mix(in oklch, white 58%, var(--accent-soft));
+  background: var(--nav-hover-bg);
 }
 
 .site-nav a:hover,
@@ -251,7 +446,7 @@ pre {
   font-size: 0.85rem;
   letter-spacing: 0.11em;
   text-transform: uppercase;
-  color: oklch(48% 0.065 48);
+  color: var(--eyebrow);
 }
 
 .eyebrow::before,
@@ -336,23 +531,23 @@ pre {
 .button:focus-visible,
 .site-nav a:focus-visible,
 .footer-links a:focus-visible {
-  outline: 2px solid color-mix(in oklch, var(--accent) 82%, white);
+  outline: 2px solid var(--focus-ring);
 }
 
 .button-primary {
-  background: linear-gradient(140deg, var(--accent), oklch(55% 0.14 20));
-  color: oklch(98% 0.01 70);
-  box-shadow: 0 18px 45px oklch(58% 0.11 32 / 0.28);
+  background: var(--button-primary-bg);
+  color: var(--button-primary-ink);
+  box-shadow: var(--button-primary-shadow);
 }
 
 .button-primary:hover,
 .button-primary:focus-visible {
-  box-shadow: 0 24px 52px oklch(58% 0.11 32 / 0.34);
+  box-shadow: var(--button-primary-shadow-hover);
 }
 
 .button-secondary,
 .button-ghost {
-  background: color-mix(in oklch, white 62%, transparent);
+  background: var(--button-subtle-bg);
   border-color: var(--line);
 }
 
@@ -360,8 +555,8 @@ pre {
 .button-secondary:focus-visible,
 .button-ghost:hover,
 .button-ghost:focus-visible {
-  border-color: color-mix(in oklch, var(--accent) 28%, var(--line));
-  background: color-mix(in oklch, white 54%, var(--accent-soft));
+  border-color: var(--button-subtle-hover-line);
+  background: var(--button-subtle-hover-bg);
 }
 
 .button-ghost {
@@ -369,7 +564,7 @@ pre {
 }
 
 .header-repo-link {
-  border-color: color-mix(in oklch, var(--accent) 35%, var(--line));
+  border-color: var(--button-subtle-hover-line);
   font-weight: 700;
 }
 
@@ -413,7 +608,7 @@ pre {
   block-size: 0.65rem;
   border-radius: 50%;
   background: linear-gradient(180deg, var(--accent), var(--accent-2));
-  box-shadow: 0 0 0 0.28rem oklch(88% 0.055 48 / 0.55);
+  box-shadow: 0 0 0 0.28rem var(--hero-bullet-ring);
 }
 
 .hero-aside {
@@ -432,15 +627,13 @@ pre {
 .cta-card {
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: color-mix(in oklch, white 72%, transparent);
+  background: var(--card-bg);
   box-shadow: var(--shadow);
 }
 
 .spotlight-card {
   padding: 1.4rem;
-  background:
-    linear-gradient(160deg, oklch(96% 0.05 88), oklch(93% 0.05 42)),
-    color-mix(in oklch, white 70%, transparent);
+  background: var(--spotlight-bg);
 }
 
 .fact-grid {
@@ -491,7 +684,7 @@ pre {
 .info-card code {
   padding: 0.15rem 0.35rem;
   border-radius: 0.5rem;
-  background: oklch(92% 0.03 48);
+  background: var(--inline-code-bg);
 }
 
 .skill-grid,
@@ -531,7 +724,7 @@ pre {
 
 .skill-card span,
 .support-card span {
-  color: oklch(42% 0.08 38);
+  color: var(--skill-emphasis);
   font-weight: 700;
   font-size: 0.95rem;
 }
@@ -547,7 +740,7 @@ pre {
   margin: 0.9rem 0 0;
   padding: 1rem;
   border-radius: 1rem;
-  background: oklch(95% 0.025 55);
+  background: var(--timeline-example-bg);
   border: 1px solid var(--line);
   color: var(--ink-soft);
   font-style: italic;
@@ -580,7 +773,7 @@ pre {
 .runtime-topline a {
   display: inline-flex;
   align-items: center;
-  color: oklch(43% 0.075 48);
+  color: var(--link-accent);
   font-weight: 700;
   font-size: 0.95rem;
   padding: 0.2rem 0;
@@ -588,7 +781,7 @@ pre {
 
 .runtime-topline a:hover,
 .runtime-topline a:focus-visible {
-  color: color-mix(in oklch, var(--accent) 78%, oklch(24% 0.03 36));
+  color: var(--link-accent-hover);
 }
 
 .runtime-summary {
@@ -619,8 +812,8 @@ pre {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: oklch(90% 0.07 50);
-  color: oklch(38% 0.07 34);
+  background: var(--timeline-marker-bg);
+  color: var(--timeline-marker-ink);
   font-weight: 800;
 }
 
@@ -629,8 +822,8 @@ pre {
   max-width: 100%;
   padding: 1rem;
   border-radius: 1rem;
-  background: oklch(25% 0.02 34);
-  color: oklch(95% 0.01 55);
+  background: var(--pre-bg);
+  color: var(--pre-ink);
   overflow-x: auto;
   line-height: 1.5;
 }
@@ -687,8 +880,7 @@ pre {
 
 .principle-card {
   padding: 1.4rem;
-  background:
-    linear-gradient(180deg, oklch(95% 0.035 78), color-mix(in oklch, white 74%, transparent));
+  background: var(--principle-bg);
   border: 1px solid var(--line);
   border-radius: var(--radius);
 }
@@ -699,9 +891,7 @@ pre {
   gap: 1rem;
   align-items: end;
   padding: clamp(1.4rem, 3vw, 2.2rem);
-  background:
-    linear-gradient(135deg, oklch(92% 0.08 90), oklch(92% 0.06 28)),
-    color-mix(in oklch, white 72%, transparent);
+  background: var(--cta-bg);
 }
 
 .site-footer {
@@ -709,7 +899,7 @@ pre {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 1rem;
   padding: 1.5rem 0 2rem;
-  border-top: 1px solid oklch(82% 0.03 55 / 0.55);
+  border-top: 1px solid var(--footer-line);
 }
 
 .footer-title {
@@ -729,7 +919,7 @@ pre {
   margin: 0.45rem 0 0;
   max-width: 52ch;
   font-size: 0.92rem;
-  color: color-mix(in oklch, var(--ink) 72%, white);
+  color: var(--footer-legal);
 }
 
 .footer-links {
@@ -865,13 +1055,12 @@ pre {
     grid-template-columns: 1fr;
     padding: 0.35rem;
     gap: 0.45rem;
-    border: 1px solid oklch(82% 0.04 52 / 0.8);
+    border: 1px solid var(--mobile-nav-border);
     border-radius: 1.35rem;
-    background:
-      linear-gradient(180deg, oklch(98% 0.018 68 / 0.92), oklch(95% 0.03 58 / 0.82));
+    background: var(--mobile-nav-bg);
     box-shadow:
-      inset 0 1px 0 oklch(100% 0 0 / 0.68),
-      0 10px 24px oklch(44% 0.03 34 / 0.08);
+      inset 0 1px 0 var(--mobile-link-shadow),
+      var(--mobile-nav-shadow);
   }
 
   .site-nav a {
@@ -879,20 +1068,20 @@ pre {
     text-align: left;
     min-height: 2.9rem;
     padding: 0.72rem 1rem;
-    border: 1px solid oklch(80% 0.03 50 / 0.78);
-    background: color-mix(in oklch, white 78%, oklch(94% 0.05 52));
+    border: 1px solid var(--mobile-link-border);
+    background: var(--mobile-link-bg);
     color: var(--ink);
     font-size: 0.95rem;
     font-weight: 700;
     line-height: 1;
-    box-shadow: 0 1px 0 oklch(100% 0 0 / 0.6);
+    box-shadow: var(--mobile-link-shadow);
   }
 
   .site-nav a:hover,
   .site-nav a:focus-visible {
     color: var(--ink);
-    border-color: color-mix(in oklch, var(--accent) 36%, var(--line));
-    background: color-mix(in oklch, white 60%, var(--accent-soft));
+    border-color: var(--button-subtle-hover-line);
+    background: var(--button-subtle-hover-bg);
   }
 
   .site-nav-link-external {

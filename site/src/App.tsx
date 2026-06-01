@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Analytics } from "@vercel/analytics/react";
 import {
   coreSkills,
@@ -14,9 +14,30 @@ import {
   supportSkills,
 } from "./siteContent";
 
+type Theme = "light" | "dark";
+
+const themeStorageKey = "vgc-coach-theme";
+
+function getInitialTheme(): Theme {
+  if (typeof window === "undefined") {
+    return "light";
+  }
+
+  const storedTheme = window.localStorage.getItem(themeStorageKey);
+
+  if (storedTheme === "dark" || storedTheme === "light") {
+    return storedTheme;
+  }
+
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
 function App() {
   const currentYear = new Date().getFullYear();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
   const externalLinkProps = {
     target: "_blank",
     rel: "noreferrer",
@@ -24,6 +45,15 @@ function App() {
   const closeMobileNav = () => {
     setIsMobileNavOpen(false);
   };
+  const toggleTheme = () => {
+    setTheme((currentTheme) => (currentTheme === "dark" ? "light" : "dark"));
+  };
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    window.localStorage.setItem(themeStorageKey, theme);
+  }, [theme]);
 
   return (
     <>
@@ -64,6 +94,21 @@ function App() {
             </nav>
           </div>
           <div className="header-actions">
+            <button
+              className="theme-toggle"
+              type="button"
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              aria-pressed={theme === "dark"}
+              data-theme-mode={theme}
+              onClick={toggleTheme}
+            >
+              <span className="theme-toggle-track" aria-hidden="true">
+                <span className="theme-toggle-icon" />
+              </span>
+              <span className="theme-toggle-label">
+                {theme === "dark" ? "Dark" : "Light"}
+              </span>
+            </button>
             <a
               className="button button-ghost header-repo-link"
               href="https://github.com/NoahJenkins/vgc-coach"
