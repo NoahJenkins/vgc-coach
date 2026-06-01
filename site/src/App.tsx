@@ -147,8 +147,8 @@ function App() {
                 VGC Coach is an open-source coaching workspace that gives
                 Codex, Claude Code, and OpenCode structured tools for
                 team-building, meta research, lead planning, replay review, and
-                consistent prep work — grounded in current format rules, not
-                guesses.
+                consistent prep work, grounded in current format rules instead
+                of guesses.
               </p>
               <div className="hero-actions">
                 <a className="button button-primary" href="#getting-started">
@@ -175,14 +175,11 @@ function App() {
                   modes so the advice you get is actually trustworthy.
                 </p>
               </div>
-              <div className="fact-grid">
+              <ul className="trust-list" aria-label="VGC Coach quality checks">
                 {quickFacts.map((fact) => (
-                  <div className="fact-card" key={fact.label}>
-                    <strong>{fact.value}</strong>
-                    <span>{fact.label}</span>
-                  </div>
+                  <li key={fact}>{fact}</li>
                 ))}
-              </div>
+              </ul>
             </aside>
           </section>
 
@@ -201,8 +198,8 @@ function App() {
             <p>
               The coaching logic is shared across every supported AI tool, so
               it stays consistent. Fixed test cases and scoring rubrics exist so
-              you can tell when a change actually made the coaching better —
-              not just whether it sounds better.
+              you can tell when a change actually made the coaching better, not
+              just whether it sounds better.
             </p>
           </div>
         </section>
@@ -265,7 +262,12 @@ function App() {
                   {runtimeInstalls.map((r) => (
                     <div key={r.name} className="install-card">
                       <p className="install-label">{r.name}</p>
-                      <pre>{r.code}</pre>
+                      <pre
+                        aria-label={`${r.name} install command`}
+                        tabIndex={0}
+                      >
+                        {r.code}
+                      </pre>
                     </div>
                   ))}
                 </div>
@@ -323,7 +325,7 @@ function App() {
                 <p className="card-label">Damage and survival checks</p>
                 <p>
                   Damage, KO, and survival checks are exact. Speed comparisons
-                  are framed as benchmarks — not invented numbers — unless a
+                  are framed as benchmarks, not invented numbers, unless a
                   verified exact source confirms them.
                 </p>
               </div>
