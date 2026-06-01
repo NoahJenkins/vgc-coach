@@ -1,0 +1,294 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-01T16:32:28-05:00",
+  "title": "Design System: VGC Coach",
+  "extensions": {
+    "colorMeta": {
+      "bg": {
+        "role": "neutral",
+        "displayName": "Prep Paper",
+        "canonical": "oklch(97% 0.016 72)",
+        "tonalRamp": [
+          "oklch(15% 0.016 72)",
+          "oklch(26% 0.016 72)",
+          "oklch(38% 0.016 72)",
+          "oklch(50% 0.016 72)",
+          "oklch(62% 0.016 72)",
+          "oklch(74% 0.016 72)",
+          "oklch(86% 0.016 72)",
+          "oklch(97% 0.016 72)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Tactical Surface",
+        "canonical": "color-mix(in oklch, white 78%, oklch(92% 0.04 48))",
+        "tonalRamp": [
+          "oklch(18% 0.012 48)",
+          "oklch(28% 0.014 48)",
+          "oklch(40% 0.018 48)",
+          "oklch(52% 0.022 48)",
+          "oklch(64% 0.026 48)",
+          "oklch(76% 0.03 48)",
+          "oklch(88% 0.034 48)",
+          "oklch(96% 0.038 48)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Grounded Ink",
+        "canonical": "oklch(26% 0.025 38)",
+        "tonalRamp": [
+          "oklch(15% 0.025 38)",
+          "oklch(26% 0.025 38)",
+          "oklch(38% 0.025 38)",
+          "oklch(50% 0.025 38)",
+          "oklch(62% 0.025 38)",
+          "oklch(74% 0.025 38)",
+          "oklch(86% 0.025 38)",
+          "oklch(95% 0.025 38)"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Rules Coral",
+        "canonical": "oklch(58% 0.135 38)",
+        "tonalRamp": [
+          "oklch(18% 0.08 38)",
+          "oklch(28% 0.105 38)",
+          "oklch(39% 0.12 38)",
+          "oklch(50% 0.13 38)",
+          "oklch(58% 0.135 38)",
+          "oklch(70% 0.105 38)",
+          "oklch(82% 0.07 38)",
+          "oklch(94% 0.035 38)"
+        ]
+      },
+      "accent-2": {
+        "role": "secondary",
+        "displayName": "Verification Olive",
+        "canonical": "oklch(60% 0.09 115)",
+        "tonalRamp": [
+          "oklch(18% 0.05 115)",
+          "oklch(30% 0.07 115)",
+          "oklch(42% 0.085 115)",
+          "oklch(54% 0.09 115)",
+          "oklch(60% 0.09 115)",
+          "oklch(72% 0.075 115)",
+          "oklch(84% 0.05 115)",
+          "oklch(95% 0.03 115)"
+        ]
+      },
+      "dark-bg": {
+        "role": "neutral",
+        "displayName": "Night Prep Canvas",
+        "canonical": "oklch(16% 0.008 38)",
+        "tonalRamp": [
+          "oklch(10% 0.008 38)",
+          "oklch(16% 0.008 38)",
+          "oklch(26% 0.008 38)",
+          "oklch(38% 0.008 38)",
+          "oklch(50% 0.008 38)",
+          "oklch(62% 0.008 38)",
+          "oklch(76% 0.008 38)",
+          "oklch(90% 0.008 38)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Hero headlines only."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section headings and CTA headings."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card headings and timeline step titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Explanatory copy with practical coaching language."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Eyebrows, card labels, and compact metadata."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Skill slugs, commands, and code snippets only."
+      }
+    },
+    "shadows": [
+      {
+        "name": "ambient-panel",
+        "value": "0 28px 70px oklch(40% 0.03 35 / 0.13)",
+        "purpose": "Main card, runtime card, timeline card, and CTA depth in light mode."
+      },
+      {
+        "name": "soft-header",
+        "value": "0 4px 16px oklch(40% 0.03 35 / 0.07)",
+        "purpose": "Sticky header and smaller supporting list items."
+      },
+      {
+        "name": "primary-glow",
+        "value": "0 18px 45px oklch(58% 0.11 32 / 0.28)",
+        "purpose": "Primary CTA only."
+      },
+      {
+        "name": "night-ambient-panel",
+        "value": "0 28px 70px oklch(5% 0.018 38 / 0.45)",
+        "purpose": "Dark-mode card depth."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Default hover, focus, and transform easing."
+      },
+      {
+        "name": "ease-soft",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Softer surface transitions when needed."
+      },
+      {
+        "name": "rise-in",
+        "value": "700ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "purpose": "Nonessential entrance animation, disabled under reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide-collapse",
+        "value": "1180px"
+      },
+      {
+        "name": "mobile-nav",
+        "value": "760px"
+      },
+      {
+        "name": "compact-header",
+        "value": "560px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary coral pill for one dominant action per section.",
+      "html": "<button class=\"ds-button ds-button-primary\">Start Using It</button>",
+      "css": ".ds-button { display: inline-flex; align-items: center; justify-content: center; min-height: 3.2rem; padding: 0.85rem 1.25rem; border-radius: 999px; border: 1px solid transparent; font: 800 0.95rem/1 Manrope, sans-serif; transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 220ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-button-primary { background: linear-gradient(140deg, oklch(58% 0.135 38), oklch(55% 0.14 20)); color: oklch(98% 0.01 70); box-shadow: 0 18px 45px oklch(58% 0.11 32 / 0.28); } .ds-button-primary:hover, .ds-button-primary:focus-visible { transform: translateY(-1px); box-shadow: 0 24px 52px oklch(58% 0.11 32 / 0.34); outline: 2px solid color-mix(in oklch, oklch(58% 0.135 38) 82%, white); outline-offset: 3px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Soft bordered pill for secondary actions and low-pressure links.",
+      "html": "<button class=\"ds-button ds-button-secondary\">Explore Skills</button>",
+      "css": ".ds-button { display: inline-flex; align-items: center; justify-content: center; min-height: 3.2rem; padding: 0.85rem 1.25rem; border-radius: 999px; border: 1px solid oklch(79% 0.04 55 / 0.7); font: 800 0.95rem/1 Manrope, sans-serif; transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), background-color 180ms cubic-bezier(0.16, 1, 0.3, 1), border-color 180ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-button-secondary { background: color-mix(in oklch, white 62%, transparent); color: oklch(26% 0.025 38); } .ds-button-secondary:hover, .ds-button-secondary:focus-visible { transform: translateY(-1px); background: color-mix(in oklch, white 54%, oklch(79% 0.08 45)); border-color: color-mix(in oklch, oklch(58% 0.135 38) 28%, oklch(79% 0.04 55 / 0.7)); outline: 2px solid color-mix(in oklch, oklch(58% 0.135 38) 82%, white); outline-offset: 3px; }"
+    },
+    {
+      "name": "Navigation Link",
+      "kind": "nav",
+      "refersTo": "navigation-link",
+      "description": "Compact sticky-header link with warm hover feedback.",
+      "html": "<a class=\"ds-nav-link\" href=\"#skills\">Coaching Tools</a>",
+      "css": ".ds-nav-link { display: inline-flex; align-items: center; min-height: 2.75rem; padding: 0.45rem 0.8rem; border-radius: 999px; color: oklch(38% 0.02 42); font: 600 0.95rem/1 Manrope, sans-serif; text-decoration: none; transition: color 180ms cubic-bezier(0.16, 1, 0.3, 1), background-color 180ms cubic-bezier(0.16, 1, 0.3, 1), transform 180ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-nav-link:hover, .ds-nav-link:focus-visible { color: oklch(26% 0.025 38); background: color-mix(in oklch, white 58%, oklch(79% 0.08 45)); transform: translateY(-1px); outline: 2px solid color-mix(in oklch, oklch(58% 0.135 38) 82%, white); outline-offset: 3px; }"
+    },
+    {
+      "name": "Coaching Tool Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Compact card for a coaching skill, with slug and direct emphasis.",
+      "html": "<article class=\"ds-card\"><p class=\"ds-card-kicker\">Core tool</p><h3>Lead Planner</h3><p class=\"ds-slug\">vgc-lead-planner</p><p>Default leads, preserve targets, matchup branches, and turn-one priorities.</p><span>Turn planning that holds up in a real set.</span></article>",
+      "css": ".ds-card { max-width: 22rem; padding: 1.25rem; border: 1px solid oklch(79% 0.04 55 / 0.7); border-radius: 1.6rem; background: color-mix(in oklch, white 72%, transparent); color: oklch(26% 0.025 38); box-shadow: 0 28px 70px oklch(40% 0.03 35 / 0.13); font-family: Manrope, sans-serif; } .ds-card-kicker { margin: 0; color: oklch(48% 0.065 48); font-size: 0.95rem; font-weight: 800; } .ds-card h3 { margin: 0.6rem 0 0.55rem; font-size: 1.1rem; line-height: 1.25; } .ds-card p { color: oklch(38% 0.02 42); line-height: 1.6; } .ds-slug { font: 400 0.78rem/1.5 SFMono-Regular, SF Mono, Consolas, Liberation Mono, Menlo, monospace; } .ds-card span { color: oklch(42% 0.08 38); font-weight: 700; font-size: 0.95rem; }"
+    },
+    {
+      "name": "Install Timeline Step",
+      "kind": "custom",
+      "refersTo": "install-timeline",
+      "description": "Numbered setup row that pairs concise instructions with command snippets.",
+      "html": "<article class=\"ds-timeline\"><div class=\"ds-marker\">01</div><div><h3>Install as a plugin</h3><p>Pick your AI tool and run the install. Restart after and the coaching tools are ready.</p><pre>python3 tools/build_plugins.py build</pre></div></article>",
+      "css": ".ds-timeline { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1rem; align-items: start; padding: 1.25rem; border: 1px solid oklch(79% 0.04 55 / 0.7); border-radius: 1.6rem; background: color-mix(in oklch, white 72%, transparent); box-shadow: 0 28px 70px oklch(40% 0.03 35 / 0.13); font-family: Manrope, sans-serif; } .ds-marker { inline-size: 3rem; block-size: 3rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: oklch(90% 0.07 50); color: oklch(38% 0.07 34); font-weight: 800; } .ds-timeline h3 { margin: 0 0 0.55rem; font-size: 1.1rem; } .ds-timeline p { margin: 0; color: oklch(38% 0.02 42); line-height: 1.6; } .ds-timeline pre { margin: 0.9rem 0 0; padding: 1rem; border-radius: 1rem; background: oklch(25% 0.02 34); color: oklch(95% 0.01 55); overflow-x: auto; font: 400 0.82rem/1.5 SFMono-Regular, SF Mono, Consolas, Liberation Mono, Menlo, monospace; }"
+    },
+    {
+      "name": "Theme Toggle",
+      "kind": "custom",
+      "refersTo": "theme-toggle",
+      "description": "Compact pill control for light and dark mode parity.",
+      "html": "<button class=\"ds-theme-toggle\"><span class=\"ds-toggle-track\"><span class=\"ds-toggle-dot\"></span></span><span>Light</span></button>",
+      "css": ".ds-theme-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 0.55rem; min-height: 3.2rem; padding: 0.55rem 0.85rem; border: 1px solid oklch(79% 0.04 55 / 0.7); border-radius: 999px; background: color-mix(in oklch, white 62%, transparent); color: oklch(26% 0.025 38); font: 800 0.86rem/1 Manrope, sans-serif; cursor: pointer; transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), background-color 180ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-theme-toggle:hover, .ds-theme-toggle:focus-visible { transform: translateY(-1px); background: color-mix(in oklch, white 54%, oklch(79% 0.08 45)); outline: 2px solid color-mix(in oklch, oklch(58% 0.135 38) 82%, white); outline-offset: 3px; } .ds-toggle-track { position: relative; inline-size: 2.35rem; block-size: 1.35rem; border-radius: 999px; background: color-mix(in oklch, oklch(38% 0.02 42) 22%, transparent); box-shadow: inset 0 0 0 1px oklch(79% 0.04 55 / 0.7); } .ds-toggle-dot { position: absolute; inset-block-start: 0.22rem; inset-inline-start: 0.24rem; inline-size: 0.9rem; block-size: 0.9rem; border-radius: 50%; background: oklch(58% 0.135 38); box-shadow: 0 0 0 0.22rem color-mix(in oklch, oklch(58% 0.135 38) 16%, transparent), 0 4px 10px oklch(12% 0.02 36 / 0.22); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Match Prep Desk",
+    "overview": "VGC Coach should feel like a disciplined prep surface for competitive Pokemon Champions players: warm enough to be approachable, precise enough to trust before a set, and structured enough to show that advice is being checked against rules, sources, and evals. The current system is a brand surface, not an app dashboard. It sells confidence through useful specificity, not hype.\n\nThe visual language is tactical light mode with dark mode as a first-class companion. Large Sora headings create the competitive snap, Manrope carries the explanatory copy, and rounded cards group coaching tasks without turning the page into a generic SaaS grid. The grid texture, soft shadows, code blocks, and mono slugs signal tools and runtime adapters while preserving a player-first reading order.\n\nThis system rejects generic AI-product marketing, stale-meta certainty, and contributor-first architecture dumps. The homepage must keep player tasks visible: building teams, checking the current meta, planning leads, reviewing games, and understanding whether AI-generated advice is trustworthy.",
+    "keyCharacteristics": [
+      "Warm tactical neutrals with coral and olive accents.",
+      "Large, compressed display type balanced by practical explanatory copy.",
+      "Compact tool cards that make coaching tasks easy to scan.",
+      "Source accuracy, legality, uncertainty, and eval quality made visible.",
+      "Light and dark themes treated as equal product surfaces."
+    ],
+    "rules": [
+      {
+        "name": "The No Pure Neutral Rule",
+        "body": "Never use pure black or pure white. Every neutral is slightly warmed or cooled through OKLCH.",
+        "section": "colors"
+      },
+      {
+        "name": "The Accuracy Accent Rule",
+        "body": "Use olive for verification and support, not as a second competing CTA color.",
+        "section": "colors"
+      },
+      {
+        "name": "The Theme Parity Rule",
+        "body": "Any new section must preserve both light and dark color assignments. Do not patch only the default theme.",
+        "section": "colors"
+      },
+      {
+        "name": "The Practical Voice Rule",
+        "body": "Keep copy plain and repo-aligned. Use phrases like \"open-source coaching workspace\", \"shared coaching logic\", \"current format rules\", \"fixed test cases and rubrics\", and \"support tools\".",
+        "section": "typography"
+      },
+      {
+        "name": "The Mono Has A Job Rule",
+        "body": "Mono is for identifiers and commands. Do not use monospace as a lazy shorthand for technical style.",
+        "section": "typography"
+      },
+      {
+        "name": "The No Glass Rule",
+        "body": "Do not use blur-heavy glassmorphism as decoration. Use solid tonal surfaces and honest borders.",
+        "section": "elevation"
+      },
+      {
+        "name": "The CTA Glow Rule",
+        "body": "Glow belongs to primary action and state feedback. Do not put CTA-level shadow on every card.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do prioritize VGC player tasks over contributor architecture on public pages.",
+      "Do make source accuracy, legality, and uncertainty visible without turning the page into documentation.",
+      "Do preserve the established product voice: open-source coaching workspace, shared coaching logic, current format rules, fixed test cases and rubrics, support tools.",
+      "Do support light and dark themes as first-class modes with accessible contrast.",
+      "Do use bold visual hierarchy for scanning while keeping install paths and coaching tools easy to compare.",
+      "Do use OKLCH tokens and tinted neutrals instead of raw hex neutrals.",
+      "Do keep reduced-motion behavior intact for every animation or transition."
+    ],
+    "donts": [
+      "Don't drift into generic AI-product hype or vague productivity language.",
+      "Don't present stale meta claims, fake legality, usage, or matchup certainty as current truth.",
+      "Don't fork shared coaching logic or make runtime-specific visual stories look like separate products.",
+      "Don't use gradient text, decorative glassmorphism, side-stripe borders, or hero-metric templates.",
+      "Don't use identical icon-heading-text card grids as the main design idea.",
+      "Don't over-stylize copy at the expense of practical, repo-aligned language.",
+      "Don't create dark-mode-only effects or light-mode-only surfaces."
+    ]
+  }
+}
