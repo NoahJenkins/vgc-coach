@@ -25,6 +25,28 @@ Do not optimize for:
 - fake legality, usage, or matchup certainty
 - runtime-specific rewrites of the same coaching logic
 
+## Design Context
+
+### Users
+
+The website should primarily optimize for VGC players who want practical help preparing for Pokemon Champions: building teams, checking the current meta, planning leads, reviewing games, and understanding whether AI-generated advice is trustworthy. Developers and contributors are a secondary audience; the site can support them, but player clarity comes first.
+
+### Brand Personality
+
+The brand should feel practical, strategic, and competitive. It should communicate confidence through useful specificity, not hype. The interface and copy should make VGC Coach feel like a disciplined prep tool that helps players make better decisions under current-format constraints.
+
+### Aesthetic Direction
+
+Future visual direction is flexible, but it should preserve the established product voice: open-source coaching workspace, shared coaching logic, current format rules, fixed test cases and rubrics, and support tools. The current site uses a warm, tactical light-mode direction with strong headings, compact tool cards, and source-accuracy language; future work may evolve that look while keeping the experience clear, competitive, and grounded. Support both light and dark mode for future site work.
+
+### Design Principles
+
+- Prioritize VGC player tasks over contributor architecture when shaping the public site.
+- Make source accuracy, legality, and uncertainty visible without turning the UI into documentation.
+- Keep copy practical and repo-aligned; do not over-stylize the language or drift into generic AI-product hype.
+- Use bold visual hierarchy for scanning, but keep controls, install paths, and coaching tools easy to compare.
+- Design light and dark themes as first-class modes, with accessible contrast and reduced-motion behavior preserved.
+
 ## Canonical Source Of Truth
 
 - `skills/` is the only canonical editable source for shared coaching skill behavior.
