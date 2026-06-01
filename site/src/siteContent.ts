@@ -31,7 +31,7 @@ export const navLinks = [
 export const quickFacts = [
   { value: "5", label: "core coaching tools" },
   { value: "3", label: "supported AI tools" },
-  { value: "0", label: "invented facts, sources only" },
+  { value: "0", label: "invented facts — sources only" },
 ];
 
 export const heroBullets = [
@@ -45,14 +45,14 @@ export const coreSkills: Skill[] = [
     name: "vgc-meta-research",
     displayName: "Meta Research",
     summary:
-      "Current Pokemon Champions meta snapshots, trend reads, and anti-meta openings grounded in live sources instead of stale guesses.",
+      "Current Pokemon Champions meta snapshots, trend reads, and anti-meta openings grounded in live sources — not month-old guesses.",
     emphasis: "Current-format accuracy before advice.",
   },
   {
     name: "vgc-team-builder",
     displayName: "Team Builder",
     summary:
-      "One practical, coherent team built around a target Pokemon, strategy, or anti-meta goal.",
+      "One practical, coherent team built around a target Pokemon, strategy, or anti-meta goal — not a pile of weak alternatives.",
     emphasis: "One real draft, not five halfhearted ones.",
   },
   {
@@ -88,7 +88,7 @@ export const supportSkills: Skill[] = [
   {
     name: "vgc-source-verifier",
     displayName: "Source Verifier",
-    summary: "Audits whether a rules, usage, or matchup claim is actually sourced and flags clearly when it is not.",
+    summary: "Audits whether a rules, usage, or matchup claim is actually sourced — and flags clearly when it is not.",
     emphasis: "Source and inference are never mixed without a label.",
   },
   {
@@ -125,14 +125,14 @@ export const runtimes: Runtime[] = [
     name: "Claude Code",
     summary: "Full support via the same shared coaching logic.",
     notes:
-      "Add the repo marketplace and install the packaged plugin with two commands. Restart Claude Code and the skills are ready without a repo clone.",
+      "Add the repo marketplace and install the packaged plugin with two commands. Restart Claude Code and the skills are ready — no repo clone needed.",
     href: `${blobUrl}/docs/runtime/claude-code.md`,
   },
   {
     name: "OpenCode",
     summary: "Secondary support with its own setup notes.",
     notes:
-      "Add the git-install plugin to opencode.json. OpenCode handles the download and wiring automatically on next restart.",
+      "Add the git-install plugin to opencode.json — OpenCode handles the download and wiring automatically on next restart.",
     href: `${blobUrl}/docs/runtime/opencode.md`,
   },
 ];
@@ -141,7 +141,7 @@ export const principles = [
   "Verify current meta, rules, and legality before presenting them as fact.",
   "Prefer official rules sources over community interpretation.",
   "Keep the coaching logic consistent across every AI tool you use.",
-  "Judge coaching changes against test cases and scoring rubrics, not just whether the wording improved.",
+  "Judge coaching changes against test cases and scoring rubrics — not just whether the wording improved.",
 ];
 
 export const runtimeInstalls: RuntimeInstall[] = [
@@ -179,7 +179,7 @@ export const repoLayers = [
   },
   {
     title: "Test cases and scoring rubrics",
-    body: "Fixed test cases and scoring criteria mean you can tell if a coaching change actually improved the output, not just the wording.",
+    body: "Fixed test cases and scoring criteria mean you can tell if a coaching change actually improved the output — not just the wording.",
   },
   {
     title: "Per-tool setup notes",

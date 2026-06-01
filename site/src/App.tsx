@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import {
   coreSkills,
   footerLinks,
@@ -94,13 +95,15 @@ function App() {
           <section className="hero section">
             <div className="hero-copy">
               <div className="eyebrow">Pokemon Champions coaching workspace</div>
-              <h1>Smarter AI coaching for Pokemon VGC.</h1>
+              <h1>
+                Smarter AI coaching for Pokemon VGC.
+              </h1>
               <p className="hero-intro">
                 VGC Coach is an open-source coaching workspace that gives
                 Codex, Claude Code, and OpenCode structured tools for
                 team-building, meta research, lead planning, replay review, and
-                consistent prep work, grounded in current format rules instead
-                of guesses.
+                consistent prep work — grounded in current format rules, not
+                guesses.
               </p>
               <div className="hero-actions">
                 <a className="button button-primary" href="#getting-started">
@@ -118,37 +121,18 @@ function App() {
             </div>
 
             <aside className="hero-aside">
-              <div className="battle-board" aria-label="VGC Coach operating loop">
-                <div className="board-topline">
-                  <span>shared coaching workflow</span>
-                  <strong>current format first</strong>
-                </div>
-                <ol className="board-steps">
-                  <li>
-                    <span>01</span>
-                    <strong>Verify the format</strong>
-                    <p>Legality, regulation, and rules are checked before coaching advice is given.</p>
-                  </li>
-                  <li>
-                    <span>02</span>
-                    <strong>Ground the source</strong>
-                    <p>Official rules, current sources, and community trend signals stay clearly separated.</p>
-                  </li>
-                  <li>
-                    <span>03</span>
-                    <strong>Give practical prep</strong>
-                    <p>Team builds, lead plans, audits, and replay reviews resolve into usable next steps.</p>
-                  </li>
-                </ol>
-                <div className="board-footer">
-                  <span>shared skills</span>
-                  <span>runtime adapters</span>
-                  <span>eval rubrics</span>
-                </div>
+              <div className="info-card spotlight-card">
+                <p className="card-label">Why it exists</p>
+                <p className="spotlight-copy">
+                  Most AI-generated VGC advice sounds sharp while quietly getting
+                  the legality, format rules, or in-game tradeoffs wrong. This
+                  workspace hardens the coaching behavior against those failure
+                  modes so the advice you get is actually trustworthy.
+                </p>
               </div>
-              <div className="fact-strip">
+              <div className="fact-grid">
                 {quickFacts.map((fact) => (
-                  <div className="fact-item" key={fact.label}>
+                  <div className="fact-card" key={fact.label}>
                     <strong>{fact.value}</strong>
                     <span>{fact.label}</span>
                   </div>
@@ -162,18 +146,19 @@ function App() {
             <div className="eyebrow">What it does</div>
             <h2>Not a ladder client. Not a content site. A coaching layer for your AI tool.</h2>
           </div>
-          <div className="split-copy protocol-panel">
+          <div className="split-copy">
             <p>
-              VGC Coach gives your AI assistant structured,
-              quality-controlled coaching tools for real Pokemon Champions
-              prep: current meta research, team-building, matchup planning,
-              replay feedback, and practice tracking.
+              VGC Coach gives your AI assistant structured, quality-controlled
+              coaching tools for real Pokemon Champions prep: current meta
+              research, team-building, matchup planning, replay feedback, and
+              practice tracking.
             </p>
-            <ul className="protocol-list">
-              <li>Shared coaching logic across every supported AI tool.</li>
-              <li>Fixed test cases and rubrics for judging skill quality.</li>
-              <li>Current format claims verified before they are presented as fact.</li>
-            </ul>
+            <p>
+              The coaching logic is shared across every supported AI tool, so
+              it stays consistent. Fixed test cases and scoring rubrics exist so
+              you can tell when a change actually made the coaching better —
+              not just whether it sounds better.
+            </p>
           </div>
         </section>
 
@@ -182,15 +167,14 @@ function App() {
             <div className="eyebrow">Core coaching tools</div>
             <h2>The five coaching tasks that matter most.</h2>
           </div>
-          <div className="skill-playbook">
+          <div className="skill-grid">
             {coreSkills.map((skill) => (
-              <article className="skill-row" key={skill.name}>
-                <div className="skill-row-title">
-                  <p className="skill-slug">{skill.name}</p>
-                  <h3>{skill.displayName}</h3>
-                </div>
+              <article className="skill-card skill-card-core" key={skill.name}>
+                <p className="card-kicker">Core tool</p>
+                <h3>{skill.displayName}</h3>
+                <p className="skill-slug">{skill.name}</p>
                 <p>{skill.summary}</p>
-                <strong>{skill.emphasis}</strong>
+                <span>{skill.emphasis}</span>
               </article>
             ))}
           </div>
@@ -226,31 +210,31 @@ function App() {
             <div className="eyebrow">Getting started</div>
             <h2>Use it directly in the AI tool you already prefer.</h2>
           </div>
-          <div className="install-station">
-            <article className="install-lead">
-              <span>01</span>
-              <div>
+          <div className="timeline">
+            <article className="timeline-card">
+              <div className="timeline-marker">01</div>
+              <div className="timeline-copy">
                 <h3>Install as a plugin</h3>
                 <p>Pick your AI tool and run the install. Restart after and the coaching tools are ready.</p>
+                <div className="install-grid">
+                  {runtimeInstalls.map((r) => (
+                    <div key={r.name} className="install-card">
+                      <p className="install-label">{r.name}</p>
+                      <pre>{r.code}</pre>
+                    </div>
+                  ))}
+                </div>
               </div>
             </article>
-            <div className="install-grid">
-              {runtimeInstalls.map((r) => (
-                <div key={r.name} className="install-card">
-                  <p className="install-label">{r.name}</p>
-                  <pre>{r.code}</pre>
-                </div>
-              ))}
-            </div>
             {gettingStartedSteps.map((step, index) => (
-              <article className="install-lead prompt-lead" key={step.title}>
-                <span>0{index + 2}</span>
-                <div>
+              <article className="timeline-card" key={step.title}>
+                <div className="timeline-marker">0{index + 2}</div>
+                <div className="timeline-copy">
                   <h3>{step.title}</h3>
                   <p>{step.body}</p>
                   {step.code && step.isCode && <pre>{step.code}</pre>}
                   {step.code && !step.isCode && (
-                    <p className="prompt-examples">{step.code}</p>
+                    <p className="timeline-examples">{step.code}</p>
                   )}
                 </div>
               </article>
@@ -294,7 +278,7 @@ function App() {
                 <p className="card-label">Damage and survival checks</p>
                 <p>
                   Damage, KO, and survival checks are exact. Speed comparisons
-                  are framed as benchmarks, not invented numbers, unless a
+                  are framed as benchmarks — not invented numbers — unless a
                   verified exact source confirms them.
                 </p>
               </div>
@@ -373,6 +357,7 @@ function App() {
         </nav>
       </footer>
       </div>
+      <Analytics />
     </>
   );
 }
