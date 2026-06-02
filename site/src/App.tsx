@@ -171,7 +171,7 @@ function App() {
                 <span>Prep console</span>
                 <strong>Source-aware</strong>
               </div>
-              <div className="bracket-map" aria-hidden="true">
+              <div className="bracket-map">
                 <div className="bracket-board-top">
                   <span>Top cut</span>
                   <strong>Matchup route</strong>
@@ -182,50 +182,63 @@ function App() {
                   role="img"
                   aria-label="Tournament bracket route from verified sources to team plan"
                 >
+                  <title>Top-cut matchup bracket showing rules, meta, leads, and review paths into one team plan</title>
                   <g className="bracket-entries">
-                    {[24, 54, 84, 114, 154, 184, 214, 244].map((y, index) => (
-                      <g key={y}>
-                        <circle cx="28" cy={y} r="10" />
-                        <text x="28" y={y + 4}>
-                          {index + 1}
+                    {[
+                      { y: 24, seed: "01", label: "Rules" },
+                      { y: 54, seed: "02", label: "Meta" },
+                      { y: 84, seed: "03", label: "Team" },
+                      { y: 114, seed: "04", label: "Calcs" },
+                      { y: 154, seed: "05", label: "Scout" },
+                      { y: 184, seed: "06", label: "Leads" },
+                      { y: 214, seed: "07", label: "Replay" },
+                      { y: 244, seed: "08", label: "Journal" },
+                    ].map((entry) => (
+                      <g key={entry.seed}>
+                        <circle cx="22" cy={entry.y} r="10" />
+                        <text className="bracket-seed" x="22" y={entry.y + 4}>
+                          {entry.seed}
+                        </text>
+                        <text className="bracket-entry-label" x="40" y={entry.y + 4}>
+                          {entry.label}
                         </text>
                       </g>
                     ))}
                   </g>
 
                   <g className="bracket-line">
-                    <path d="M42 24 H92 V54 H42" />
-                    <path d="M42 84 H92 V114 H42" />
-                    <path d="M92 39 H132 V99 H92" />
-                    <path d="M42 154 H92 V184 H42" />
-                    <path d="M42 214 H92 V244 H42" />
-                    <path d="M92 169 H132 V229 H92" />
-                    <path d="M132 69 H180 V199 H132" />
-                    <path d="M180 134 H240" />
+                    <path d="M106 24 H142 V54 H106" />
+                    <path d="M106 84 H142 V114 H106" />
+                    <path d="M142 39 H178 V99 H142" />
+                    <path d="M106 154 H142 V184 H106" />
+                    <path d="M106 214 H142 V244 H106" />
+                    <path d="M142 169 H178 V229 H142" />
+                    <path d="M178 69 H222 V199 H178" />
+                    <path d="M222 134 H286" />
                   </g>
 
-                  <path className="route-line route-primary" d="M132 69 H172 V92 H210 V116 H248 V134 H302" />
-                  <path className="route-line route-alt" d="M132 229 H170 V202 H210 V178 H248 V154 H302" />
-                  <path className="route-line route-risk" d="M92 99 H154 V134 H210 V154 H248" />
-                  <path className="route-line route-risk" d="M92 169 H154 V154 H210 V134 H248" />
+                  <path className="route-line route-primary" d="M178 69 H214 V92 H250 V116 H292 V134 H340" />
+                  <path className="route-line route-alt" d="M178 229 H214 V202 H250 V178 H292 V154 H340" />
+                  <path className="route-line route-risk" d="M142 99 H198 V134 H252 V154 H292" />
+                  <path className="route-line route-risk" d="M142 169 H198 V154 H252 V134 H292" />
 
                   <g className="bracket-finish">
-                    <circle cx="330" cy="134" r="17" />
-                    <path d="M318 134 H342" />
-                    <path d="M330 122 V146" />
+                    <circle cx="364" cy="134" r="17" />
+                    <path d="M352 134 H376" />
+                    <path d="M364 122 V146" />
                   </g>
 
                   <g className="bracket-labels">
-                    <text x="370" y="66">Primary line</text>
-                    <text x="370" y="104">Alt line</text>
-                    <text x="370" y="142">High risk</text>
-                    <text x="370" y="203">Build team plan</text>
+                    <text x="424" y="54">Safe lead</text>
+                    <text x="424" y="91">Pivot line</text>
+                    <text x="424" y="128">Risk to verify</text>
+                    <text x="424" y="200">Team plan</text>
                   </g>
                   <g className="bracket-key-lines">
-                    <path className="route-primary" d="M330 60 H360" />
-                    <path className="route-alt" d="M330 98 H360" />
-                    <path className="route-risk" d="M330 136 H360" />
-                    <path className="bracket-line-sample" d="M330 197 H360" />
+                    <path className="route-primary" d="M384 48 H414" />
+                    <path className="route-alt" d="M384 85 H414" />
+                    <path className="route-risk" d="M384 122 H414" />
+                    <path className="bracket-line-sample" d="M384 194 H414" />
                   </g>
                 </svg>
               </div>

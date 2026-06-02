@@ -429,7 +429,7 @@ pre {
 }
 
 :root[data-theme="dark"] .site-nav a {
-  color: color-mix(in oklch, var(--ink) 84%, var(--ink-soft));
+  color: oklch(82% 0.014 70);
 }
 
 .site-nav a:hover,
@@ -722,7 +722,7 @@ pre {
   color: var(--ink-soft);
   font-size: 0.72rem;
   font-weight: 900;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
@@ -755,17 +755,24 @@ pre {
   stroke-width: 2;
 }
 
-.bracket-entries text {
+.bracket-seed {
   fill: var(--ink-soft);
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 900;
   text-anchor: middle;
+}
+
+.bracket-entry-label {
+  fill: var(--ink);
+  font-family: var(--display-font);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .route-line,
 .bracket-key-lines path {
   fill: none;
-  stroke-width: 4;
+  stroke-width: 4.5;
   stroke-linecap: square;
   stroke-linejoin: miter;
 }
@@ -781,7 +788,7 @@ pre {
 .route-risk {
   stroke: color-mix(in oklch, var(--ink-soft) 74%, transparent);
   stroke-dasharray: 8 6;
-  stroke-width: 2.4;
+  stroke-width: 2.6;
 }
 
 .bracket-finish path {
@@ -793,8 +800,9 @@ pre {
 
 .bracket-labels text {
   fill: var(--ink);
-  font-size: 15px;
-  font-weight: 800;
+  font-family: var(--display-font);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .bracket-labels text:last-child {
@@ -1415,27 +1423,28 @@ pre {
   }
 
   .hero h1 {
-    font-size: 2.8rem;
+    font-size: 2.55rem;
     line-height: 1;
   }
 
   .hero-intro {
-    font-size: 1rem;
-    line-height: 1.55;
+    font-size: 0.98rem;
+    line-height: 1.5;
   }
 
   .hero-actions {
-    margin: 1.15rem 0;
+    margin: 0.95rem 0;
   }
 
   .hero-bullets {
-    gap: 0.55rem;
-    margin-top: 0.9rem;
+    gap: 0.45rem;
+    margin-top: 0.7rem;
   }
 
   .hero-bullets li {
     align-items: flex-start;
-    line-height: 1.3;
+    font-size: 0.94rem;
+    line-height: 1.25;
   }
 
   .hero-bullets li::before {
@@ -1458,13 +1467,13 @@ pre {
   }
 
   .hero-console {
-    gap: 0.65rem;
+    gap: 0.55rem;
     min-height: auto;
-    padding: 0.65rem;
+    padding: 0.58rem;
   }
 
   .console-topline {
-    min-height: 2.55rem;
+    min-height: 2.45rem;
     padding-inline: 0.75rem;
   }
 
@@ -1475,7 +1484,7 @@ pre {
   }
 
   .bracket-board-top {
-    font-size: 0.62rem;
+    font-size: 0.6rem;
   }
 
   .console-grid,
@@ -1515,7 +1524,7 @@ pre {
   }
 
   .hero h1 {
-    font-size: 2.35rem;
+    font-size: 2.18rem;
   }
 
   .section-heading h2,
@@ -1523,8 +1532,16 @@ pre {
     font-size: 1.95rem;
   }
 
+  .bracket-seed {
+    font-size: 9px;
+  }
+
+  .bracket-entry-label {
+    font-size: 14px;
+  }
+
   .bracket-labels text {
-    font-size: 13px;
+    font-size: 15px;
   }
 }
 
