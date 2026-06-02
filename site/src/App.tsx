@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Analytics } from "@vercel/analytics/react";
 import {
   coreSkills,
+  evidenceSteps,
   footerLinks,
   gettingStartedSteps,
   heroBullets,
   navLinks,
+  prepSignals,
   principles,
   quickFacts,
   repoLayers,
@@ -139,9 +140,9 @@ function App() {
         <main id="main-content">
           <section className="hero section">
             <div className="hero-copy">
-              <div className="eyebrow">Pokemon Champions coaching workspace</div>
+              <div className="eyebrow">Pokemon Champions prep room</div>
               <h1>
-                Smarter AI coaching for Pokemon VGC.
+                A sharper coaching layer for current-format VGC prep.
               </h1>
               <p className="hero-intro">
                 VGC Coach is an open-source coaching workspace that gives
@@ -165,28 +166,96 @@ function App() {
               </ul>
             </div>
 
-            <aside className="hero-aside">
-              <div className="info-card spotlight-card">
-                <p className="card-label">Why it exists</p>
-                <p className="spotlight-copy">
-                  Most AI-generated VGC advice sounds sharp while quietly getting
-                  the legality, format rules, or in-game tradeoffs wrong. This
-                  workspace hardens the coaching behavior against those failure
-                  modes so the advice you get is actually trustworthy.
-                </p>
+            <aside className="hero-console" aria-label="VGC Coach prep console">
+              <div className="console-topline">
+                <span>Prep console</span>
+                <strong>Source-aware</strong>
               </div>
-              <ul className="trust-list" aria-label="VGC Coach quality checks">
-                {quickFacts.map((fact) => (
-                  <li key={fact}>{fact}</li>
+              <div className="bracket-map" aria-hidden="true">
+                <div className="bracket-board-top">
+                  <span>Top cut</span>
+                  <strong>Matchup route</strong>
+                </div>
+                <svg
+                  className="tournament-bracket"
+                  viewBox="0 0 620 260"
+                  role="img"
+                  aria-label="Tournament bracket route from verified sources to team plan"
+                >
+                  <g className="bracket-entries">
+                    {[24, 54, 84, 114, 154, 184, 214, 244].map((y, index) => (
+                      <g key={y}>
+                        <circle cx="28" cy={y} r="10" />
+                        <text x="28" y={y + 4}>
+                          {index + 1}
+                        </text>
+                      </g>
+                    ))}
+                  </g>
+
+                  <g className="bracket-line">
+                    <path d="M42 24 H92 V54 H42" />
+                    <path d="M42 84 H92 V114 H42" />
+                    <path d="M92 39 H132 V99 H92" />
+                    <path d="M42 154 H92 V184 H42" />
+                    <path d="M42 214 H92 V244 H42" />
+                    <path d="M92 169 H132 V229 H92" />
+                    <path d="M132 69 H180 V199 H132" />
+                    <path d="M180 134 H240" />
+                  </g>
+
+                  <path className="route-line route-primary" d="M132 69 H172 V92 H210 V116 H248 V134 H302" />
+                  <path className="route-line route-alt" d="M132 229 H170 V202 H210 V178 H248 V154 H302" />
+                  <path className="route-line route-risk" d="M92 99 H154 V134 H210 V154 H248" />
+                  <path className="route-line route-risk" d="M92 169 H154 V154 H210 V134 H248" />
+
+                  <g className="bracket-finish">
+                    <circle cx="330" cy="134" r="17" />
+                    <path d="M318 134 H342" />
+                    <path d="M330 122 V146" />
+                  </g>
+
+                  <g className="bracket-labels">
+                    <text x="370" y="66">Primary line</text>
+                    <text x="370" y="104">Alt line</text>
+                    <text x="370" y="142">High risk</text>
+                    <text x="370" y="203">Build team plan</text>
+                  </g>
+                  <g className="bracket-key-lines">
+                    <path className="route-primary" d="M330 60 H360" />
+                    <path className="route-alt" d="M330 98 H360" />
+                    <path className="route-risk" d="M330 136 H360" />
+                    <path className="bracket-line-sample" d="M330 197 H360" />
+                  </g>
+                </svg>
+              </div>
+              <div className="console-grid">
+                {prepSignals.map((signal) => (
+                  <div className="signal-tile" key={signal.label}>
+                    <span>{signal.label}</span>
+                    <strong>{signal.value}</strong>
+                  </div>
                 ))}
-              </ul>
+              </div>
+              <div className="evidence-panel">
+                <div className="panel-label">Evidence queue</div>
+                {evidenceSteps.map((step, index) => (
+                  <div className="evidence-row" key={step.label}>
+                    <span>{String(index + 1).padStart(2, "0")}</span>
+                    <div>
+                      <strong>{step.label}</strong>
+                      <p>{step.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </aside>
           </section>
 
         <section className="section split-section" id="what-it-does">
           <div className="section-heading">
             <div className="eyebrow">What it does</div>
-            <h2>Not a ladder client. Not a content site. A coaching layer for your AI tool.</h2>
+            <h2>A control room for the coaching questions that decide sets.</h2>
           </div>
           <div className="split-copy">
             <p>
@@ -201,13 +270,18 @@ function App() {
               you can tell when a change actually made the coaching better, not
               just whether it sounds better.
             </p>
+            <ul className="trust-list" aria-label="VGC Coach quality checks">
+              {quickFacts.map((fact) => (
+                <li key={fact}>{fact}</li>
+              ))}
+            </ul>
           </div>
         </section>
 
         <section className="section" id="skills">
           <div className="section-heading compact">
             <div className="eyebrow">Core coaching tools</div>
-            <h2>The five coaching tasks that matter most.</h2>
+            <h2>Five lanes through the same prep wall.</h2>
           </div>
           <div className="skill-grid">
             {coreSkills.map((skill) => (
@@ -225,7 +299,7 @@ function App() {
         <section className="section runtimes-layout" id="runtimes">
           <div className="section-heading">
             <div className="eyebrow">Supported AI tools</div>
-            <h2>One coaching engine, three AI tools to run it.</h2>
+            <h2>One coaching engine, three ways to bring it into your workflow.</h2>
           </div>
           <div className="runtime-grid">
             {runtimes.map((runtime) => (
@@ -292,7 +366,7 @@ function App() {
         <section className="section support-layout">
           <div className="section-heading compact">
             <div className="eyebrow">Support tools</div>
-            <h2>Tools that keep the core coaching honest and accurate.</h2>
+            <h2>The verification layer behind the advice.</h2>
           </div>
           <div className="support-grid">
             {supportSkills.map((skill) => (
@@ -404,7 +478,6 @@ function App() {
         </nav>
       </footer>
       </div>
-      <Analytics />
     </>
   );
 }

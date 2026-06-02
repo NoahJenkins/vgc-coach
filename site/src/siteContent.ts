@@ -17,6 +17,16 @@ export type Runtime = {
   href: string;
 };
 
+export type PrepSignal = {
+  label: string;
+  value: string;
+};
+
+export type EvidenceStep = {
+  label: string;
+  detail: string;
+};
+
 const repoUrl = "https://github.com/NoahJenkins/vgc-coach";
 const blobUrl = `${repoUrl}/blob/main`;
 
@@ -29,15 +39,37 @@ export const navLinks = [
 ];
 
 export const quickFacts = [
-  "Five core coaching tools cover meta research, team-building, team audit, lead planning, and replay review.",
+  "Core tools cover meta research, team-building, audits, lead planning, and replay review.",
   "Codex, Claude Code, and OpenCode run the same shared coaching logic.",
   "Source-aware skills separate verified facts from inference.",
 ];
 
 export const heroBullets = [
-  "Meta research grounded in current format sources",
-  "Practical team-building and matchup planning",
-  "Replay review that separates real mistakes from bad luck",
+  "Current-format sources checked before advice",
+  "Team, lead, and replay prep in one workspace",
+  "Fixed evals and rubrics for coaching quality",
+];
+
+export const prepSignals: PrepSignal[] = [
+  { label: "Rules", value: "Verified first" },
+  { label: "Meta", value: "Live-source framed" },
+  { label: "Leads", value: "Branch by matchup" },
+  { label: "Review", value: "Decision-focused" },
+];
+
+export const evidenceSteps: EvidenceStep[] = [
+  {
+    label: "Format truth",
+    detail: "Rules and legality are checked before a recommendation is treated as current.",
+  },
+  {
+    label: "Coaching line",
+    detail: "The answer narrows to a practical team, lead plan, matchup read, or replay lesson.",
+  },
+  {
+    label: "Quality check",
+    detail: "Fixed cases and rubrics judge whether the coaching behavior actually improved.",
+  },
 ];
 
 export const coreSkills: Skill[] = [
