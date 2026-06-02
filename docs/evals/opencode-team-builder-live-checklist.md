@@ -21,6 +21,7 @@ Confirm that OpenCode team-builder answers stay inside the shared Champions trut
 Pass if:
 
 - the answer confirms current `Regulation M-A` and `Mega Evolution active` first
+- the answer includes `Evidence and Confidence` immediately after `Build Goal`
 - the answer verifies the exact form and role-critical assumption before building
 - the answer does not treat `Mega Sableye` as if it still had `Prankster`
 - the answer does not assume `Rain Dance` access without checking current Champions move data
@@ -37,6 +38,7 @@ Pass if:
 Pass if:
 
 - the answer verifies current format state before calling the read current-field or early
+- the answer includes `Evidence and Confidence` immediately after `Build Goal`
 - the answer labels the build `inference-heavy early read` if the shared recommended minimum live stack is incomplete
 - the answer gives one coherent team rather than a pile of alternates
 - the answer keeps every recommended item legal for current Champions
@@ -52,6 +54,7 @@ Pass if:
 Pass if:
 
 - the answer is honest when the request is weak
+- the answer includes `Evidence and Confidence` immediately after `Build Goal`
 - the answer does not silently force a bad version of the requested role
 - the answer still gives one testable team with clear slot jobs
 - the answer labels the result as current-field or inference-heavy appropriately
@@ -64,6 +67,7 @@ Pass if:
 Pass if:
 
 - the answer uses `inference-heavy early read` when the shared recommended minimum live stack is incomplete
+- the answer includes `Evidence and Confidence` immediately after `Build Goal`
 - the answer includes a `Supporting Species Legality` note before the team list
 - the answer does not present unverified items as confirmed legal
 - the answer does not present unverified move slots as exact locked sets
@@ -78,6 +82,7 @@ Fail the run if any output:
 - assumes a Mega keeps the same ability as the base form
 - contradicts itself on move access or legality and then builds anyway
 - claims `current-field recommendation` without the shared recommended minimum live stack
+- omits `Evidence and Confidence` immediately after `Build Goal`
 - omits the supporting-species legality note before the team list
 - gives exact locked move sets where move legality was not verified
 - centers matchup notes on unsupported or irrelevant threats instead of the live field
@@ -90,15 +95,17 @@ Ask these before accepting the output:
 
 1. Did it lock the current format and mechanics correctly?
 2. Did it use `current-field recommendation` only if the shared recommended minimum live stack actually succeeded?
-3. Did it verify exact form, ability, move access, item legality, and supporting-species legality at the right confidence level?
-4. Did it target the actual current Reg M-A field?
-5. Is this one coherent, testable team?
-6. Could a player import and test this immediately without fixing factual errors first?
+3. Did `Evidence and Confidence` include source stack status, fetched dates, format confidence, meta confidence, and material gaps?
+4. Did it verify exact form, ability, move access, item legality, and supporting-species legality at the right confidence level?
+5. Did it target the actual current Reg M-A field?
+6. Is this one coherent, testable team?
+7. Could a player import and test this immediately without fixing factual errors first?
 
 ## Supporting Artifacts
 
 - `docs/skills/shared/references/champions-reg-m-a-legality.md`
 - `docs/skills/shared/references/live-source-map.md`
+- `docs/skills/shared/references/verification-packet.md`
 - `docs/skills/vgc-team-builder/references/build-principles.md`
 - `skills/vgc-team-builder/SKILL.md`
 - `data/rubrics/team-builder-rubric.md`

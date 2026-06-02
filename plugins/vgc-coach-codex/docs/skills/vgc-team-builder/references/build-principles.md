@@ -27,6 +27,22 @@ Before finalizing the draft, answer:
 - If you mention optional swaps, keep them for the final refinement section only.
 - Use `current-field recommendation` only when the shared recommended minimum live stack in [Shared Live Source Map](../../shared/references/live-source-map.md) succeeds.
 - If that stack is incomplete, call the build an `inference-heavy early read`.
+- Summarize the shared [Verification Packet](../../shared/references/verification-packet.md) before recommending slots when current format, legality, meta, matchup, item, move, or mechanics claims materially affect the build.
+
+## Evidence and Confidence
+
+The `Evidence and Confidence` section should be short but auditable. Include:
+
+- checked date
+- source stack status
+- source names or URLs and fetched dates
+- format confidence
+- meta confidence
+- material legality or source gaps
+
+Do not call the overall verification packet `complete` when the minimum meta-source stack succeeds but material species, item, move, or mechanics legality remains unverified. In that case, say the minimum meta stack is complete but the overall packet is `partial`, then keep exact set and item language provisional.
+
+Do not use this section as a citation dump. Its job is to show why the recommendation is current-field, early-read, or provisional before the team list appears.
 
 ## Supporting Species Legality
 
@@ -57,7 +73,9 @@ If the current regulation does not have `Terastallization` active, do not includ
 
 If an item is not currently verified as legal, do not treat it as confirmed legal.
 
-If move legality is not currently verified in-repo, do not give an exact locked four-move set as if it were confirmed. Use provisional move direction instead.
+If an exact item appears in `Recommended Team` or `Set Direction`, the item must either be verified in the legality ledger or carry an inline `unverified/provisional` label.
+
+If move legality is not currently verified in-repo, do not give an exact locked four-move set as if it were confirmed. Use provisional move direction instead. If the user asks for an import-ready export, say the exact export is blocked by unverified move legality and provide move pools or role directions instead.
 
 Do not turn this into a full export unless the user asks for one.
 

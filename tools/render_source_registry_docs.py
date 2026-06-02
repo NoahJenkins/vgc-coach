@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import yaml
 
@@ -29,6 +30,12 @@ VALID_ROLES = {
     "broader_meta",
     "supporting_sets",
     "editorial_context",
+}
+VALID_SOURCE_KINDS = {
+    "official",
+    "community",
+    "supporting",
+    "editorial",
 }
 VALID_CLAIM_TYPES = {
     "legality",
@@ -55,6 +62,22 @@ VALID_CLAIM_TYPES = {
     "editorial_interpretation",
 }
 MINIMUM_STACK_KEYS = ("official", "tournament_meta", "broader_meta")
+MINIMUM_STACK_ROLE_MAP = {
+    "official": "official_regulation",
+    "tournament_meta": "tournament_meta",
+    "broader_meta": "broader_meta",
+}
+VALID_EVIDENCE_FIELDS = {
+    "source_id",
+    "source_url",
+    "fetched_at",
+    "published_at",
+    "format_window",
+    "active_mechanics",
+    "claim_type",
+    "sample_scope",
+    "freshness_note",
+}
 ROLE_GROUPS = (
     ("Official Format Sources", ("official_regulation", "official_transition")),
     ("Community Meta Sources", ("tournament_meta", "broader_meta")),
@@ -92,12 +115,36 @@ def _require_int(value: Any, *, label: str) -> int:
     return value
 
 
+def _validate_url(value: Any, *, label: str) -> str:
+    url = _require_nonempty_string(value, label=label)
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise ValueError(f"{label} must be an https URL")
+    return url
+
+
 def _validate_string_list(values: Any, *, label: str) -> list[str]:
     raw_items = _require_list(values, label=label)
     normalized = [_require_nonempty_string(item, label=f"{label} item") for item in raw_items]
     if not normalized:
         raise ValueError(f"{label} must not be empty")
     return normalized
+
+
+def _validate_freshness(value: Any, *, label: str, role: str) -> dict[str, Any]:
+    raw = _require_mapping(value, label=label)
+    max_age_days = _require_int(raw.get("max_age_days"), label=f"{label}.max_age_days")
+    if max_age_days < 0:
+        raise ValueError(f"{label}.max_age_days must be >= 0")
+
+    policy = _require_nonempty_string(raw.get("policy"), label=f"{label}.policy")
+    if role in {"tournament_meta", "broader_meta", "supporting_sets"} and max_age_days > 14:
+        raise ValueError(f"{label}.max_age_days must be <= 14 for current-meta sources")
+
+    return {
+        "max_age_days": max_age_days,
+        "policy": policy,
+    }
 
 
 def validate_registry(payload: Any) -> dict[str, Any]:
@@ -127,6 +174,13 @@ def validate_registry(payload: Any) -> dict[str, Any]:
         if role not in VALID_ROLES:
             raise ValueError(f"invalid role for {source_id}: {role}")
 
+        source_kind = _require_nonempty_string(
+            item.get("source_kind"),
+            label=f"sources[{index}].source_kind",
+        )
+        if source_kind not in VALID_SOURCE_KINDS:
+            raise ValueError(f"invalid source_kind for {source_id}: {source_kind}")
+
         priority = _require_int(item.get("priority"), label=f"sources[{index}].priority")
         if priority in seen_priorities:
             raise ValueError(f"duplicate priority: {priority}")
@@ -142,6 +196,21 @@ def validate_registry(payload: Any) -> dict[str, Any]:
                 f"invalid claim types for {source_id}: {', '.join(invalid_claim_types)}"
             )
 
+        required_evidence_fields = _validate_string_list(
+            item.get("required_evidence_fields"),
+            label=f"sources[{index}].required_evidence_fields",
+        )
+        invalid_evidence_fields = sorted(set(required_evidence_fields) - VALID_EVIDENCE_FIELDS)
+        if invalid_evidence_fields:
+            raise ValueError(
+                f"invalid evidence fields for {source_id}: {', '.join(invalid_evidence_fields)}"
+            )
+        for required_field in ("source_url", "fetched_at"):
+            if required_field not in required_evidence_fields:
+                raise ValueError(
+                    f"sources[{index}].required_evidence_fields must include {required_field}"
+                )
+
         normalized = {
             "id": source_id,
             "display_name": _require_nonempty_string(
@@ -149,12 +218,23 @@ def validate_registry(payload: Any) -> dict[str, Any]:
                 label=f"sources[{index}].display_name",
             ),
             "role": role,
+            "source_kind": source_kind,
+            "canonical_url": _validate_url(
+                item.get("canonical_url"),
+                label=f"sources[{index}].canonical_url",
+            ),
             "priority": priority,
             "allowed_claim_types": allowed_claim_types,
             "required_for_minimum_stack": _require_bool(
                 item.get("required_for_minimum_stack"),
                 label=f"sources[{index}].required_for_minimum_stack",
             ),
+            "freshness": _validate_freshness(
+                item.get("freshness"),
+                label=f"sources[{index}].freshness",
+                role=role,
+            ),
+            "required_evidence_fields": required_evidence_fields,
             "use_for": _validate_string_list(item.get("use_for"), label=f"sources[{index}].use_for"),
             "do_not_use_for": _validate_string_list(
                 item.get("do_not_use_for"),
@@ -169,6 +249,19 @@ def validate_registry(payload: Any) -> dict[str, Any]:
 
     if sorted(source["priority"] for source in sources) != list(range(1, len(sources) + 1)):
         raise ValueError("source priorities must be contiguous and start at 1")
+
+    for stack_key, role in MINIMUM_STACK_ROLE_MAP.items():
+        required_count = minimum_stack[stack_key]
+        available_count = sum(
+            1
+            for source in sources
+            if source["role"] == role and source["required_for_minimum_stack"]
+        )
+        if available_count < required_count:
+            raise ValueError(
+                f"minimum_stack.{stack_key} requires {required_count} sources, "
+                f"but only {available_count} required {role} sources are configured"
+            )
 
     return {
         "version": version,
@@ -187,6 +280,17 @@ def load_registry(path: Path = DEFAULT_REGISTRY_PATH) -> dict[str, Any]:
 def _render_source(source: dict[str, Any]) -> list[str]:
     lines = [f"### {source['display_name']}", ""]
     lines.append(f"Role: `{source['role']}`")
+    lines.append(f"Kind: `{source['source_kind']}`")
+    lines.append(f"Canonical URL: {source['canonical_url']}")
+    lines.append(
+        "Freshness: "
+        f"re-check within {source['freshness']['max_age_days']} days; "
+        f"{source['freshness']['policy']}"
+    )
+    lines.append(
+        "Required evidence fields: "
+        + ", ".join(f"`{field}`" for field in source["required_evidence_fields"])
+    )
     lines.append("")
     lines.append("Use for:")
     lines.append("")

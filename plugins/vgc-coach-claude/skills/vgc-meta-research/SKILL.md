@@ -34,8 +34,9 @@ Return these sections in order:
 6. Give anti-meta takeaways that are actually usable in team building or prep.
 
 ## Required behavior
-- Read [source-policy](../../docs/skills/vgc-meta-research/references/source-policy.md), [Shared Live Source Map](../../docs/skills/shared/references/live-source-map.md), and [output-rubric](../../docs/skills/vgc-meta-research/references/output-rubric.md) before finalizing.
+- Read [source-policy](../../docs/skills/vgc-meta-research/references/source-policy.md), [Shared Live Source Map](../../docs/skills/shared/references/live-source-map.md), [Verification Packet](../../docs/skills/shared/references/verification-packet.md), and [output-rubric](../../docs/skills/vgc-meta-research/references/output-rubric.md) before finalizing.
 - If the real question is whether the format or legality assumption is current, align with `vgc-format-verifier` first.
 - If a trend claim feels weak or overstated, use `vgc-source-verifier` discipline before repeating it.
 - Use community sources for usage and trends only after format legality is locked.
+- In `Sources`, provide packet-compatible source summaries with source role, URL or source name, fetched date, claim type, and freshness/confidence notes.
 - Use absolute dates, label early-meta guidance clearly, and do not invent usage numbers, placements, or cores.

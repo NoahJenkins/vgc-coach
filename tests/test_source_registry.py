@@ -2,6 +2,7 @@ import importlib.util
 import pathlib
 import sys
 import unittest
+import copy
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -46,6 +47,43 @@ class SourceRegistryTests(unittest.TestCase):
         self.assertIn("set_tendencies", by_id["pikalytics-champions"]["allowed_claim_types"])
         self.assertIn("legality", by_id["regulation-set-m-a"]["allowed_claim_types"])
 
+    def test_minimum_stack_sources_require_canonical_urls(self):
+        registry = self.module.load_registry(REGISTRY_PATH)
+
+        for source in registry["sources"]:
+            if source["required_for_minimum_stack"]:
+                self.assertRegex(source["canonical_url"], r"^https://")
+
+    def test_current_meta_sources_require_freshness_rules(self):
+        registry = self.module.load_registry(REGISTRY_PATH)
+
+        by_id = {entry["id"]: entry for entry in registry["sources"]}
+        self.assertEqual(by_id["championsmeta"]["freshness"]["max_age_days"], 7)
+        self.assertEqual(by_id["champions-lab"]["freshness"]["max_age_days"], 7)
+        self.assertIn("fetched_at", by_id["championsmeta"]["required_evidence_fields"])
+        self.assertIn("source_url", by_id["champions-lab"]["required_evidence_fields"])
+
+    def test_registry_rejects_missing_required_evidence_fields(self):
+        payload = copy.deepcopy(self.module.load_registry(REGISTRY_PATH))
+        del payload["sources"][0]["required_evidence_fields"]
+
+        with self.assertRaisesRegex(ValueError, "required_evidence_fields"):
+            self.module.validate_registry(payload)
+
+    def test_registry_rejects_missing_minimum_stack_url(self):
+        payload = copy.deepcopy(self.module.load_registry(REGISTRY_PATH))
+        payload["sources"][0]["canonical_url"] = ""
+
+        with self.assertRaisesRegex(ValueError, "canonical_url"):
+            self.module.validate_registry(payload)
+
+    def test_registry_rejects_current_meta_source_without_freshness(self):
+        payload = copy.deepcopy(self.module.load_registry(REGISTRY_PATH))
+        del payload["sources"][2]["freshness"]
+
+        with self.assertRaisesRegex(ValueError, "freshness"):
+            self.module.validate_registry(payload)
+
     def test_rendered_shared_map_matches_generated_output(self):
         registry = self.module.load_registry(REGISTRY_PATH)
         rendered = self.module.render_markdown(registry)
@@ -56,6 +94,9 @@ class SourceRegistryTests(unittest.TestCase):
         self.assertIn("## Recommended Minimum Live Stack", committed)
         self.assertIn("Pikalytics Champions", committed)
         self.assertIn("Role: `supporting_sets`", committed)
+        self.assertIn("Canonical URL:", committed)
+        self.assertIn("Freshness:", committed)
+        self.assertIn("Required evidence fields:", committed)
         self.assertIn("- legality or mechanics claims", committed)
 
     def test_legacy_meta_research_map_is_wrapper_to_shared_doc(self):

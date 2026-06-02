@@ -7,6 +7,7 @@ Request:
 Checks:
 
 - verifies the active regulation or rules state first
+- includes `Build Goal` followed immediately by `Evidence and Confidence`
 - uses `inference-heavy early read` if the minimum live source stack is incomplete
 - includes `Supporting Species Legality` before the team list
 - does not present supporting species as fully confirmed legal unless they were actually verified

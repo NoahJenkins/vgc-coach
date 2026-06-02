@@ -11,6 +11,10 @@ Official sources define legality and active mechanics. Community sources describ
 ### Regulation Set M-A
 
 Role: `official_regulation`
+Kind: `official`
+Canonical URL: https://news.pokemon-home.com/en/page/751.html
+Freshness: re-check within 30 days; Re-check live before present-tense rules, legality, mechanics, or item claims.
+Required evidence fields: `source_id`, `source_url`, `fetched_at`, `format_window`, `active_mechanics`, `claim_type`
 
 Use for:
 
@@ -35,6 +39,10 @@ Fallback if unavailable:
 ### Play! Pokemon transition announcement
 
 Role: `official_transition`
+Kind: `official`
+Canonical URL: https://www.pokemon.com/uk/pokemon-news/play-pokemon-competitions-transition-to-pokemon-champions-on-april-and-may-2026
+Freshness: re-check within 30 days; Re-check live before event timing or transition claims.
+Required evidence fields: `source_id`, `source_url`, `fetched_at`, `published_at`, `claim_type`
 
 Use for:
 
@@ -58,6 +66,10 @@ Fallback if unavailable:
 ### ChampionsMeta
 
 Role: `tournament_meta`
+Kind: `community`
+Canonical URL: https://championsmeta.io/
+Freshness: re-check within 7 days; Re-check live before tournament-weighted usage, top-team, or current snapshot claims.
+Required evidence fields: `source_id`, `source_url`, `fetched_at`, `claim_type`, `sample_scope`, `freshness_note`
 
 Use for:
 
@@ -81,6 +93,10 @@ Fallback if unavailable:
 ### Champions Lab
 
 Role: `broader_meta`
+Kind: `community`
+Canonical URL: https://www.championslab.xyz/meta
+Freshness: re-check within 7 days; Re-check live before ladder, win-rate, winning-team, or core-pair claims.
+Required evidence fields: `source_id`, `source_url`, `fetched_at`, `claim_type`, `sample_scope`, `freshness_note`
 
 Use for:
 
@@ -107,6 +123,10 @@ Fallback if unavailable:
 ### Pikalytics Champions
 
 Role: `supporting_sets`
+Kind: `supporting`
+Canonical URL: https://cdn.pikalytics.com/champions
+Freshness: re-check within 7 days; Re-check live before set, partner, move, item, or ability tendency claims.
+Required evidence fields: `source_id`, `source_url`, `fetched_at`, `claim_type`, `sample_scope`, `freshness_note`
 
 Use for:
 
@@ -128,6 +148,10 @@ Fallback if unavailable:
 ### Victory Road
 
 Role: `editorial_context`
+Kind: `editorial`
+Canonical URL: https://victoryroad.pro/
+Freshness: re-check within 14 days; Re-check live before event context, tournament coverage, or editorial interpretation claims.
+Required evidence fields: `source_id`, `source_url`, `fetched_at`, `published_at`, `claim_type`, `freshness_note`
 
 Use for:
 
