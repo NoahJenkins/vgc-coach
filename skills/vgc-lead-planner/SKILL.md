@@ -34,8 +34,9 @@ Return these sections in order:
 6. Surface real uncertainty instead of inventing exact lines from thin matchup claims.
 
 ## Required behavior
-- Read [planning-checklist](../../docs/skills/vgc-lead-planner/references/planning-checklist.md) and [output-rubric](../../docs/skills/vgc-lead-planner/references/output-rubric.md) before finalizing.
+- Read [planning-checklist](../../docs/skills/vgc-lead-planner/references/planning-checklist.md), [Verification Packet](../../docs/skills/shared/references/verification-packet.md), and [output-rubric](../../docs/skills/vgc-lead-planner/references/output-rubric.md) before finalizing.
 - If the prep is opponent-specific and public info exists, use `vgc-opponent-scout` to tighten the matchup branches.
 - If a turn-one plan hinges on one speed or survival benchmark, align that point with `vgc-calcs-assistant`.
 - Use live verification when the matchup plan depends on current field assumptions.
+- Consume or summarize verification-packet confidence when lead choices depend on current matchup assumptions, item legality, move access, speed, survival, or active mechanics.
 - Avoid fake certainty, vague first-turn goals, or the same lead into every materially different matchup.

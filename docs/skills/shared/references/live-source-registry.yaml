@@ -9,6 +9,8 @@ sources:
   - id: regulation-set-m-a
     display_name: Regulation Set M-A
     role: official_regulation
+    source_kind: official
+    canonical_url: https://news.pokemon-home.com/en/page/751.html
     priority: 1
     allowed_claim_types:
       - legality
@@ -17,6 +19,16 @@ sources:
       - held_item_rules
       - timers
     required_for_minimum_stack: true
+    freshness:
+      max_age_days: 30
+      policy: Re-check live before present-tense rules, legality, mechanics, or item claims.
+    required_evidence_fields:
+      - source_id
+      - source_url
+      - fetched_at
+      - format_window
+      - active_mechanics
+      - claim_type
     use_for:
       - active regulation dates
       - active mechanics
@@ -32,11 +44,22 @@ sources:
   - id: play-pokemon-transition-announcement
     display_name: Play! Pokemon transition announcement
     role: official_transition
+    source_kind: official
+    canonical_url: https://www.pokemon.com/uk/pokemon-news/play-pokemon-competitions-transition-to-pokemon-champions-on-april-and-may-2026
     priority: 2
     allowed_claim_types:
       - event_timing
       - transition_context
     required_for_minimum_stack: false
+    freshness:
+      max_age_days: 30
+      policy: Re-check live before event timing or transition claims.
+    required_evidence_fields:
+      - source_id
+      - source_url
+      - fetched_at
+      - published_at
+      - claim_type
     use_for:
       - when official VGC events move to Champions
       - how Regulation I and Regulation M-A overlap during transition
@@ -51,12 +74,24 @@ sources:
   - id: championsmeta
     display_name: ChampionsMeta
     role: tournament_meta
+    source_kind: community
+    canonical_url: https://championsmeta.io/
     priority: 3
     allowed_claim_types:
       - tournament_usage
       - top_teams
       - current_snapshot
     required_for_minimum_stack: true
+    freshness:
+      max_age_days: 7
+      policy: Re-check live before tournament-weighted usage, top-team, or current snapshot claims.
+    required_evidence_fields:
+      - source_id
+      - source_url
+      - fetched_at
+      - claim_type
+      - sample_scope
+      - freshness_note
     use_for:
       - tournament-weighted usage leaders
       - top tournament teams
@@ -71,6 +106,8 @@ sources:
   - id: champions-lab
     display_name: Champions Lab
     role: broader_meta
+    source_kind: community
+    canonical_url: https://www.championslab.xyz/meta
     priority: 4
     allowed_claim_types:
       - ladder_usage
@@ -78,6 +115,16 @@ sources:
       - winning_teams
       - core_pairs
     required_for_minimum_stack: true
+    freshness:
+      max_age_days: 7
+      policy: Re-check live before ladder, win-rate, winning-team, or core-pair claims.
+    required_evidence_fields:
+      - source_id
+      - source_url
+      - fetched_at
+      - claim_type
+      - sample_scope
+      - freshness_note
     use_for:
       - ladder plus tournament usage trends
       - usage percentages with win-rate context
@@ -93,6 +140,8 @@ sources:
   - id: pikalytics-champions
     display_name: Pikalytics Champions
     role: supporting_sets
+    source_kind: supporting
+    canonical_url: https://cdn.pikalytics.com/champions
     priority: 5
     allowed_claim_types:
       - set_tendencies
@@ -101,6 +150,16 @@ sources:
       - item_tendencies
       - ability_tendencies
     required_for_minimum_stack: false
+    freshness:
+      max_age_days: 7
+      policy: Re-check live before set, partner, move, item, or ability tendency claims.
+    required_evidence_fields:
+      - source_id
+      - source_url
+      - fetched_at
+      - claim_type
+      - sample_scope
+      - freshness_note
     use_for:
       - set tendencies
       - common partners
@@ -115,12 +174,24 @@ sources:
   - id: victory-road
     display_name: Victory Road
     role: editorial_context
+    source_kind: editorial
+    canonical_url: https://victoryroad.pro/
     priority: 6
     allowed_claim_types:
       - event_context
       - tournament_coverage
       - editorial_interpretation
     required_for_minimum_stack: false
+    freshness:
+      max_age_days: 14
+      policy: Re-check live before event context, tournament coverage, or editorial interpretation claims.
+    required_evidence_fields:
+      - source_id
+      - source_url
+      - fetched_at
+      - published_at
+      - claim_type
+      - freshness_note
     use_for:
       - event context
       - tournament coverage

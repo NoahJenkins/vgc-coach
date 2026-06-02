@@ -41,8 +41,9 @@ Return these sections in order:
 7. End with residual risk instead of pretending the team is solved.
 
 ## Required behavior
-- Read [audit-checklist](../../docs/skills/vgc-team-audit/references/audit-checklist.md) and [output-rubric](../../docs/skills/vgc-team-audit/references/output-rubric.md) before finalizing.
+- Read [audit-checklist](../../docs/skills/vgc-team-audit/references/audit-checklist.md), [Verification Packet](../../docs/skills/shared/references/verification-packet.md), and [output-rubric](../../docs/skills/vgc-team-audit/references/output-rubric.md) before finalizing.
 - Use live meta verification when the audit depends on current field assumptions.
+- Consume or summarize verification-packet confidence when findings depend on current field assumptions, species legality, item legality, move access, mechanics, or exact matchup claims.
 - Findings first, not a compliment sandwich.
 - Keep fixes concrete, proportional, and identity-preserving when reasonable.
 - Do not flatten unconventional teams into generic balance or recommend a major rebuild before proving a smaller fix is insufficient.
