@@ -15,14 +15,17 @@ Codex is the primary runtime for this repo.
 - Verify current format assumptions before giving meta or legality guidance.
 - Distinguish sourced facts from inference.
 - Use repo fixtures and rubrics when validating skill changes.
+- `vgc-team-builder` should stay lightweight by default and only enter `battle-ready` mode when the user explicitly asks for spreads, EVs, ladder-ready, tournament-ready, battle-ready, or export-ready output.
 
 ## Runtime-Specific Notes
 
 - Codex can combine local repo artifacts with live web verification cleanly.
 - `.agents/skills/` should not become a second editable skill tree; keep it as wrappers or symlinks only.
 - Keep Codex-specific behavior in this file, not inside shared skill logic.
+- In `battle-ready` mode, `vgc-team-builder` should use live common cores and recent top teams as benchmark inputs, then hand narrow spread questions to `vgc-calcs-assistant`.
 - `vgc-calcs-assistant` v1 exact support depends on local `agent-browser` plus `python3 tools/browser_damage_calc.py`.
 - The current exact backend is Pikalytics for damage, KO, and survival only; speed checks still stay in assumption-framed guidance.
+- `export-ready` output is still blocked when named items or moves are not verified by the build legality ledger.
 
 ## Install
 

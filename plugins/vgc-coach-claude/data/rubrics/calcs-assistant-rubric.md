@@ -8,6 +8,7 @@ Score each response on:
 - usefulness of the decision translation
 - honesty about missing inputs and certainty limits
 - exact-browser evidence discipline when an exact run is attempted
+- clean builder-handoff handling when the request came from `vgc-team-builder`
 
 Failure triggers:
 
@@ -15,3 +16,4 @@ Failure triggers:
 - silently implying exact verification after a fallback or blocked browser run
 - no assumption list
 - benchmark dumping with no decision impact
+- rewriting the whole team instead of answering the handed-off benchmark

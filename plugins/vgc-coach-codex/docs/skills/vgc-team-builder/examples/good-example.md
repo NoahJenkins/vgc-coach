@@ -13,3 +13,17 @@ Why this is good:
 - explains why Sableye belongs on that specific team
 - acknowledges the Dark-type Prankster problem instead of hiding it
 - keeps optional swap ideas out of the main recommendation
+
+# Good Example 1B
+
+Request:
+
+`Build me a battle-ready Champions anti-meta balance team around Sableye with spreads.`
+
+Why this is good:
+
+- clearly opts into battle-ready mode instead of leaving the spread pass ambiguous
+- still keeps Sableye tied to one real team identity
+- gives the builder room to use live cores and recent top teams for benchmark selection
+- expects `Targeted Meta Cores and Teams`, `Benchmark Plan`, `Battle-Ready Spreads`, and `Export Status`
+- still keeps the main deliverable focused on the actual six instead of a long meta essay

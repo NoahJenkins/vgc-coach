@@ -14,10 +14,16 @@ Build one practical recommended team around a real user goal. Commit to one prim
 - anti-meta goals
 - avoid list
 - optional event or ladder context
+- optional output intent such as `battle-ready`, `ladder-ready`, `tournament-ready`, `with spreads`, `with EVs`, or `export-ready`
 
 If format is omitted, assume the current Pokemon Champions regulation, verify it when current-context claims matter, and say so.
 
-## Output
+## Modes
+
+### Default Mode
+
+Use this when the user wants a normal build or team shell.
+
 Return these sections in order:
 
 1. `Build Goal` - objective, format basis, and `current-field recommendation` or `inference-heavy early read`
@@ -30,6 +36,26 @@ Return these sections in order:
 8. `Matchup Notes` - pressure points this shell is built to handle
 9. `Weaknesses and Next Refinements` - unresolved issues and optional future tuning only
 
+### Battle-Ready Mode
+
+Use this only when the user explicitly asks for a `battle-ready`, `ladder-ready`, `tournament-ready`, `with spreads`, `with EVs`, or `export-ready` build.
+
+Return these sections in order:
+
+1. `Build Goal`
+2. `Evidence and Confidence`
+3. `Supporting Species Legality`
+4. `Targeted Meta Cores and Teams`
+5. `Recommended Team`
+6. `Role Map`
+7. `Set Direction`
+8. `Benchmark Plan`
+9. `Battle-Ready Spreads`
+10. `Why Each Slot Exists`
+11. `Matchup Notes`
+12. `Weaknesses and Next Refinements`
+13. `Export Status`
+
 ## Workflow
 1. Lock the active format and major meta pressures first.
 2. Align with `vgc-format-verifier` if legality or rules gate the build.
@@ -37,13 +63,16 @@ Return these sections in order:
 4. Build around one clear team identity.
 5. Keep the requested idea only when it still supports that identity.
 6. If the ask is weak, say so plainly and pivot to the nearest viable version that preserves the goal.
-7. Give lightweight set direction so the draft is testable immediately.
-8. If a current-field positioning claim is thin, apply `vgc-source-verifier` discipline instead of overselling it.
-9. End with real weaknesses instead of pretending the build is solved.
+7. In `battle-ready` mode, ingest live common cores and recent top teams after the format and meta stack is grounded.
+8. In `battle-ready` mode, choose a capped hybrid benchmark set before invoking `vgc-calcs-assistant`.
+9. Give lightweight set direction in default mode and battle-ready spreads only in `battle-ready` mode.
+10. If a current-field positioning claim is thin, apply `vgc-source-verifier` discipline instead of overselling it.
+11. End with real weaknesses instead of pretending the build is solved.
 
 ## Required behavior
 - Read [build-principles](../../docs/skills/vgc-team-builder/references/build-principles.md) and [output-rubric](../../docs/skills/vgc-team-builder/references/output-rubric.md) before finalizing.
 - Read [Champions Reg M-A legality](../../docs/skills/shared/references/champions-reg-m-a-legality.md), [Shared Live Source Map](../../docs/skills/shared/references/live-source-map.md), and [Verification Packet](../../docs/skills/shared/references/verification-packet.md) before finalizing current-format Champions builds.
+- In `battle-ready` mode, also read [team-builder calcs handoff](../../docs/skills/shared/references/team-builder-calcs-handoff.md) and [battle-ready legality ledger](../../docs/skills/shared/references/battle-ready-legality-ledger.md) before finalizing.
 - Use live verification by default when current meta context materially affects the build.
 - Complete or summarize a verification packet before recommending slots when the build depends on current format, legality, meta, matchup, item, move, or mechanics claims.
 - Use `current-field recommendation` only if the shared recommended minimum live stack succeeds.
@@ -60,4 +89,25 @@ Return these sections in order:
 - In `Recommended Team` and `Set Direction`, every exact held item name must either be verified in the legality ledger or carry an inline `unverified/provisional` label.
 - If move legality is not verified in-repo, do not give an exact four-move locked set as if it were confirmed; use softer phrasing such as likely move emphasis, candidate utility slots, or provisional move direction.
 - Do not satisfy requests for import-ready locked four-move sets when move legality is unverified; say the exact export is blocked by unverified move legality and provide move pools or role directions instead.
+- In `battle-ready` mode, use live `2-mon`, `3-mon`, and `4-mon` cores plus recent top teams as first-class build inputs after the format stack is locked.
+- In `battle-ready` mode, `Targeted Meta Cores and Teams` should usually contain 3 to 5 entries total and only list the shells that materially shaped slot choice, benchmarks, or matchup notes.
+- In `battle-ready` mode, use cores and top teams in three places: slot selection, benchmark selection, and matchup framing.
+- In `battle-ready` mode, benchmark target priority is:
+  1. user-named anti-meta targets
+  2. cores or top teams that directly pressure the requested strategy
+  3. most common current-field cores or top teams
+  4. individual threats not already covered by those shells
+- In `battle-ready` mode, cap the benchmark set at 6 team-wide:
+  - up to 2 speed benchmarks
+  - up to 2 survival benchmarks
+  - up to 2 KO or damage benchmarks
+- In `battle-ready` mode, utility mons may keep heuristic spreads when no benchmark materially changes the build.
+- In `battle-ready` mode, hand off only narrow benchmark questions to `vgc-calcs-assistant`; do not ask it to optimize the whole team.
+- In `battle-ready` mode, `Battle-Ready Spreads` must include role, ability, nature, EV spread, item confidence, move confidence, and one short benchmark note per slot.
+- In `battle-ready` mode, exact four-move sets are allowed only when move legality is verified for the named moves.
+- In `battle-ready` mode, `Export Status` must be one of:
+  - `export-ready`
+  - `battle-ready but not export-ready`
+  - `provisional build blocked by legality or calc gaps`
+- In `battle-ready` mode, if named items or moves are not verified, the build may still provide spreads and move packages, but `Export Status` must downgrade away from `export-ready`.
 - Do not give multiple half-committed drafts, hide a bad requested mon, or turn the refinement section into a second team.

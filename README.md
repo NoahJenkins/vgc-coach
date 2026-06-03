@@ -53,6 +53,7 @@ Restart OpenCode after editing the config.
 Once installed, ask the AI tool in plain English:
 
 - "Build me a Pokemon Champions team around Mega Blastoise."
+- "Build me a battle-ready Pokemon Champions team around Mega Blastoise with EVs."
 - "Audit this team for bad matchups and weak slots."
 - "Plan my leads into common rain and Trick Room teams."
 - "Review this replay and tell me what mistakes actually mattered."
@@ -128,6 +129,8 @@ For other Linux distributions, install the equivalent packages from your distro'
 
 `vgc-calcs-assistant` can use `python3 tools/browser_damage_calc.py` for exact damage, KO, and survival checks. This requires a local `agent-browser` install (not included in this repo).
 
+`vgc-team-builder` can also use this helper indirectly in its opt-in `battle-ready` mode, where the builder locks one six-mon shell, targets live common cores and recent top teams, and hands narrow benchmark questions to `vgc-calcs-assistant`.
+
 ## How The Repo Works
 
 > **For contributors and developers** — this section covers internal architecture. VGC players can skip to [Skill Catalog](#skill-catalog).
@@ -165,7 +168,7 @@ Support skills reinforce that core layer:
 ### Core Focus Skills
 
 - `vgc-meta-research`: live Pokemon Champions meta snapshots, trend reads, and anti-meta openings grounded in current sources
-- `vgc-team-builder`: one practical, coherent team around a target mon, strategy, or anti-meta goal
+- `vgc-team-builder`: one practical, coherent team around a target mon, strategy, or anti-meta goal; also supports an opt-in `battle-ready` mode with targeted meta cores, benchmark planning, and spreads
 - `vgc-team-audit`: findings-first team reviews that preserve identity unless the identity itself is the problem
 - `vgc-lead-planner`: default leads, matchup branches, preserve targets, and turn-one priorities
 - `vgc-battle-review`: replay or turn-log review that separates real mistakes from variance and hindsight
@@ -174,7 +177,7 @@ Support skills reinforce that core layer:
 
 - `vgc-format-verifier`: verify legality, regulation, and current-format truth before coaching
 - `vgc-source-verifier`: audit whether a meta, matchup, or rules claim is actually sourced cleanly
-- `vgc-calcs-assistant`: damage, survival, speed, and benchmark framing; exact damage/KO/survival calculations are supported today; speed comparisons are stated as assumptions unless verified manually
+- `vgc-calcs-assistant`: damage, survival, speed, and benchmark framing; exact damage/KO/survival calculations are supported today; speed comparisons are stated as assumptions unless verified manually; also supports narrow team-builder benchmark handoffs
 - `vgc-opponent-scout`: turn public info into likely shells, techs, and prep notes
 - `vgc-practice-journal`: compress testing notes into next-session changes and follow-up questions
 
@@ -198,6 +201,7 @@ The repo already includes:
 - Helper tools under `tools/`
 - Local eval and autoresearch tooling under `tools/eval_skill.py` and `tools/autoresearch.py`
 - Exact damage/KO/survival calc support for `vgc-calcs-assistant` via `python3 tools/browser_damage_calc.py`
+- Opt-in `battle-ready` team building that can use live common cores, recent top teams, and calc-backed benchmark notes
 
 ## Planned Work
 

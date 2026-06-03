@@ -15,6 +15,8 @@ Score each response on:
 - `Exact evidence`
   - uses backend/site/assumption details when an exact browser calc succeeded
   - clearly marks fallback or blocked exact runs instead of silently implying verification
+- `Builder handoff discipline`
+  - for `vgc-team-builder` handoffs, returns the spread consequence cleanly instead of trying to finish the full team build
 
 Failure triggers:
 
@@ -23,3 +25,4 @@ Failure triggers:
 - no list of assumptions
 - too many irrelevant benchmarks
 - no explanation of what the result changes
+- turning a team-builder handoff into a broad team report instead of a benchmark answer

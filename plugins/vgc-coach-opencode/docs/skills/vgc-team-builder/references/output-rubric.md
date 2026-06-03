@@ -11,6 +11,10 @@ A strong team-builder answer:
 - recommends one real team
 - gives every slot a concrete job
 - includes lightweight set direction for each slot
+- in `battle-ready` mode, includes a short `Targeted Meta Cores and Teams` section that materially shaped the build
+- in `battle-ready` mode, includes a capped `Benchmark Plan`
+- in `battle-ready` mode, includes `Battle-Ready Spreads` with nature, EV spread, item confidence, move confidence, and one benchmark note per slot
+- in `battle-ready` mode, ends with explicit `Export Status`
 - avoids Tera recommendations when the active regulation does not support `Terastallization`
 - avoids presenting unverified held items as confirmed legal
 - labels every exact held item inline when the item is unverified or provisional
@@ -39,4 +43,7 @@ A weak answer:
 - gives exact held item names without inline verification or provisional status
 - gives exact locked move sets for slots whose move legality is not verified in-repo
 - agrees to an import-ready exact four-move export when move legality is unverified
+- in `battle-ready` mode, ignores live current-field cores and recent top teams when choosing targets or benchmark priorities
+- in `battle-ready` mode, turns `Targeted Meta Cores and Teams` into a bloated mini meta report
+- in `battle-ready` mode, omits `Benchmark Plan`, `Battle-Ready Spreads`, or `Export Status`
 - turns the refinement section into a disguised second team

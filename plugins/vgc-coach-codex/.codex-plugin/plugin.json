@@ -30,7 +30,7 @@
     "websiteURL": "https://github.com/NoahJenkins/vgc-coach",
     "defaultPrompt": [
       "Use $vgc-meta-research to summarize the current Pokemon Champions metagame and identify anti-meta openings.",
-      "Use $vgc-team-builder to build one practical Pokemon Champions team around my target mon, strategy, or anti-meta goal, with o...",
+      "Use $vgc-team-builder to build one practical Pokemon Champions team around my target mon, strategy, or anti-meta goal. If I a...",
       "Use $vgc-team-audit to review this Pokemon Champions team, identify the highest-impact issues first, and recommend the smalle..."
     ],
     "brandColor": "#FF6B35"

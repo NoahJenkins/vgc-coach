@@ -48,3 +48,9 @@ v1 exact browser support does not cover:
 - speed tiers
 - browser screenshots in normal responses
 - unsupported field mechanics that the wrapper cannot encode safely
+
+For `vgc-team-builder` handoffs:
+
+- exact browser evidence can justify damage, KO, or survival benchmarks inside the final spread notes
+- speed benchmarks still stay assumption-framed in v1
+- the calc response should stay narrow enough for the builder to synthesize into one final team output

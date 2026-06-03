@@ -54,6 +54,28 @@ Before listing the team, state whether the five non-requested/supporting species
 
 This note should appear before the team list so the user sees the confidence boundary before the recommendation.
 
+## Battle-Ready Mode
+
+`battle-ready` mode is opt-in only. Use it when the user explicitly asks for:
+
+- `battle-ready`
+- `ladder-ready`
+- `tournament-ready`
+- `with spreads`
+- `with EVs`
+- `export-ready`
+
+Do not force battle-ready output onto normal shell-building requests.
+
+In battle-ready mode:
+
+- keep one primary six
+- add `Targeted Meta Cores and Teams`
+- build a capped benchmark plan
+- hand narrow spread questions to `vgc-calcs-assistant`
+- return `Battle-Ready Spreads`
+- end with explicit `Export Status`
+
 ## Requested Mon Handling
 
 - If the requested mon is good in the requested role, commit to it.
@@ -78,6 +100,63 @@ If an exact item appears in `Recommended Team` or `Set Direction`, the item must
 If move legality is not currently verified in-repo, do not give an exact locked four-move set as if it were confirmed. Use provisional move direction instead. If the user asks for an import-ready export, say the exact export is blocked by unverified move legality and provide move pools or role directions instead.
 
 Do not turn this into a full export unless the user asks for one.
+
+In battle-ready mode, `Battle-Ready Spreads` should add:
+
+- likely ability
+- nature
+- EV spread
+- exact item only when legality is verified, else inline `unverified/provisional`
+- exact four moves only when move legality is verified
+- otherwise a primary move package and explicit export block note
+- one short benchmark note explaining why that spread exists
+
+If named items or moves are not verified, the build may still be battle-ready, but it is not export-ready.
+
+## Targeted Meta Cores And Teams
+
+In battle-ready mode, use live current-field shells as first-class inputs:
+
+- `2-mon`, `3-mon`, and `4-mon` common cores
+- recent top teams from current tournaments
+- individual high-usage threats when shell coverage is still incomplete
+
+The visible `Targeted Meta Cores and Teams` section should:
+
+- usually contain 3 to 5 entries total
+- list only the shells that materially shaped slot choice, benchmark selection, or matchup notes
+- stay short and actionable instead of turning into a mini meta report
+
+Use those live shells in three places:
+
+- slot selection
+- benchmark selection
+- matchup framing
+
+Priority order:
+
+1. user-named anti-meta targets
+2. cores or top teams that directly pressure the requested strategy
+3. most common current-field cores or top teams
+4. individual threats not already covered by those shells
+
+Heavy scouting remains out of scope here. Use `vgc-meta-research` or `vgc-opponent-scout` when the user needs a broader field report.
+
+## Benchmark Plan
+
+In battle-ready mode, build a fixed, capped hybrid benchmark set:
+
+- up to 2 speed benchmarks
+- up to 2 survival benchmarks
+- up to 2 KO or damage benchmarks
+
+Rules:
+
+- require at least one benchmark tied to the team's main win path
+- do not require a benchmark for every slot
+- utility or support slots may keep heuristic spreads when no benchmark changes a real decision
+- hand off only narrow benchmark questions to `vgc-calcs-assistant`
+- do not ask `vgc-calcs-assistant` to optimize the whole team
 
 ## Anti-Meta Framing
 

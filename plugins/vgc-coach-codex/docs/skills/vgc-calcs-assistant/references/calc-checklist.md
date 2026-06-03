@@ -6,6 +6,7 @@ Before answering, ask:
 
 - Is this about surviving a hit, scoring a KO, winning a speed tier, or choosing between spreads?
 - What actual team-building or in-game choice depends on the answer?
+- If this came from `vgc-team-builder`, what exact spread, nature, or preserve decision is the builder trying to lock?
 
 ## Known Input Pass
 
@@ -29,6 +30,7 @@ Prefer:
 - speed-control breakpoints
 - guaranteed or high-value KO thresholds
 - benchmarks that change item, EV, or lead decisions
+- for team-builder handoffs, the smallest benchmark set that changes the final build instead of every plausible interaction
 
 ## Avoid These Failure Modes
 
@@ -37,3 +39,4 @@ Prefer:
 - damage-table dumping with no decision framing
 - ignoring weather, chip, boosts, or protect pressure
 - pretending the calc answer is more certain than the assumptions allow
+- treating a team-builder handoff like a request for full-team optimization

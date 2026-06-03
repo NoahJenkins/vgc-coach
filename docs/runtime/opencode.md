@@ -30,6 +30,7 @@ OpenCode support in this repo is an additive adapter over the same shared skill 
   - `/vgc-battle-review`
 - Those commands should route through the `opencode-vgc-*` wrappers, which then read the shared skill packages and references directly from `skills/` and `docs/`.
 - Natural-language requests should still be able to trigger the same shared skills when the descriptions match.
+- `vgc-team-builder` should stay lightweight unless the user explicitly asks for battle-ready or spread-bearing output.
 
 ## Current-Info And Sourcing Rules
 
@@ -42,9 +43,11 @@ OpenCode support in this repo is an additive adapter over the same shared skill 
 ## Tooling Boundary
 
 - `vgc-calcs-assistant` exact-browser support still depends on local `agent-browser` plus `python3 tools/browser_damage_calc.py`.
+- In `battle-ready` mode, `vgc-team-builder` should use live common cores and recent top teams as benchmark inputs, then hand narrow benchmark questions to `vgc-calcs-assistant`.
 - In OpenCode MVP, exact damage, KO, and survival support is only acceptable when that local tool chain is available and working.
 - If OpenCode cannot use the local browser/tool path because of missing install, missing permissions, or runtime mismatch, say the exact path is blocked or unverified and fall back to assumption-framed guidance.
 - Speed checks remain assumption-framed unless a verified exact backend is added later.
+- `export-ready` output should still downgrade when named items or moves are not verified.
 
 ## Validation Expectations
 
