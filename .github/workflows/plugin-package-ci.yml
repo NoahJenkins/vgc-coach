@@ -22,11 +22,5 @@ jobs:
       - name: Run unit tests
         run: python3 -m unittest tests.test_autoresearch tests.test_browser_damage_calc tests.test_build_plugins
 
-      - name: Rebuild plugin packages
-        run: python3 tools/build_plugins.py build
-
-      - name: Refresh release notes
-        run: python3 tools/build_plugins.py update-release-notes
-
       - name: Check generated outputs
         run: python3 tools/build_plugins.py check

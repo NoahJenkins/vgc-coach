@@ -11,7 +11,6 @@ import shutil
 import sys
 import tempfile
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path
 from typing import Dict, Iterable, List
 
@@ -324,13 +323,13 @@ def render_claude_marketplace(repo_meta: dict, version: str) -> dict:
 
 
 def render_release_notes(manifest: dict, version: str) -> str:
-    today = date.today().isoformat()
+    release_date = manifest["release_notes"]["date"]
     bullets = "\n".join(f"- {item}" for item in manifest["release_notes"]["summary"])
     return f"""# Release Notes
 
 {GENERATED_COMMENT}
 
-## {version} - {today}
+## {version} - {release_date}
 
 {bullets}
 """
