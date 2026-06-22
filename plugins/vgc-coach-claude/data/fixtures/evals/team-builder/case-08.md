@@ -12,4 +12,6 @@ Checks:
 - derives targets from live common cores, recent top teams, or individual meta pressures instead of waiting for a user threat list
 - keeps `Targeted Meta Cores and Teams` short instead of turning it into a long report
 - builds a capped benchmark plan rather than benchmarking everything
+- includes `Playbook`
+- gives multiple lead/backline packages instead of a single default line
 - gives one coherent final team

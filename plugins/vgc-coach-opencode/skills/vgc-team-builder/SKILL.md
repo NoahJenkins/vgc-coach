@@ -51,10 +51,11 @@ Return these sections in order:
 7. `Set Direction`
 8. `Benchmark Plan`
 9. `Battle-Ready Spreads`
-10. `Why Each Slot Exists`
-11. `Matchup Notes`
-12. `Weaknesses and Next Refinements`
-13. `Export Status`
+10. `Playbook`
+11. `Why Each Slot Exists`
+12. `Matchup Notes`
+13. `Weaknesses and Next Refinements`
+14. `Export Status`
 
 ## Workflow
 1. Lock the active format and major meta pressures first.
@@ -65,9 +66,10 @@ Return these sections in order:
 6. If the ask is weak, say so plainly and pivot to the nearest viable version that preserves the goal.
 7. In `battle-ready` mode, ingest live common cores and recent top teams after the format and meta stack is grounded.
 8. In `battle-ready` mode, choose a capped hybrid benchmark set before invoking `vgc-calcs-assistant`.
-9. Give lightweight set direction in default mode and battle-ready spreads only in `battle-ready` mode.
-10. If a current-field positioning claim is thin, apply `vgc-source-verifier` discipline instead of overselling it.
-11. End with real weaknesses instead of pretending the build is solved.
+9. In `battle-ready` mode, derive a matchup-shaped playbook from the chosen six and the targeted core set instead of inventing independent lines.
+10. Give lightweight set direction in default mode and battle-ready spreads only in `battle-ready` mode.
+11. If a current-field positioning claim is thin, apply `vgc-source-verifier` discipline instead of overselling it.
+12. End with real weaknesses instead of pretending the build is solved.
 
 ## Required behavior
 - Read [build-principles](../../docs/skills/vgc-team-builder/references/build-principles.md) and [output-rubric](../../docs/skills/vgc-team-builder/references/output-rubric.md) before finalizing.
@@ -104,6 +106,18 @@ Return these sections in order:
 - In `battle-ready` mode, utility mons may keep heuristic spreads when no benchmark materially changes the build.
 - In `battle-ready` mode, hand off only narrow benchmark questions to `vgc-calcs-assistant`; do not ask it to optimize the whole team.
 - In `battle-ready` mode, `Battle-Ready Spreads` must include role, ability, nature, EV spread, item confidence, move confidence, and one short benchmark note per slot.
+- In `battle-ready` mode, `Playbook` must include:
+  - 3 packages by default
+  - 4 packages only when the team honestly supports a fourth materially distinct plan
+  - only 2 packages when the builder explicitly says the team does not honestly support a third package
+  - at least 2 distinct lead pairs across the returned packages
+  - for each package: `Use Into`, `Lead Pair`, `Preferred Backline`, `Opening Goal`, `Turn-One Pattern`, `Why This Package Works`, and `Watch-Outs`
+  - a short `Playbook Notes` footer for cross-package heuristics when needed
+- In `battle-ready` mode, each `Use Into` label must name a concrete opposing team shape derived from `Targeted Meta Cores and Teams`, not a vague label such as `aggressive teams`.
+- In `battle-ready` mode, `Preferred Backline` should usually name exactly 2 mons; allow one locked closer plus one flex slot only when that is the honest team structure.
+- In `battle-ready` mode, `Turn-One Pattern` must stay limited to turn-one or turn-one-plus-turn-two intent; do not fake full deterministic scripts.
+- In `battle-ready` mode, the playbook must be downstream of the actual team identity, role map, and benchmark logic; do not use it as a separate creativity pass.
+- In `battle-ready` mode, `Matchup Notes` should stay macro-level and avoid repeating the concrete bring packages already covered by `Playbook`.
 - In `battle-ready` mode, exact four-move sets are allowed only when move legality is verified for the named moves.
 - In `battle-ready` mode, `Export Status` must be one of:
   - `export-ready`
