@@ -20,6 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 class ValidationStep:
     name: str
     argv: tuple[str, ...]
+    working_directory: Path = Path(".")
 
 
 def build_validation_steps(
@@ -70,7 +71,8 @@ def build_validation_steps(
         ),
         ValidationStep(
             "production site build",
-            (pnpm_executable, "--dir", "site", "run", "build"),
+            (pnpm_executable, "run", "build"),
+            working_directory=Path("site"),
         ),
     )
     if scope == "core":
@@ -102,7 +104,11 @@ def run_validation_steps(
         print(f"==> {step.name}", flush=True)
         print(f"$ {shlex.join(step.argv)}", flush=True)
         try:
-            completed = subprocess.run(step.argv, cwd=repo_root, check=False)
+            completed = subprocess.run(
+                step.argv,
+                cwd=repo_root / step.working_directory,
+                check=False,
+            )
         except OSError as exc:
             print(
                 f"Could not run validation step {step.name}: {exc}",

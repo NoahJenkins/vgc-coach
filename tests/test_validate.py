@@ -92,7 +92,7 @@ class ValidateTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            [(step.name, step.argv) for step in site],
+            [(step.name, step.argv, step.working_directory) for step in site],
             [
                 (
                     "generated site trust-data check",
@@ -101,10 +101,12 @@ class ValidateTests(unittest.TestCase):
                         "tools/generate_site_trust_data.py",
                         "check",
                     ),
+                    Path("."),
                 ),
                 (
                     "production site build",
-                    ("controlled-pnpm", "--dir", "site", "run", "build"),
+                    ("controlled-pnpm", "run", "build"),
+                    Path("site"),
                 )
             ],
         )
@@ -173,6 +175,29 @@ class ValidateTests(unittest.TestCase):
         self.assertIn("Missing prerequisite", stderr.getvalue())
         self.assertIn("vgc-coach-command-that-does-not-exist", stderr.getvalue())
         self.assertIn("missing controlled command", stderr.getvalue())
+
+    def test_step_runs_from_its_declared_working_directory(self):
+        module = load_validate_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            child = tmp_path / "child"
+            child.mkdir()
+            marker = child / "cwd.txt"
+            command = child / "record_cwd.py"
+            command.write_text(
+                "from pathlib import Path\n"
+                f"Path({str(marker)!r}).write_text(str(Path.cwd()))\n"
+            )
+            step = module.ValidationStep(
+                "controlled working directory",
+                (sys.executable, str(command)),
+                working_directory=Path("child"),
+            )
+
+            exit_code = module.run_validation_steps((step,), repo_root=tmp_path)
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(marker.read_text(), str(child.resolve()))
 
 
 if __name__ == "__main__":
