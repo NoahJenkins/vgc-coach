@@ -12,6 +12,7 @@ import shutil
 import stat
 import sys
 import tempfile
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, Iterable, List
@@ -50,7 +51,7 @@ def validate_relative_posix_path(value: object, field: str) -> str:
         not value
         or value.startswith("/")
         or "\\" in value
-        or any(ord(character) < 32 or ord(character) == 127 for character in value)
+        or any(unicodedata.category(character) == "Cc" for character in value)
         or any(component in {"", ".", ".."} for component in components)
         or PurePosixPath(value).is_absolute()
         or PurePosixPath(value).as_posix() != value
@@ -91,6 +92,15 @@ def validate_manifest_paths(manifest: dict) -> None:
 
 
 def assert_destination_contained(intended_root: Path, destination: Path) -> None:
+    logical_root = Path(os.path.abspath(intended_root))
+    logical_destination = Path(os.path.abspath(destination))
+    try:
+        relative = logical_destination.relative_to(logical_root)
+    except ValueError as exc:
+        raise ValueError(
+            f"Destination outside intended root {logical_root}: {destination}"
+        ) from exc
+
     resolved_root = intended_root.resolve(strict=False)
     resolved_destination = destination.resolve(strict=False)
     try:
@@ -99,6 +109,13 @@ def assert_destination_contained(intended_root: Path, destination: Path) -> None
         raise ValueError(
             f"Destination outside intended root {resolved_root}: {destination}"
         ) from exc
+
+    current = logical_root
+    for component in (None, *relative.parts):
+        if component is not None:
+            current = current / component
+        if current.is_symlink():
+            raise ValueError(f"Destination symlink not allowed: {current}")
 
 
 def safe_mkdir(path: Path, intended_root: Path) -> None:
@@ -490,50 +507,52 @@ def render_release_notes(manifest: dict, version: str) -> str:
 
 def build_plugin(plugin: dict, manifest: dict, skills: Dict[str, SkillInfo], version: str, target_root: Path) -> None:
     repo_meta = manifest["repository"]
-    destination = target_root / "plugins" / plugin["name"]
-    if destination.exists():
-        safe_rmtree(destination, target_root)
-    safe_mkdir(destination, target_root)
+    plugins_root = target_root / "plugins"
+    assert_destination_contained(target_root, plugins_root)
+    destination = plugins_root / plugin["name"]
+    if destination.exists() or destination.is_symlink():
+        safe_rmtree(destination, plugins_root)
+    safe_mkdir(destination, plugins_root)
 
     for relative in manifest["shared_copy"]["files"]:
-        copy_path(ROOT / relative, destination / relative, target_root)
+        copy_path(ROOT / relative, destination / relative, destination)
     for relative in manifest["shared_copy"]["directories"]:
-        copy_path(ROOT / relative, destination / relative, target_root)
+        copy_path(ROOT / relative, destination / relative, destination)
     for relative in manifest["shared_copy"]["tools"]:
-        copy_path(ROOT / relative, destination / relative, target_root)
+        copy_path(ROOT / relative, destination / relative, destination)
 
     for skill_name in skills:
         copy_path(
             ROOT / "skills" / skill_name,
             destination / "skills" / skill_name,
-            target_root,
+            destination,
             ignore=ignore_hidden_entries,
         )
 
     for relative in collect_skill_docs(manifest):
-        copy_path(ROOT / relative, destination / relative, target_root)
+        copy_path(ROOT / relative, destination / relative, destination)
 
     for relative in plugin["runtime_docs"]:
         if relative.endswith(".md") and "docs/runtime/" in relative:
             write_text(
                 destination / relative,
                 render_package_runtime_doc(plugin),
-                target_root,
+                destination,
             )
             continue
-        copy_path(ROOT / relative, destination / relative, target_root)
+        copy_path(ROOT / relative, destination / relative, destination)
 
     write_text(
         destination / "README.md",
         render_plugin_readme(plugin, manifest, skills, version),
-        target_root,
+        destination,
     )
 
     if plugin["runtime"] == "codex":
         write_json(
             destination / plugin["manifest_path"],
             render_codex_manifest(plugin, repo_meta, skills, version),
-            target_root,
+            destination,
         )
         return
 
@@ -541,7 +560,7 @@ def build_plugin(plugin: dict, manifest: dict, skills: Dict[str, SkillInfo], ver
         write_json(
             destination / plugin["manifest_path"],
             render_claude_manifest(plugin, repo_meta, version),
-            target_root,
+            destination,
         )
         return
 
@@ -549,12 +568,12 @@ def build_plugin(plugin: dict, manifest: dict, skills: Dict[str, SkillInfo], ver
         write_json(
             destination / plugin["manifest_path"],
             render_opencode_package_json(plugin, repo_meta, version),
-            target_root,
+            destination,
         )
         write_text(
             destination / ".opencode" / "plugins" / "vgc-coach.js",
             render_opencode_plugin_js(plugin["name"]),
-            target_root,
+            destination,
         )
         return
 

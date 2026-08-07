@@ -2,7 +2,9 @@
 """Browser-assisted exact damage calc wrapper for vgc-coach.
 
 This module keeps the request/result contract backend-agnostic while using
-Pikalytics plus `agent-browser` as the first exact backend.
+Pikalytics plus `agent-browser` as the first exact backend. Browser subprocess
+execution is POSIX-only so process-group cleanup can fail closed without
+silently leaving descendants.
 """
 
 from __future__ import annotations
@@ -36,6 +38,7 @@ AGENT_BROWSER_TIMEOUT_SECONDS = 30.0
 PROCESS_TERMINATE_GRACE_SECONDS = 1.0
 MAX_AGENT_BROWSER_STDOUT_BYTES = 1024 * 1024
 MAX_AGENT_BROWSER_STDERR_BYTES = 1024 * 1024
+MAX_AGENT_BROWSER_STDIN_BYTES = 64 * 1024
 MAX_EXTRACTED_TEXT_BYTES = 64 * 1024
 
 
@@ -323,31 +326,65 @@ def run_from_payload(
     return result.to_dict()
 
 
-def _signal_process_group(process: subprocess.Popen[bytes], sig: int) -> None:
-    if process.poll() is not None:
-        return
-    if os.name == "posix":
-        try:
-            os.killpg(process.pid, sig)
-            return
-        except ProcessLookupError:
-            return
-    process.send_signal(sig)
+def _process_group_exists(process_group_id: int) -> bool:
+    try:
+        os.killpg(process_group_id, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # Treat an unverifiable group as present. Cleanup may continue, but it
+        # cannot report success unless the group later disappears.
+        return True
+    return True
 
 
-def _terminate_bounded(process: subprocess.Popen[bytes]) -> None:
-    _signal_process_group(process, signal.SIGTERM)
+def _signal_process_group(process_group_id: int, sig: int) -> None:
     try:
-        process.wait(timeout=PROCESS_TERMINATE_GRACE_SECONDS)
+        os.killpg(process_group_id, sig)
+    except ProcessLookupError:
         return
-    except subprocess.TimeoutExpired:
-        _signal_process_group(process, signal.SIGKILL)
-    try:
-        process.wait(timeout=PROCESS_TERMINATE_GRACE_SECONDS)
-    except subprocess.TimeoutExpired as exc:
+    except PermissionError as exc:
         raise BrowserCalcError(
-            "agent-browser could not be terminated within the safety bound"
+            f"Cannot signal agent-browser process group {process_group_id}: {exc}"
         ) from exc
+
+
+def _wait_for_process_group_exit(
+    process: subprocess.Popen[bytes],
+    process_group_id: int,
+    deadline: float,
+) -> bool:
+    while True:
+        process.poll()
+        if not _process_group_exists(process_group_id):
+            return True
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(0.01, remaining))
+
+
+def _terminate_bounded(
+    process: subprocess.Popen[bytes],
+    process_group_id: int,
+) -> None:
+    _signal_process_group(process_group_id, signal.SIGTERM)
+    if _wait_for_process_group_exit(
+        process,
+        process_group_id,
+        time.monotonic() + PROCESS_TERMINATE_GRACE_SECONDS,
+    ):
+        return
+
+    _signal_process_group(process_group_id, signal.SIGKILL)
+    if not _wait_for_process_group_exit(
+        process,
+        process_group_id,
+        time.monotonic() + PROCESS_TERMINATE_GRACE_SECONDS,
+    ):
+        raise BrowserCalcError(
+            f"agent-browser process group {process_group_id} survived bounded termination"
+        )
 
 
 def _close_process_pipes(process: subprocess.Popen[bytes]) -> None:
@@ -357,6 +394,15 @@ def _close_process_pipes(process: subprocess.Popen[bytes]) -> None:
 
 
 def _run_agent_browser_command(args: list[str], *, stdin: str | None = None) -> str:
+    stdin_bytes = stdin.encode("utf-8") if stdin is not None else b""
+    if len(stdin_bytes) > MAX_AGENT_BROWSER_STDIN_BYTES:
+        raise BrowserCalcError(
+            f"agent-browser stdin exceeded the {MAX_AGENT_BROWSER_STDIN_BYTES}-byte safety limit"
+        )
+    if os.name != "posix":
+        raise BrowserCalcError(
+            "Bounded agent-browser process-group cleanup is supported only on POSIX platforms"
+        )
     if not shutil.which("agent-browser"):
         raise BrowserCalcError("agent-browser is not installed on this machine")
 
@@ -370,6 +416,7 @@ def _run_agent_browser_command(args: list[str], *, stdin: str | None = None) -> 
         )
     except OSError as exc:
         raise BrowserCalcError(f"Could not start agent-browser: {exc}") from exc
+    process_group_id = process.pid
 
     stdout = bytearray()
     stderr = bytearray()
@@ -379,30 +426,51 @@ def _run_agent_browser_command(args: list[str], *, stdin: str | None = None) -> 
     }
     selector = selectors.DefaultSelector()
     deadline = time.monotonic() + AGENT_BROWSER_TIMEOUT_SECONDS
+    stdin_offset = 0
 
     try:
-        if process.stdin is not None:
-            process.stdin.write(stdin.encode("utf-8"))
-            process.stdin.close()
         for stream in streams:
             if stream is not None:
-                selector.register(stream, selectors.EVENT_READ)
+                selector.register(stream, selectors.EVENT_READ, streams[stream])
+        if process.stdin is not None:
+            os.set_blocking(process.stdin.fileno(), False)
+            selector.register(process.stdin, selectors.EVENT_WRITE, ("stdin", None, None))
 
-        while selector.get_map():
+        while process.poll() is None or selector.get_map():
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                _terminate_bounded(process)
                 raise BrowserCalcError(
                     f"agent-browser command timed out after {AGENT_BROWSER_TIMEOUT_SECONDS:g} seconds"
                 )
+            if not selector.get_map():
+                time.sleep(min(0.01, remaining))
+                continue
             events = selector.select(remaining)
             if not events:
-                _terminate_bounded(process)
                 raise BrowserCalcError(
                     f"agent-browser command timed out after {AGENT_BROWSER_TIMEOUT_SECONDS:g} seconds"
                 )
             for key, _mask in events:
-                stream_name, buffer, limit = streams[key.fileobj]
+                stream_name, buffer, limit = key.data
+                if stream_name == "stdin":
+                    try:
+                        written = os.write(
+                            key.fd,
+                            stdin_bytes[stdin_offset : stdin_offset + 65536],
+                        )
+                    except BlockingIOError:
+                        continue
+                    except BrokenPipeError as exc:
+                        selector.unregister(key.fileobj)
+                        key.fileobj.close()
+                        raise BrowserCalcError(
+                            "agent-browser closed stdin before accepting the command payload"
+                        ) from exc
+                    stdin_offset += written
+                    if stdin_offset == len(stdin_bytes):
+                        selector.unregister(key.fileobj)
+                        key.fileobj.close()
+                    continue
                 chunk = os.read(key.fd, min(65536, limit + 1 - len(buffer)))
                 if not chunk:
                     selector.unregister(key.fileobj)
@@ -410,31 +478,15 @@ def _run_agent_browser_command(args: list[str], *, stdin: str | None = None) -> 
                     continue
                 buffer.extend(chunk)
                 if len(buffer) > limit:
-                    _terminate_bounded(process)
                     raise BrowserCalcError(
                         f"agent-browser {stream_name} exceeded the {limit}-byte safety limit"
                     )
-
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            _terminate_bounded(process)
-            raise BrowserCalcError(
-                f"agent-browser command timed out after {AGENT_BROWSER_TIMEOUT_SECONDS:g} seconds"
-            )
-        try:
-            returncode = process.wait(timeout=remaining)
-        except subprocess.TimeoutExpired as exc:
-            _terminate_bounded(process)
-            raise BrowserCalcError(
-                f"agent-browser command timed out after {AGENT_BROWSER_TIMEOUT_SECONDS:g} seconds"
-            ) from exc
+        returncode = process.returncode
     except BrowserCalcError:
-        if process.poll() is None:
-            _terminate_bounded(process)
+        _terminate_bounded(process, process_group_id)
         raise
     except (BrokenPipeError, OSError) as exc:
-        if process.poll() is None:
-            _terminate_bounded(process)
+        _terminate_bounded(process, process_group_id)
         raise BrowserCalcError(f"agent-browser subprocess I/O failed: {exc}") from exc
     finally:
         selector.close()

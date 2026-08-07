@@ -164,6 +164,7 @@ class BuildPluginsTests(unittest.TestCase):
             "parent/../component",
             "windows\\component",
             "control/\x01component",
+            "control/\u0085component",
         ]
         original = self.module.load_manifest()
 
@@ -173,7 +174,9 @@ class BuildPluginsTests(unittest.TestCase):
                 manifest["plugins"][0]["name"] = bad_path
                 with tempfile.TemporaryDirectory() as tmp, mock.patch.object(
                     self.module, "load_manifest", return_value=manifest
-                ), mock.patch.object(self.module, "load_version") as load_version:
+                ), mock.patch.object(
+                    self.module, "load_version", return_value="test"
+                ) as load_version:
                     with self.assertRaisesRegex(ValueError, "repository-relative POSIX path"):
                         self.module.build_all(pathlib.Path(tmp) / "build")
                     load_version.assert_not_called()
@@ -199,6 +202,29 @@ class BuildPluginsTests(unittest.TestCase):
                 self.module.build_all(build_root)
 
             self.assertEqual(sentinel.read_bytes(), b"must survive")
+
+    def test_in_root_plugin_ancestor_symlink_is_rejected_before_recursive_delete(self):
+        manifest = copy.deepcopy(self.module.load_manifest())
+        manifest["plugins"] = [manifest["plugins"][2]]
+
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(
+            self.module, "load_manifest", return_value=manifest
+        ):
+            build_root = pathlib.Path(tmp) / "build"
+            redirected_root = build_root / "redirected"
+            redirected_plugin = redirected_root / "vgc-coach-opencode"
+            redirected_plugin.mkdir(parents=True)
+            sentinel = redirected_plugin / "sentinel.txt"
+            sentinel.write_bytes(b"unrelated data")
+            (build_root / "plugins").symlink_to(
+                redirected_root,
+                target_is_directory=True,
+            )
+
+            with self.assertRaisesRegex(ValueError, "Destination symlink not allowed"):
+                self.module.build_all(build_root)
+
+            self.assertEqual(sentinel.read_bytes(), b"unrelated data")
 
     def test_canonical_file_symlink_is_rejected_without_reading_target(self):
         manifest = self.minimal_manifest(

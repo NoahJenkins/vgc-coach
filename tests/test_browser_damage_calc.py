@@ -3,6 +3,7 @@ import importlib.util
 import json
 import os
 import pathlib
+import signal
 import sys
 import tempfile
 import time
@@ -134,6 +135,28 @@ class BrowserDamageCalcTests(unittest.TestCase):
         executable.chmod(0o755)
         return executable
 
+    def exact_runner_after_command(self, args, *, stdin=None):
+        def runner(_request):
+            self.module._run_agent_browser_command(args, stdin=stdin)
+            return self.module.CalcResult(
+                status="exact",
+                backend="agent-browser",
+                site="pikalytics",
+                numeric_result={},
+                assumptions_used={},
+                retrieval_timestamp="2026-08-06T00:00:00Z",
+                failure_reason=None,
+            )
+
+        return runner
+
+    def process_exists(self, pid):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        return True
+
     def test_agent_browser_timeout_terminates_and_returns_clear_fallback(self):
         request = self.module.parse_request(self.sample_request())
 
@@ -161,22 +184,13 @@ class BrowserDamageCalcTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             self.fake_agent_browser(tmp, "print('x' * 1024)\n")
 
-            def runner(_request):
-                self.module._run_agent_browser_command(["open", "test"])
-                return self.module.CalcResult(
-                    status="exact",
-                    backend="agent-browser",
-                    site="pikalytics",
-                    numeric_result={},
-                    assumptions_used={},
-                    retrieval_timestamp="2026-08-06T00:00:00Z",
-                    failure_reason=None,
-                )
-
             with mock.patch.dict(os.environ, {"PATH": tmp}), mock.patch.object(
                 self.module, "MAX_AGENT_BROWSER_STDOUT_BYTES", 128, create=True
             ):
-                result = self.module.execute_exact_calc(request, runner=runner)
+                result = self.module.execute_exact_calc(
+                    request,
+                    runner=self.exact_runner_after_command(["open", "test"]),
+                )
 
         self.assertEqual(result.status, "fallback")
         self.assertIn("stdout exceeded", result.failure_reason.lower())
@@ -201,6 +215,120 @@ class BrowserDamageCalcTests(unittest.TestCase):
         self.assertEqual(result.status, "fallback")
         self.assertIn("stderr exceeded", result.failure_reason.lower())
         self.assertNotIn("e" * 128, result.failure_reason)
+
+    def test_agent_browser_stdin_backpressure_obeys_command_deadline(self):
+        request = self.module.parse_request(self.sample_request())
+        payload = "x" * (2 * 1024 * 1024)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self.fake_agent_browser(tmp, "import time\ntime.sleep(1)\n")
+            started = time.monotonic()
+            with mock.patch.dict(os.environ, {"PATH": tmp}), mock.patch.object(
+                self.module, "MAX_AGENT_BROWSER_STDIN_BYTES", len(payload) + 1, create=True
+            ), mock.patch.object(
+                self.module, "AGENT_BROWSER_TIMEOUT_SECONDS", 0.05
+            ), mock.patch.object(self.module, "PROCESS_TERMINATE_GRACE_SECONDS", 0.05):
+                result = self.module.execute_exact_calc(
+                    request,
+                    runner=self.exact_runner_after_command(
+                        ["eval", "--stdin"],
+                        stdin=payload,
+                    ),
+                )
+            elapsed = time.monotonic() - started
+
+        self.assertEqual(result.status, "fallback")
+        self.assertIn("timed out", result.failure_reason.lower())
+        self.assertLess(elapsed, 0.8)
+
+    def test_agent_browser_stdin_limit_fails_before_process_start(self):
+        request = self.module.parse_request(self.sample_request())
+
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = pathlib.Path(tmp) / "started"
+            self.fake_agent_browser(
+                tmp,
+                f"from pathlib import Path\nPath({str(marker)!r}).write_text('started')\n",
+            )
+            with mock.patch.dict(os.environ, {"PATH": tmp}), mock.patch.object(
+                self.module, "MAX_AGENT_BROWSER_STDIN_BYTES", 128, create=True
+            ):
+                result = self.module.execute_exact_calc(
+                    request,
+                    runner=self.exact_runner_after_command(
+                        ["eval", "--stdin"],
+                        stdin="x" * 1024,
+                    ),
+                )
+
+            self.assertFalse(marker.exists())
+
+        self.assertEqual(result.status, "fallback")
+        self.assertIn("stdin exceeded", result.failure_reason.lower())
+
+    @unittest.skipUnless(os.name == "posix", "POSIX process-group regression")
+    def test_timeout_kills_sigterm_ignoring_process_group_descendant(self):
+        request = self.module.parse_request(self.sample_request())
+        child_pid = None
+
+        with tempfile.TemporaryDirectory() as tmp:
+            pid_file = pathlib.Path(tmp) / "child.pid"
+            child_code = (
+                "import os, signal, sys, time; "
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                "open(sys.argv[1], 'w').write(str(os.getpid())); "
+                "time.sleep(30)"
+            )
+            body = (
+                "import subprocess, sys, time\n"
+                f"subprocess.Popen([sys.executable, '-c', {child_code!r}, sys.argv[-1]])\n"
+                "time.sleep(30)\n"
+            )
+            self.fake_agent_browser(tmp, body)
+            try:
+                with mock.patch.dict(os.environ, {"PATH": tmp}), mock.patch.object(
+                    self.module, "AGENT_BROWSER_TIMEOUT_SECONDS", 0.5
+                ), mock.patch.object(
+                    self.module, "PROCESS_TERMINATE_GRACE_SECONDS", 0.5
+                ):
+                    result = self.module.execute_exact_calc(
+                        request,
+                        runner=self.exact_runner_after_command(
+                            ["test-descendant", str(pid_file)]
+                        ),
+                    )
+                child_pid = int(pid_file.read_text())
+                self.assertFalse(self.process_exists(child_pid))
+            finally:
+                if child_pid is None and pid_file.exists():
+                    child_pid = int(pid_file.read_text())
+                if child_pid is not None and self.process_exists(child_pid):
+                    os.kill(child_pid, signal.SIGKILL)
+
+        self.assertEqual(result.status, "fallback")
+        self.assertIn("timed out", result.failure_reason.lower())
+
+    def test_non_posix_platform_fails_closed_before_process_start(self):
+        request = self.module.parse_request(self.sample_request())
+
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = pathlib.Path(tmp) / "started"
+            self.fake_agent_browser(
+                tmp,
+                f"from pathlib import Path\nPath({str(marker)!r}).write_text('started')\n",
+            )
+            with mock.patch.dict(os.environ, {"PATH": tmp}), mock.patch.object(
+                self.module.os, "name", "nt"
+            ):
+                result = self.module.execute_exact_calc(
+                    request,
+                    runner=self.exact_runner_after_command(["open", "test"]),
+                )
+
+            self.assertFalse(marker.exists())
+
+        self.assertEqual(result.status, "fallback")
+        self.assertIn("posix", result.failure_reason.lower())
 
     def test_oversized_extracted_remote_text_returns_clear_fallback(self):
         request = self.module.parse_request(self.sample_request())
