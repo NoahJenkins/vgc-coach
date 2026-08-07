@@ -53,6 +53,7 @@ _WEB_TOOL_NAMES = {
 }
 _URL_PATTERN = re.compile(r"https?://[^\s<>'\"`]+")
 _TRAILING_URL_PUNCTUATION = ".,);:!?]}>\"'"
+_SDK_UNMEDIATED_WEB_TOOLS = ("web_fetch",)
 
 
 @dataclass
@@ -456,6 +457,7 @@ async def _run_session_once(
             system_message={"mode": "append", "content": system_message},
             hooks={"on_pre_tool_use": recorder.on_pre_tool_use},
             on_event=on_event,
+            excluded_tools=list(_SDK_UNMEDIATED_WEB_TOOLS),
             streaming=True,
         )
         await session.send(prompt, attachments=attachments)

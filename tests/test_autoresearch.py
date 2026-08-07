@@ -4,6 +4,7 @@ import asyncio
 import datetime as dt
 import importlib.util
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -205,6 +206,73 @@ def permission_request(kind: str, **fields: object) -> SimpleNamespace:
     }
     defaults.update(fields)
     return SimpleNamespace(**defaults)
+
+
+def run_sdk_session_with_assertion(
+    assertion,
+    *,
+    allow_live_research: bool,
+) -> CopilotRunResult:
+    class RuntimeSession:
+        def __init__(self, on_event) -> None:
+            self.on_event = on_event
+
+        async def send(self, prompt, *, attachments) -> None:
+            self.on_event(make_event("assistant.message", content="complete"))
+            self.on_event(make_event("session.idle"))
+
+        async def disconnect(self) -> None:
+            return None
+
+    class RuntimeClient:
+        def __init__(self, config) -> None:
+            self.config = config
+
+        async def start(self) -> None:
+            return None
+
+        async def create_session(self, **options):
+            assertion(options)
+            return RuntimeSession(options["on_event"])
+
+        async def stop(self) -> None:
+            return None
+
+    async def run() -> CopilotRunResult:
+        copilot_module = ModuleType("copilot")
+        client_module = ModuleType("copilot.client")
+        session_module = ModuleType("copilot.session")
+        copilot_module.CopilotClient = RuntimeClient
+        client_module.SubprocessConfig = lambda **values: SimpleNamespace(**values)
+        session_module.PermissionRequestResult = FakePermissionRequestResult
+
+        with mock.patch.dict(
+            sys.modules,
+            {
+                "copilot": copilot_module,
+                "copilot.client": client_module,
+                "copilot.session": session_module,
+            },
+        ), mock.patch.dict(
+            "os.environ",
+            {"OPENAI_API_KEY": "test-key", "OPENAI_MODEL": "test-model"},
+            clear=False,
+        ):
+            return await _run_session_once(
+                prompt="research safely",
+                attachments=[],
+                provider_name="byok-openai",
+                model="test-model",
+                allow_writes=False,
+                allow_eval_tightening=False,
+                run_profile="manual",
+                allow_live_research=allow_live_research,
+                config=get_skill_config("vgc-team-builder"),
+                system_message="system",
+                timeout=1.0,
+            )
+
+    return asyncio.run(run())
 
 
 class AutoresearchTests(unittest.TestCase):
@@ -1075,19 +1143,174 @@ class AutoresearchTests(unittest.TestCase):
         )
         self.assertEqual(redirected.kind, "denied-by-rules")
 
-    def test_permission_handler_approves_public_https_and_records_it_separately(self):
+    def test_permission_handler_rejects_absolute_relative_and_mixed_outside_git_paths(self):
+        with tempfile.TemporaryDirectory() as outside_dir:
+            first = Path(outside_dir) / "first.txt"
+            second = Path(outside_dir) / "second.txt"
+            first.write_text("first secret")
+            second.write_text("second secret")
+            first_relative = os.path.relpath(first, REPO_ROOT)
+            second_relative = os.path.relpath(second, REPO_ROOT)
+            commands = (
+                f"git diff {first} {second}",
+                f"git diff {first_relative} {second_relative}",
+                f"git diff -- README.md {first}",
+                f"git diff {REPO_ROOT / 'README.md'} {first}",
+            )
+
+            for command in commands:
+                with self.subTest(command=command):
+                    result, recorder = invoke_permission_handler(
+                        permission_request("shell", full_command_text=command)
+                    )
+                    self.assertEqual(result.kind, "denied-by-rules")
+                    self.assertEqual(recorder.shell_commands, [])
+
+    def test_permission_handler_rejects_outside_paths_for_every_positional_git_family(self):
+        with tempfile.TemporaryDirectory() as outside_dir:
+            outside_file = Path(outside_dir) / "secret.txt"
+            outside_file.write_text("secret")
+            commands = (
+                f"git status -- {outside_file}",
+                f"git diff -- {outside_file}",
+                f"git show HEAD -- {outside_file}",
+                f"git log -- {outside_file}",
+                f"git rev-parse -- {outside_file}",
+                f"git ls-files -- {outside_file}",
+            )
+
+            for command in commands:
+                with self.subTest(command=command):
+                    result, _ = invoke_permission_handler(
+                        permission_request("shell", full_command_text=command)
+                    )
+                    self.assertEqual(result.kind, "denied-by-rules")
+
+    def test_permission_handler_rejects_outside_shell_possible_paths(self):
+        with tempfile.TemporaryDirectory() as outside_dir:
+            outside_file = Path(outside_dir) / "secret.txt"
+            outside_file.write_text("secret")
+            outside_relative = os.path.relpath(outside_file, REPO_ROOT)
+
+            for possible_path in (str(outside_file), outside_relative):
+                with self.subTest(possible_path=possible_path):
+                    result, recorder = invoke_permission_handler(
+                        permission_request(
+                            "shell",
+                            full_command_text="git diff HEAD",
+                            possible_paths=[possible_path],
+                        )
+                    )
+                    self.assertEqual(result.kind, "denied-by-rules")
+                    self.assertEqual(recorder.shell_commands, [])
+
+    def test_permission_handler_preserves_repo_and_attachment_git_path_inspection(self):
+        repo_file = REPO_ROOT / "README.md"
+        with tempfile.TemporaryDirectory() as outside_dir:
+            attachment = Path(outside_dir) / "attached.md"
+            attachment.write_text("attachment")
+            allowed_requests = (
+                permission_request(
+                    "shell",
+                    full_command_text="git diff -- README.md",
+                    possible_paths=[str(repo_file)],
+                ),
+                permission_request(
+                    "shell",
+                    full_command_text=f"git diff -- {attachment}",
+                    possible_paths=[str(attachment)],
+                ),
+                permission_request(
+                    "shell",
+                    full_command_text=f"git show HEAD -- README.md {attachment}",
+                    possible_paths=[str(repo_file), str(attachment)],
+                ),
+            )
+
+            for request in allowed_requests:
+                with self.subTest(command=request.full_command_text):
+                    result, recorder = invoke_permission_handler(
+                        request,
+                        attachments=(str(attachment),),
+                    )
+                    self.assertEqual(result.kind, "approved")
+                    self.assertEqual(recorder.shell_commands, [request.full_command_text])
+
+    def test_permission_handler_denies_public_https_without_a_mediated_connector(self):
         public_url = "https://research.example/meta"
         public_dns = [(2, 1, 6, "", ("93.184.216.34", 443))]
-        with mock.patch("socket.getaddrinfo", return_value=public_dns):
+        with mock.patch("socket.getaddrinfo", return_value=public_dns) as resolver:
             result, recorder = invoke_permission_handler(
                 permission_request("url", url=public_url),
                 allow_live_research=True,
             )
-        self.assertEqual(result.kind, "approved")
+        self.assertEqual(result.kind, "denied-by-rules")
         self.assertEqual(recorder.requested_urls, [public_url])
-        self.assertEqual(recorder.approved_urls, [public_url])
+        self.assertEqual(recorder.approved_urls, [])
         self.assertEqual(recorder.attempted_urls, [])
         self.assertEqual(recorder.source_urls, [])
+        resolver.assert_not_called()
+
+    def test_sdk_connector_blocks_public_to_private_and_non_https_redirects(self):
+        redirect_targets = (
+            "https://127.0.0.1/admin",
+            "http://example.com/plaintext",
+        )
+
+        for redirect_target in redirect_targets:
+            connector_attempts: list[str] = []
+
+            def assert_boundary(options) -> None:
+                self.assertIn("web_fetch", options.get("excluded_tools", ()))
+                with mock.patch(
+                    "socket.getaddrinfo",
+                    return_value=[(2, 1, 6, "", ("93.184.216.34", 443))],
+                ):
+                    decision = options["on_permission_request"](
+                        permission_request("url", url="https://public.example/start"),
+                        {},
+                    )
+                if decision.kind == "approved":
+                    connector_attempts.append(redirect_target)
+                self.assertEqual(decision.kind, "denied-by-rules")
+
+            with self.subTest(redirect_target=redirect_target):
+                result = run_sdk_session_with_assertion(
+                    assert_boundary,
+                    allow_live_research=True,
+                )
+                self.assertEqual(connector_attempts, [])
+                self.assertEqual(result.source_urls, ())
+
+    def test_sdk_connector_blocks_dns_rebinding_before_connection_resolution(self):
+        connection_resolutions: list[str] = []
+
+        def assert_boundary(options) -> None:
+            self.assertIn("web_fetch", options.get("excluded_tools", ()))
+            with mock.patch(
+                "socket.getaddrinfo",
+                side_effect=[
+                    [(2, 1, 6, "", ("93.184.216.34", 443))],
+                    [(2, 1, 6, "", ("127.0.0.1", 443))],
+                ],
+            ) as resolver:
+                decision = options["on_permission_request"](
+                    permission_request("url", url="https://rebind.example/data"),
+                    {},
+                )
+                if decision.kind == "approved":
+                    connection_resolutions.extend(
+                        entry[4][0]
+                        for entry in resolver("rebind.example", 443, type=1)
+                    )
+            self.assertEqual(decision.kind, "denied-by-rules")
+
+        result = run_sdk_session_with_assertion(
+            assert_boundary,
+            allow_live_research=True,
+        )
+        self.assertEqual(connection_resolutions, [])
+        self.assertEqual(result.source_urls, ())
 
     def test_permission_handler_rejects_unsafe_web_destinations(self):
         public_dns = [(2, 1, 6, "", ("93.184.216.34", 443))]

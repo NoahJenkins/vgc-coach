@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import ipaddress
 import re
 import shlex
-import socket
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from urllib.parse import urlsplit
 
 from .config import REPO_ROOT, RunProfile, SkillConfig
 
@@ -15,15 +12,6 @@ if TYPE_CHECKING:
     from copilot.session import PermissionRequestResult
 
 _UNSAFE_SHELL_CHARACTERS = frozenset(";&|<>`$\n\r\0(){}*?[]~#!")
-_METADATA_HOSTS = frozenset(
-    {
-        "instance-data",
-        "metadata",
-        "metadata.aws.internal",
-        "metadata.google.internal",
-    }
-)
-
 _STATUS_OPTIONS = frozenset(
     {
         "-b",
@@ -230,20 +218,30 @@ def make_permission_handler(
         if kind == "url":
             urls = _urls_from_request(request)
             recorder.requested_urls.extend(urls)
-            if allow_live_research and urls and all(is_public_https_url(url) for url in urls):
-                recorder.approved_urls.extend(urls)
-                return PermissionRequestResult(kind="approved")
             return PermissionRequestResult(
                 kind="denied-by-rules",
-                message="Live web access requires an approved public HTTPS destination.",
+                message=(
+                    "Live web access is unavailable because this repository has no "
+                    "end-to-end mediated fetch connector."
+                    if allow_live_research
+                    else "Live web access is disabled for this session."
+                ),
             )
 
         if kind == "shell":
             command = (request.full_command_text or "").strip()
+            possible_paths = tuple(getattr(request, "possible_paths", None) or ())
             if (
                 command
                 and not getattr(request, "has_write_file_redirection", False)
-                and is_safe_read_only_git_command(command)
+                and all(
+                    is_path_allowed_for_read(path, attachment_paths)
+                    for path in possible_paths
+                )
+                and is_safe_read_only_git_command(
+                    command,
+                    attachment_paths=attachment_paths,
+                )
             ):
                 recorder.shell_commands.append(command)
                 return PermissionRequestResult(kind="approved")
@@ -260,40 +258,11 @@ def make_permission_handler(
     return handler
 
 
-def is_public_https_url(url: str) -> bool:
-    if not isinstance(url, str) or not url:
-        return False
-    try:
-        parsed = urlsplit(url)
-        hostname = parsed.hostname
-        port = parsed.port
-    except (TypeError, ValueError):
-        return False
-
-    if parsed.scheme.lower() != "https" or not hostname:
-        return False
-    if parsed.username is not None or parsed.password is not None:
-        return False
-    if port not in (None, 443):
-        return False
-
-    normalized_host = hostname.rstrip(".").lower()
-    if (
-        normalized_host == "localhost"
-        or normalized_host.endswith(".localhost")
-        or normalized_host in _METADATA_HOSTS
-    ):
-        return False
-
-    try:
-        literal_address = ipaddress.ip_address(normalized_host)
-    except ValueError:
-        addresses = _resolve_host_addresses(normalized_host)
-        return bool(addresses) and all(_is_public_address(address) for address in addresses)
-    return _is_public_address(literal_address)
-
-
-def is_safe_read_only_git_command(command: str) -> bool:
+def is_safe_read_only_git_command(
+    command: str,
+    *,
+    attachment_paths: tuple[str, ...] = (),
+) -> bool:
     if any(character in _UNSAFE_SHELL_CHARACTERS for character in command):
         return False
     try:
@@ -308,13 +277,17 @@ def is_safe_read_only_git_command(command: str) -> bool:
     if subcommand == "branch":
         return arguments == ["--show-current"]
     if subcommand == "status":
-        return _options_are_allowed(
+        parsed = _parse_allowed_arguments(
             arguments,
             exact=_STATUS_OPTIONS,
             patterns=(r"--porcelain=v[12]", r"--untracked-files=(?:no|normal|all)"),
         )
+        return parsed is not None and _paths_are_allowed(
+            (*parsed[0], *parsed[1]),
+            attachment_paths,
+        )
     if subcommand == "diff":
-        return _options_are_allowed(
+        parsed = _parse_allowed_arguments(
             arguments,
             exact=_DIFF_OPTIONS,
             patterns=(
@@ -324,8 +297,22 @@ def is_safe_read_only_git_command(command: str) -> bool:
                 r"--unified=\d+",
             ),
         )
+        if parsed is None:
+            return False
+        positional_arguments, pathspecs = parsed
+        implicit_paths = tuple(
+            argument
+            for argument in positional_arguments
+            if _looks_like_path_operand(argument)
+        )
+        if any(not _is_repo_path(path) for path in implicit_paths):
+            return False
+        return _paths_are_allowed(
+            (*implicit_paths, *pathspecs),
+            attachment_paths,
+        )
     if subcommand in {"log", "show"}:
-        return _options_are_allowed(
+        parsed = _parse_allowed_arguments(
             arguments,
             exact=_HISTORY_OPTIONS,
             patterns=(
@@ -335,34 +322,88 @@ def is_safe_read_only_git_command(command: str) -> bool:
                 r"--pretty=.+",
             ),
         )
+        if parsed is None:
+            return False
+        positional_arguments, pathspecs = parsed
+        path_operands = tuple(
+            argument
+            for argument in positional_arguments
+            if _looks_like_path_operand(argument)
+        )
+        return _paths_are_allowed(
+            (*path_operands, *pathspecs),
+            attachment_paths,
+        )
     if subcommand == "rev-parse":
-        return _options_are_allowed(
+        parsed = _parse_allowed_arguments(
             arguments,
             exact=_REV_PARSE_OPTIONS,
             patterns=(r"--short(?:=\d+)?",),
         )
+        if parsed is None:
+            return False
+        positional_arguments, pathspecs = parsed
+        path_operands = tuple(
+            argument
+            for argument in positional_arguments
+            if _looks_like_path_operand(argument)
+        )
+        return _paths_are_allowed(
+            (*path_operands, *pathspecs),
+            attachment_paths,
+        )
     if subcommand == "ls-files":
-        return _options_are_allowed(arguments, exact=_LS_FILES_OPTIONS)
+        parsed = _parse_allowed_arguments(arguments, exact=_LS_FILES_OPTIONS)
+        return parsed is not None and _paths_are_allowed(
+            (*parsed[0], *parsed[1]),
+            attachment_paths,
+        )
     return False
 
 
-def _options_are_allowed(
+def _parse_allowed_arguments(
     arguments: list[str],
     *,
     exact: frozenset[str],
     patterns: tuple[str, ...] = (),
-) -> bool:
+) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
     options_ended = False
+    positional_arguments: list[str] = []
+    pathspecs: list[str] = []
     for argument in arguments:
         if argument == "--" and not options_ended:
             options_ended = True
             continue
-        if options_ended or not argument.startswith("-"):
+        if options_ended:
+            pathspecs.append(argument)
+            continue
+        if not argument.startswith("-"):
+            positional_arguments.append(argument)
             continue
         if argument in exact or any(re.fullmatch(pattern, argument) for pattern in patterns):
             continue
+        return None
+    return tuple(positional_arguments), tuple(pathspecs)
+
+
+def _paths_are_allowed(paths: tuple[str, ...], attachment_paths: tuple[str, ...]) -> bool:
+    return all(is_path_allowed_for_read(path, attachment_paths) for path in paths)
+
+
+def _looks_like_path_operand(argument: str) -> bool:
+    raw_path = Path(argument)
+    if raw_path.is_absolute() or "." in raw_path.parts or ".." in raw_path.parts:
+        return True
+    candidate = REPO_ROOT / raw_path
+    return candidate.exists() or candidate.is_symlink()
+
+
+def _is_repo_path(path: str) -> bool:
+    candidate = _resolve_existing_path(path)
+    if candidate is None:
         return False
-    return True
+    repo_root = REPO_ROOT.resolve()
+    return candidate == repo_root or candidate.is_relative_to(repo_root)
 
 
 def _resolve_existing_path(path: str | None) -> Path | None:
@@ -375,37 +416,6 @@ def _resolve_existing_path(path: str | None) -> Path | None:
         return candidate.resolve(strict=True)
     except (OSError, RuntimeError, ValueError):
         return None
-
-
-def _resolve_host_addresses(hostname: str) -> tuple[ipaddress.IPv4Address | ipaddress.IPv6Address, ...]:
-    try:
-        address_info = socket.getaddrinfo(
-            hostname,
-            443,
-            type=socket.SOCK_STREAM,
-        )
-    except (OSError, UnicodeError):
-        return ()
-
-    addresses: set[ipaddress.IPv4Address | ipaddress.IPv6Address] = set()
-    for entry in address_info:
-        try:
-            addresses.add(ipaddress.ip_address(entry[4][0].split("%", 1)[0]))
-        except (IndexError, TypeError, ValueError):
-            return ()
-    return tuple(addresses)
-
-
-def _is_public_address(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
-    return bool(
-        address.is_global
-        and not address.is_link_local
-        and not address.is_loopback
-        and not address.is_multicast
-        and not address.is_private
-        and not address.is_reserved
-        and not address.is_unspecified
-    )
 
 
 def _paths_from_request(request: Any) -> list[str]:
