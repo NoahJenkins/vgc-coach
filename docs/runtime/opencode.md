@@ -75,7 +75,7 @@ If you pin to a release tag, update the ref and restart:
 
 ```json
 {
-  "plugin": ["vgc-coach-opencode@git+https://github.com/NoahJenkins/vgc-coach.git#v0.1.0"]
+  "plugin": ["vgc-coach-opencode@git+https://github.com/NoahJenkins/vgc-coach.git#v0.2.0"]
 }
 ```
 

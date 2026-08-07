@@ -1,6 +1,6 @@
 # Case 01
 
-Request: audit the claim "Rain is clearly the best Regulation M-A playstyle because two community sites list Pelipper teams among the winners."
+Request: audit the claim "Rain is clearly the best Regulation M-B playstyle because two community sites list Pelipper teams among the winners."
 
 Checks:
 

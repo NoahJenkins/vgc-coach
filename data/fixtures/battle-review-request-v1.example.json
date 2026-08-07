@@ -1,10 +1,25 @@
 {
+  "temporal_status": "current",
   "format": {
     "game": "pokemon-champions",
     "battle_mode": "doubles",
-    "regulation_id": "regulation-m-a"
+    "regulation_id": "regulation-m-b",
+    "active_window": {
+      "start": "2026-06-17T02:00:00Z",
+      "end": "2026-09-09T01:59:00Z"
+    }
+  },
+  "format_provenance": {
+    "source_url": "https://news.pokemon-home.com/en/page/776.html",
+    "source_title": "Regulation Set M-B (Updated on August 5)",
+    "verified_on": "2026-08-06"
   },
   "source_type": "turn_summary",
+  "structured_contract": {
+    "schema_version": "battle-state-v1",
+    "example": "data/fixtures/battle-state-v1.example.json",
+    "note": "Use the structured example when it is explicitly supplied as input; this request remains a supported prose turn summary."
+  },
   "player_side": "self",
   "review_goal": "identify key mistakes and stronger lines",
   "battle_log": [
@@ -13,4 +28,3 @@
     "Turn 2: I stayed in and lost Charizard to rain-boosted damage."
   ]
 }
-

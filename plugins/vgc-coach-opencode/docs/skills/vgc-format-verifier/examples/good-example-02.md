@@ -2,7 +2,7 @@
 
 Request:
 
-`I think Regulation M-A is still active this week. Verify that and tell me whether my legality assumptions are safe.`
+`I think Regulation M-B is still active this week. Verify that and tell me whether my legality assumptions are safe.`
 
 Why this is good:
 

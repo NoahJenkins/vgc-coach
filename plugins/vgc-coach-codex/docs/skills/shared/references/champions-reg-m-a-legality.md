@@ -1,11 +1,19 @@
-# Champions Reg M-A Legality
+---
+temporal_status: historical
+regulation_id: regulation-m-a
+active_window:
+  start: "2026-04-08T02:00:00Z"
+  end: "2026-06-17T01:59:00Z"
+---
 
-Use this note as a shared grounding reference before giving present-tense Champions coaching.
+# Historical Champions Reg M-A Legality
+
+This note is retained only for historical fixtures and regression analysis. Regulation M-A expired on June 17, 2026 at 01:59 UTC. Never use it as evidence for present-tense Champions coaching.
 
 ## Verified Format Window
 
-- active regulation: `Regulation M-A`
-- active window: `2026-04-08 02:00 UTC` through `2026-06-17 01:59 UTC`
+- historical regulation: `Regulation M-A`
+- historical window: `2026-04-08 02:00 UTC` through `2026-06-17 01:59 UTC`
 - battle mode: `Doubles`
 
 ## Verified Mechanics
@@ -13,20 +21,20 @@ Use this note as a shared grounding reference before giving present-tense Champi
 - active: `Mega Evolution`
 - not listed as active in the official regulation announcement: `Terastallization`
 
-If a response depends on a current mechanics claim, say that `Mega Evolution` is active and do not assume `Terastallization` is available unless a newer official source proves it.
+These mechanics facts apply only to the historical M-A window.
 
 ## Verified Example
 
-- `Mega Gengar` is listed in the official Regulation M-A allowed Mega Evolutions, so `Mega Gengar` is legal in current Reg M-A.
-- `Gengarite` is therefore required for that legal Mega route.
+- During the historical M-A window, `Mega Gengar` was listed in the official allowed Mega Evolutions.
+- `Gengarite` was required for that historical Mega route.
 
 ## Held Item Guidance
 
 - duplicate held items are not allowed
-- do not present an item as currently legal unless it is verified from current official Champions rules material
-- if exact current item legality is not verified in-repo for a requested item, say that item legality is unverified instead of guessing from older VGC formats
+- do not carry historical M-A item conclusions into another regulation
+- verify exact item legality from the official source for the regulation being discussed
 
 ## Source Basis
 
 - official regulation announcement: `https://news.pokemon-home.com/en/page/751.html`
-- official event rules surfaces also expose held item rules, but this repo should still treat unverified current item availability as unknown until confirmed from the official Champions rules material
+- this expired source is not a substitute for the current official regulation announcement

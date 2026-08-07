@@ -27,15 +27,29 @@ export type EvidenceStep = {
   detail: string;
 };
 
+export type CoachingExample = {
+  id: "team" | "lead" | "replay";
+  tabLabel: string;
+  displayName: string;
+  skill: string;
+  situation: string;
+  prompt: string;
+  output: readonly {
+    label: string;
+    detail: string;
+  }[];
+};
+
 const repoUrl = "https://github.com/NoahJenkins/vgc-coach";
 const blobUrl = `${repoUrl}/blob/main`;
 
 export const navLinks = [
   { label: "What It Does", href: "#what-it-does" },
   { label: "Coaching Tools", href: "#skills" },
+  { label: "Try It", href: "#examples" },
+  { label: "Trust", href: "#trust" },
   { label: "AI Tools", href: "#runtimes" },
   { label: "Getting Started", href: "#getting-started" },
-  { label: "How It Works", href: "#how-it-works" },
 ];
 
 export const quickFacts = [
@@ -110,6 +124,78 @@ export const coreSkills: Skill[] = [
   },
 ];
 
+export const coachingExamples: CoachingExample[] = [
+  {
+    id: "team",
+    tabLabel: "Build a team",
+    displayName: "Turn one idea into one coherent six",
+    skill: "vgc-team-builder",
+    situation: "You want to build around a favorite without losing sight of the field.",
+    prompt:
+      "Build me one practical current-format team around Mega Blastoise. Explain each slot, the default game plan, and the two matchups I should test first.",
+    output: [
+      {
+        label: "Format lock",
+        detail: "Verify the active regulation and Mega Blastoise legality before selecting partners.",
+      },
+      {
+        label: "Six-slot plan",
+        detail: "Present one finished draft with clear roles, speed assumptions, and a default mode.",
+      },
+      {
+        label: "Test queue",
+        detail: "Name the matchup pressures that could force the first revision.",
+      },
+    ],
+  },
+  {
+    id: "lead",
+    tabLabel: "Plan leads",
+    displayName: "Write the first turns before the set",
+    skill: "vgc-lead-planner",
+    situation: "Your six are set; you need branches you can recall under the round clock.",
+    prompt:
+      "Plan leads for this team into rain, hard Trick Room, and fast balance. Give me a default four, preserve targets, turn-one priorities, and the clue that makes me switch plans.",
+    output: [
+      {
+        label: "Default four",
+        detail: "Choose a lead pair and back two with an explicit matchup job for each slot.",
+      },
+      {
+        label: "Branch cue",
+        detail: "Tie each alternate line to something visible at team preview.",
+      },
+      {
+        label: "Turn one",
+        detail: "State the priority and the risk to avoid instead of scripting an imaginary game.",
+      },
+    ],
+  },
+  {
+    id: "replay",
+    tabLabel: "Review a replay",
+    displayName: "Find the decision that changed the game",
+    skill: "vgc-battle-review",
+    situation: "A close loss feels noisy; you want a useful practice adjustment, not hindsight.",
+    prompt:
+      "Review this battle log. Separate controllable decisions from variance, identify the earliest high-impact mistake, and give me one rule to practice in the next session.",
+    output: [
+      {
+        label: "Decision point",
+        detail: "Locate the earliest choice that materially narrowed the winning line.",
+      },
+      {
+        label: "Alternatives",
+        detail: "Compare realistic options using only information revealed at that turn.",
+      },
+      {
+        label: "Practice rule",
+        detail: "Convert the lesson into one repeatable cue for the next set.",
+      },
+    ],
+  },
+];
+
 export const supportSkills: Skill[] = [
   {
     name: "vgc-format-verifier",
@@ -127,7 +213,7 @@ export const supportSkills: Skill[] = [
     name: "vgc-calcs-assistant",
     displayName: "Calcs Assistant",
     summary:
-      "Damage, survival, speed, and benchmark checks. Damage and KO checks are exact. Speed comparisons are framed as benchmarks unless an exact source confirms them.",
+      "Damage, survival, speed, and benchmark checks. With complete inputs and the local browser helper available, damage, KO, and survival can be verified exactly. Speed remains assumption-framed unless a verified exact source confirms it.",
     emphasis: "Honest about what is exact and what is estimated.",
   },
   {

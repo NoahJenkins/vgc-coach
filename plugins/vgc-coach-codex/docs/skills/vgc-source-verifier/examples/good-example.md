@@ -2,7 +2,7 @@
 
 Request:
 
-`Check whether this draft claim is really supported: "Rain is the clear best team style in Regulation M-A because ChampionsMeta lists multiple winning Pelipper teams."`
+`Check whether this draft claim is really supported: "Rain is the clear best team style in Regulation M-B because ChampionsMeta lists multiple winning Pelipper teams."`
 
 Why this is good:
 

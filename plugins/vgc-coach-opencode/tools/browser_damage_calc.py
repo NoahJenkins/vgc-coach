@@ -2,7 +2,9 @@
 """Browser-assisted exact damage calc wrapper for vgc-coach.
 
 This module keeps the request/result contract backend-agnostic while using
-Pikalytics plus `agent-browser` as the first exact backend.
+Pikalytics plus `agent-browser` as the first exact backend. Browser subprocess
+execution is POSIX-only so process-group cleanup can fail closed without
+silently leaving descendants.
 """
 
 from __future__ import annotations
@@ -14,9 +16,12 @@ from dataclasses import dataclass, field as dc_field
 import json
 import os
 import re
+import selectors
 import shutil
+import signal
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from typing import Any, Callable
 from urllib.parse import parse_qs, quote, urlparse
@@ -29,6 +34,12 @@ DEFAULT_WEATHER = "None"
 SUPPORTED_EXACT_TYPES = {"damage", "ko", "survival"}
 STAT_ORDER = ("hp", "at", "df", "sa", "sd", "sp")
 IV_STAT_ORDER = ("hp", "atk", "def", "spa", "spd", "spe")
+AGENT_BROWSER_TIMEOUT_SECONDS = 30.0
+PROCESS_TERMINATE_GRACE_SECONDS = 1.0
+MAX_AGENT_BROWSER_STDOUT_BYTES = 1024 * 1024
+MAX_AGENT_BROWSER_STDERR_BYTES = 1024 * 1024
+MAX_AGENT_BROWSER_STDIN_BYTES = 64 * 1024
+MAX_EXTRACTED_TEXT_BYTES = 64 * 1024
 
 
 class BrowserCalcError(RuntimeError):
@@ -315,21 +326,178 @@ def run_from_payload(
     return result.to_dict()
 
 
+def _process_group_exists(process_group_id: int) -> bool:
+    try:
+        os.killpg(process_group_id, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # Treat an unverifiable group as present. Cleanup may continue, but it
+        # cannot report success unless the group later disappears.
+        return True
+    return True
+
+
+def _signal_process_group(process_group_id: int, sig: int) -> None:
+    try:
+        os.killpg(process_group_id, sig)
+    except ProcessLookupError:
+        return
+    except PermissionError as exc:
+        raise BrowserCalcError(
+            f"Cannot signal agent-browser process group {process_group_id}: {exc}"
+        ) from exc
+
+
+def _wait_for_process_group_exit(
+    process: subprocess.Popen[bytes],
+    process_group_id: int,
+    deadline: float,
+) -> bool:
+    while True:
+        process.poll()
+        if not _process_group_exists(process_group_id):
+            return True
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(0.01, remaining))
+
+
+def _terminate_bounded(
+    process: subprocess.Popen[bytes],
+    process_group_id: int,
+) -> None:
+    _signal_process_group(process_group_id, signal.SIGTERM)
+    if _wait_for_process_group_exit(
+        process,
+        process_group_id,
+        time.monotonic() + PROCESS_TERMINATE_GRACE_SECONDS,
+    ):
+        return
+
+    _signal_process_group(process_group_id, signal.SIGKILL)
+    if not _wait_for_process_group_exit(
+        process,
+        process_group_id,
+        time.monotonic() + PROCESS_TERMINATE_GRACE_SECONDS,
+    ):
+        raise BrowserCalcError(
+            f"agent-browser process group {process_group_id} survived bounded termination"
+        )
+
+
+def _close_process_pipes(process: subprocess.Popen[bytes]) -> None:
+    for stream in (process.stdin, process.stdout, process.stderr):
+        if stream is not None:
+            stream.close()
+
+
 def _run_agent_browser_command(args: list[str], *, stdin: str | None = None) -> str:
+    stdin_bytes = stdin.encode("utf-8") if stdin is not None else b""
+    if len(stdin_bytes) > MAX_AGENT_BROWSER_STDIN_BYTES:
+        raise BrowserCalcError(
+            f"agent-browser stdin exceeded the {MAX_AGENT_BROWSER_STDIN_BYTES}-byte safety limit"
+        )
+    if os.name != "posix":
+        raise BrowserCalcError(
+            "Bounded agent-browser process-group cleanup is supported only on POSIX platforms"
+        )
     if not shutil.which("agent-browser"):
         raise BrowserCalcError("agent-browser is not installed on this machine")
 
-    result = subprocess.run(
-        ["agent-browser", *args],
-        input=stdin,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        detail = result.stderr.strip() or result.stdout.strip() or "agent-browser command failed"
+    try:
+        process = subprocess.Popen(
+            ["agent-browser", *args],
+            stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=(os.name == "posix"),
+        )
+    except OSError as exc:
+        raise BrowserCalcError(f"Could not start agent-browser: {exc}") from exc
+    process_group_id = process.pid
+
+    stdout = bytearray()
+    stderr = bytearray()
+    streams = {
+        process.stdout: ("stdout", stdout, MAX_AGENT_BROWSER_STDOUT_BYTES),
+        process.stderr: ("stderr", stderr, MAX_AGENT_BROWSER_STDERR_BYTES),
+    }
+    selector = selectors.DefaultSelector()
+    deadline = time.monotonic() + AGENT_BROWSER_TIMEOUT_SECONDS
+    stdin_offset = 0
+
+    try:
+        for stream in streams:
+            if stream is not None:
+                selector.register(stream, selectors.EVENT_READ, streams[stream])
+        if process.stdin is not None:
+            os.set_blocking(process.stdin.fileno(), False)
+            selector.register(process.stdin, selectors.EVENT_WRITE, ("stdin", None, None))
+
+        while process.poll() is None or selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise BrowserCalcError(
+                    f"agent-browser command timed out after {AGENT_BROWSER_TIMEOUT_SECONDS:g} seconds"
+                )
+            if not selector.get_map():
+                time.sleep(min(0.01, remaining))
+                continue
+            events = selector.select(remaining)
+            if not events:
+                raise BrowserCalcError(
+                    f"agent-browser command timed out after {AGENT_BROWSER_TIMEOUT_SECONDS:g} seconds"
+                )
+            for key, _mask in events:
+                stream_name, buffer, limit = key.data
+                if stream_name == "stdin":
+                    try:
+                        written = os.write(
+                            key.fd,
+                            stdin_bytes[stdin_offset : stdin_offset + 65536],
+                        )
+                    except BlockingIOError:
+                        continue
+                    except BrokenPipeError as exc:
+                        selector.unregister(key.fileobj)
+                        key.fileobj.close()
+                        raise BrowserCalcError(
+                            "agent-browser closed stdin before accepting the command payload"
+                        ) from exc
+                    stdin_offset += written
+                    if stdin_offset == len(stdin_bytes):
+                        selector.unregister(key.fileobj)
+                        key.fileobj.close()
+                    continue
+                chunk = os.read(key.fd, min(65536, limit + 1 - len(buffer)))
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    key.fileobj.close()
+                    continue
+                buffer.extend(chunk)
+                if len(buffer) > limit:
+                    raise BrowserCalcError(
+                        f"agent-browser {stream_name} exceeded the {limit}-byte safety limit"
+                    )
+        returncode = process.returncode
+    except BrowserCalcError:
+        _terminate_bounded(process, process_group_id)
+        raise
+    except (BrokenPipeError, OSError) as exc:
+        _terminate_bounded(process, process_group_id)
+        raise BrowserCalcError(f"agent-browser subprocess I/O failed: {exc}") from exc
+    finally:
+        selector.close()
+        _close_process_pipes(process)
+
+    decoded_stdout = stdout.decode("utf-8", errors="replace").strip()
+    decoded_stderr = stderr.decode("utf-8", errors="replace").strip()
+    if returncode != 0:
+        detail = decoded_stderr or decoded_stdout or "agent-browser command failed"
         raise BrowserCalcError(detail)
-    return result.stdout.strip()
+    return decoded_stdout
 
 
 def _build_apply_script(request: CalcRequest) -> str:
@@ -434,6 +602,11 @@ def run_agent_browser_backend(request: CalcRequest) -> CalcResult:
         except BrowserCalcError:
             pass
 
+    if len(extracted.encode("utf-8")) > MAX_EXTRACTED_TEXT_BYTES:
+        raise BrowserCalcError(
+            f"Extracted calc text exceeded the {MAX_EXTRACTED_TEXT_BYTES}-byte safety limit"
+        )
+
     try:
         parsed = json.loads(extracted)
         if isinstance(parsed, str):
@@ -445,6 +618,12 @@ def run_agent_browser_backend(request: CalcRequest) -> CalcResult:
         raise BrowserCalcError(parsed["error"])
 
     summary = parsed.get("summary", "")
+    if not isinstance(summary, str):
+        raise BrowserCalcError("Extracted calc summary was not text")
+    if len(summary.encode("utf-8")) > MAX_EXTRACTED_TEXT_BYTES:
+        raise BrowserCalcError(
+            f"Extracted calc text exceeded the {MAX_EXTRACTED_TEXT_BYTES}-byte safety limit"
+        )
     match = re.search(r"Damage:\s*(.*?)\s*Chance to KO:\s*(.*)$", summary)
     if match:
         parsed["damage"] = match.group(1).strip()

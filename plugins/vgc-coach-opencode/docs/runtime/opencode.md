@@ -9,6 +9,8 @@ This plugin package is a generated, self-contained distribution of VGC Coach.
 - `skills/` contains the shared coaching skills
 - `docs/skills/` contains supporting references and examples
 - `data/fixtures/evals/` and `data/rubrics/` contain evaluation artifacts
+- `data/schemas/battle-state-v1.schema.json` defines structured battle evidence
+- `tools/ingest_battle_state.py` validates and normalizes battle-state JSON locally
 - `tools/browser_damage_calc.py` provides the optional exact damage helper
 
 ## Notes

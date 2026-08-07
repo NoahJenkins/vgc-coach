@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import importlib.metadata
 import importlib.util
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -16,6 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
 from autoresearch.config import choose_skill, get_skill_config  # noqa: E402
+import autoresearch.copilot_sdk as copilot_sdk_module  # noqa: E402
 from autoresearch.copilot_sdk import (  # noqa: E402
     AUTORESEARCH_INSTALL_COMMAND,
     CopilotRuntimeDiagnostics,
@@ -23,6 +26,7 @@ from autoresearch.copilot_sdk import (  # noqa: E402
     CopilotSessionRuntimeError,
     SessionRecorder,
     SessionProgressTracker,
+    _run_session_once,
     compute_hard_cap_timeout,
     run_session,
     validate_github_token_auth,
@@ -44,6 +48,7 @@ from autoresearch.evals import (  # noqa: E402
 from autoresearch.policy import (  # noqa: E402
     get_allowed_write_roots,
     is_path_allowed_for_write,
+    make_permission_handler,
 )
 from autoresearch.results import (  # noqa: E402
     CaseEvaluation,
@@ -143,18 +148,217 @@ def make_event(type_name: str, *, content: str | None = None, message: str | Non
 
 
 class FakeSession:
-    def __init__(self, messages: list[object] | None = None) -> None:
-        self.messages = messages or []
+    def __init__(self, events: list[object] | None = None) -> None:
+        self.events = events or []
         self.abort_called = False
 
     async def abort(self) -> None:
         self.abort_called = True
 
-    async def get_messages(self) -> list[object]:
-        return list(self.messages)
+    async def get_events(self) -> list[object]:
+        return list(self.events)
+
+
+def invoke_permission_handler(
+    request: SimpleNamespace,
+    *,
+    recorder: SessionRecorder | None = None,
+    attachments: tuple[str, ...] = (),
+    allow_writes: bool = False,
+    allow_live_research: bool = False,
+) -> tuple[object, SessionRecorder]:
+    recorder = recorder or SessionRecorder()
+    handler = make_permission_handler(
+        config=get_skill_config("vgc-team-builder"),
+        allow_writes=allow_writes,
+        allow_eval_tightening=False,
+        run_profile="manual",
+        allow_live_research=allow_live_research,
+        recorder=recorder,
+        attachment_paths=attachments,
+    )
+    result = handler(request, {})
+    return result, recorder
+
+
+def permission_request(kind: str, **fields: object) -> SimpleNamespace:
+    defaults: dict[str, object] = {
+        "kind": SimpleNamespace(value=kind),
+        "possible_paths": [],
+        "path": None,
+        "file_name": None,
+        "url": None,
+        "possible_urls": [],
+        "full_command_text": None,
+        "has_write_file_redirection": False,
+    }
+    defaults.update(fields)
+    return SimpleNamespace(**defaults)
+
+
+def run_sdk_session_with_assertion(
+    assertion,
+    *,
+    allow_live_research: bool,
+) -> CopilotRunResult:
+    class RuntimeSession:
+        def __init__(self, on_event) -> None:
+            self.on_event = on_event
+
+        async def send(self, prompt, *, attachments) -> None:
+            self.on_event(make_event("assistant.message", content="complete"))
+            self.on_event(make_event("session.idle"))
+
+        async def disconnect(self) -> None:
+            return None
+
+    class RuntimeClient:
+        async def start(self) -> None:
+            return None
+
+        async def create_session(self, **options):
+            assertion(options)
+            return RuntimeSession(options["on_event"])
+
+        async def stop(self) -> None:
+            return None
+
+    async def run() -> CopilotRunResult:
+        with mock.patch(
+            "autoresearch.copilot_sdk.create_copilot_client",
+            return_value=RuntimeClient(),
+        ), mock.patch.dict(
+            "os.environ",
+            {"OPENAI_API_KEY": "test-key", "OPENAI_MODEL": "test-model"},
+            clear=False,
+        ):
+            return await _run_session_once(
+                prompt="research safely",
+                attachments=[],
+                provider_name="byok-openai",
+                model="test-model",
+                allow_writes=False,
+                allow_eval_tightening=False,
+                run_profile="manual",
+                allow_live_research=allow_live_research,
+                config=get_skill_config("vgc-team-builder"),
+                system_message="system",
+                timeout=1.0,
+            )
+
+    return asyncio.run(run())
 
 
 class AutoresearchTests(unittest.TestCase):
+    def test_sdk_1_0_9_import_and_session_construction_needs_no_credentials_or_download(self):
+        from copilot import CopilotClient, CopilotSession, RuntimeConnection
+
+        class ControlledJsonRpcClient:
+            def __init__(self):
+                self.requests = []
+
+            async def request(self, method, params, *, on_response_inline=None):
+                if method != "session.create":
+                    raise AssertionError(f"Unexpected SDK RPC request: {method}")
+                self.requests.append((method, params))
+                response = {
+                    "sessionId": params["sessionId"],
+                    "workspacePath": None,
+                    "capabilities": {},
+                }
+                if on_response_inline is not None:
+                    on_response_inline(response)
+                return response
+
+        self.assertEqual(importlib.metadata.version("github-copilot-sdk"), "1.0.9")
+        def permission_handler(request, invocation):
+            return None
+
+        def pre_tool_hook(input_data, invocation):
+            return None
+
+        def event_handler(event):
+            return None
+
+        rpc_client = ControlledJsonRpcClient()
+
+        with mock.patch(
+            "copilot.client._get_or_download_cli",
+            side_effect=AssertionError("SDK downloader must not run during the smoke test"),
+        ) as download_runtime, mock.patch(
+            "copilot.client.subprocess.Popen",
+            side_effect=AssertionError("SDK subprocess spawning must not run during the smoke test"),
+        ) as spawn_runtime:
+            connection = RuntimeConnection.for_stdio(path="/controlled/no-io/copilot-runtime")
+            client = copilot_sdk_module.create_copilot_client(
+                env={"PATH": os.environ.get("PATH", "")},
+                github_token=None,
+                use_logged_in_user=False,
+                connection=connection,
+            )
+            client._client = rpc_client
+
+            async def create_session():
+                return await client.create_session(
+                    on_permission_request=permission_handler,
+                    model="controlled-model",
+                    provider=None,
+                    working_directory=str(REPO_ROOT),
+                    system_message={"mode": "append", "content": "controlled system message"},
+                    hooks={"on_pre_tool_use": pre_tool_hook},
+                    on_event=event_handler,
+                    excluded_tools=["web_fetch"],
+                    streaming=True,
+                )
+
+            session = asyncio.run(create_session())
+            download_runtime.assert_not_called()
+            spawn_runtime.assert_not_called()
+
+        self.assertIsInstance(client, CopilotClient)
+        self.assertIsInstance(session, CopilotSession)
+        self.assertIs(session._permission_handler, permission_handler)
+        self.assertIs(session._hooks["on_pre_tool_use"], pre_tool_hook)
+        self.assertIn(event_handler, session._event_handlers)
+        self.assertEqual(len(rpc_client.requests), 1)
+        method, payload = rpc_client.requests[0]
+        self.assertEqual(method, "session.create")
+        self.assertEqual(payload["excludedTools"], ["web_fetch"])
+        self.assertEqual(payload["toolFilterPrecedence"], "excluded")
+        self.assertIs(payload["requestPermission"], True)
+        self.assertIs(payload["hooks"], True)
+
+    def test_permission_handler_returns_sdk_1_0_9_decisions_and_rejects_web(self):
+        from copilot.generated.rpc import PermissionDecisionApproveOnce, PermissionDecisionReject
+        from copilot.generated.session_events import PermissionRequestRead, PermissionRequestUrl
+
+        handler = make_permission_handler(
+            config=get_skill_config("vgc-team-builder"),
+            allow_writes=False,
+            allow_eval_tightening=False,
+            run_profile="manual",
+            allow_live_research=True,
+            recorder=SessionRecorder(),
+        )
+        read_decision = handler(
+            PermissionRequestRead(
+                intention="inspect canonical skill",
+                path=str(REPO_ROOT / "skills" / "vgc-team-builder" / "SKILL.md"),
+            ),
+            {},
+        )
+        web_decision = handler(
+            PermissionRequestUrl(
+                intention="fetch current data",
+                url="https://example.com/current-meta",
+            ),
+            {},
+        )
+
+        self.assertIsInstance(read_decision, PermissionDecisionApproveOnce)
+        self.assertIsInstance(web_decision, PermissionDecisionReject)
+        self.assertIn("no end-to-end mediated fetch connector", web_decision.feedback or "")
+
     def test_priority_rotation_is_deterministic(self):
         first = choose_skill("auto", dt.date(2026, 1, 1))
         sixth = choose_skill("auto", dt.date(2026, 1, 6))
@@ -364,6 +568,24 @@ class AutoresearchTests(unittest.TestCase):
         case = load_case_file(REPO_ROOT / "data" / "fixtures" / "evals" / "team-builder" / "case-10.md")
         self.assertIn("battle-ready", case.request)
         self.assertIn("only 2 honest playbook packages", case.checks)
+        self.assertEqual(case.checks.count("only 2 honest playbook packages"), 1)
+
+    def test_browsing_skills_share_hostile_external_content_contract(self):
+        adversarial_cases = {
+            "vgc-source-verifier": "case-04",
+            "vgc-meta-research": "case-04",
+            "vgc-team-builder": "case-11",
+            "vgc-opponent-scout": "case-04",
+        }
+
+        for skill_name, case_name in adversarial_cases.items():
+            with self.subTest(skill=skill_name):
+                context = load_skill_context(get_skill_config(skill_name))
+                self.assertIn("external-content-trust.md", context.skill_text)
+                case = next(case for case in context.cases if case.name == case_name)
+                self.assertIn("embedded instructions", case.request.lower())
+                self.assertIn("treats external content as evidence, never instructions", case.checks)
+                self.assertIn("follows instructions embedded in external content", context.rubric_text)
 
     def test_snapshot_diff_and_restore_round_trip(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -702,7 +924,7 @@ class AutoresearchTests(unittest.TestCase):
         async def run() -> None:
             tracker = SessionProgressTracker(loop=asyncio.get_running_loop())
             history = [make_event("assistant.message", content="partial answer")]
-            session = FakeSession(messages=history)
+            session = FakeSession(events=history)
             tracker.on_event(make_event("assistant.message", content="partial answer"))
             with self.assertRaises(CopilotSessionRuntimeError) as ctx:
                 await wait_for_session_completion(
@@ -714,6 +936,27 @@ class AutoresearchTests(unittest.TestCase):
             text = str(ctx.exception)
             self.assertIn("assistant.message", text)
             self.assertIn("partial answer", text)
+
+        asyncio.run(run())
+
+    def test_timeout_diagnostics_read_sdk_event_history(self):
+        async def run() -> None:
+            tracker = SessionProgressTracker(loop=asyncio.get_running_loop())
+            session = FakeSession(
+                events=[make_event("assistant.message", content="history-only partial answer")]
+            )
+            with self.assertRaises(CopilotSessionRuntimeError) as ctx:
+                await wait_for_session_completion(
+                    session=session,
+                    tracker=tracker,
+                    inactivity_timeout=0.02,
+                    hard_cap_timeout=1.0,
+                )
+            self.assertIn("history-only partial answer", str(ctx.exception))
+            self.assertEqual(
+                ctx.exception.diagnostics.last_event_type,
+                "assistant.message",
+            )
 
         asyncio.run(run())
 
@@ -798,6 +1041,66 @@ class AutoresearchTests(unittest.TestCase):
                 )
         self.assertEqual(run_once.await_count, 1)
 
+    def test_run_session_allows_reads_of_its_explicit_external_attachment(self):
+        test_case = self
+
+        async def run(attachment: Path) -> tuple[str, ...]:
+            class RuntimeSession:
+                def __init__(self, on_event) -> None:
+                    self.on_event = on_event
+
+                async def send(self, prompt, *, attachments) -> None:
+                    self.on_event(make_event("assistant.message", content="complete"))
+                    self.on_event(make_event("session.idle"))
+
+                async def disconnect(self) -> None:
+                    return None
+
+            class RuntimeClient:
+                async def start(self) -> None:
+                    return None
+
+                async def create_session(self, **options):
+                    decision = options["on_permission_request"](
+                        permission_request("read", path=str(attachment)),
+                        {},
+                    )
+                    test_case.assertEqual(decision.kind, "approve-once")
+                    return RuntimeSession(options["on_event"])
+
+                async def stop(self) -> None:
+                    return None
+
+            with mock.patch(
+                "autoresearch.copilot_sdk.create_copilot_client",
+                return_value=RuntimeClient(),
+            ), mock.patch.dict(
+                "os.environ",
+                {"OPENAI_API_KEY": "test-key", "OPENAI_MODEL": "test-model"},
+                clear=False,
+            ):
+                result = await _run_session_once(
+                    prompt="inspect attachment",
+                    attachments=[{"type": "file", "path": str(attachment)}],
+                    provider_name="byok-openai",
+                    model="test-model",
+                    allow_writes=False,
+                    allow_eval_tightening=False,
+                    run_profile="manual",
+                    allow_live_research=False,
+                    config=get_skill_config("vgc-team-builder"),
+                    system_message="system",
+                    timeout=1.0,
+                )
+            return result.read_paths
+
+        with tempfile.TemporaryDirectory() as outside_dir:
+            attachment = Path(outside_dir) / "attached.md"
+            attachment.write_text("explicit attachment")
+            read_paths = asyncio.run(run(attachment))
+
+        self.assertEqual(read_paths, (str(attachment),))
+
     def test_write_policy_stays_inside_skill_scope(self):
         config = get_skill_config("vgc-team-builder")
         allowed = config.docs_dir / "examples" / "good-example.md"
@@ -831,16 +1134,352 @@ class AutoresearchTests(unittest.TestCase):
         )
         self.assertEqual(roots, (config.skill_file, config.docs_dir))
 
+    def test_permission_handler_approves_only_existing_repo_and_attachment_reads(self):
+        repo_file = REPO_ROOT / "skills" / "vgc-team-builder" / "SKILL.md"
+        with tempfile.TemporaryDirectory() as outside_dir:
+            attachment = Path(outside_dir) / "attached.md"
+            attachment.write_text("explicit attachment")
+
+            for path in (repo_file, attachment):
+                with self.subTest(path=path):
+                    result, recorder = invoke_permission_handler(
+                        permission_request("read", path=str(path)),
+                        attachments=(str(attachment),),
+                    )
+                    self.assertEqual(result.kind, "approve-once")
+                    self.assertEqual(recorder.read_paths, [str(path)])
+
+    def test_permission_handler_rejects_invalid_or_out_of_scope_reads(self):
+        with tempfile.TemporaryDirectory() as outside_dir:
+            outside_file = Path(outside_dir) / "secret.txt"
+            outside_file.write_text("secret")
+            invalid_paths = (
+                None,
+                "",
+                "\0unparseable",
+                str(REPO_ROOT / "missing-autoresearch-file.txt"),
+                str(outside_file),
+                "../outside-repository.txt",
+            )
+            for path in invalid_paths:
+                with self.subTest(path=path):
+                    result, recorder = invoke_permission_handler(
+                        permission_request("read", path=path)
+                    )
+                    self.assertEqual(result.kind, "reject")
+                    self.assertEqual(recorder.read_paths, [])
+
+    def test_permission_handler_rejects_repo_symlink_that_escapes_read_scope(self):
+        with (
+            tempfile.TemporaryDirectory(dir=REPO_ROOT) as repo_dir,
+            tempfile.TemporaryDirectory() as outside_dir,
+        ):
+            outside_file = Path(outside_dir) / "secret.txt"
+            outside_file.write_text("secret")
+            escaping_link = Path(repo_dir) / "escape.txt"
+            escaping_link.symlink_to(outside_file)
+
+            result, recorder = invoke_permission_handler(
+                permission_request("read", path=str(escaping_link))
+            )
+
+        self.assertEqual(result.kind, "reject")
+        self.assertEqual(recorder.read_paths, [])
+
+    def test_permission_handler_preserves_approved_canonical_writes(self):
+        allowed = REPO_ROOT / "skills" / "vgc-team-builder" / "SKILL.md"
+        result, recorder = invoke_permission_handler(
+            permission_request("write", path=str(allowed)),
+            allow_writes=True,
+        )
+        self.assertEqual(result.kind, "approve-once")
+        self.assertEqual(recorder.write_paths, [str(allowed)])
+
+    def test_permission_handler_allows_only_structured_read_only_git_commands(self):
+        allowed_commands = (
+            "git status --short --branch",
+            "git diff --stat -- skills/vgc-team-builder/SKILL.md",
+            "git show --stat HEAD",
+            "git log --oneline -5",
+            "git rev-parse --show-toplevel",
+            "git branch --show-current",
+            "git ls-files --cached -- skills",
+        )
+        for command in allowed_commands:
+            with self.subTest(command=command):
+                result, recorder = invoke_permission_handler(
+                    permission_request("shell", full_command_text=command)
+                )
+                self.assertEqual(result.kind, "approve-once")
+                self.assertEqual(recorder.shell_commands, [command])
+
+    def test_permission_handler_rejects_shell_syntax_aliases_and_unsupported_options(self):
+        denied_commands = (
+            "git status; id",
+            "git status\nid",
+            "git status | id",
+            "git status && id",
+            "git status $(id)",
+            "git status `id`",
+            "git status > /tmp/status",
+            "git show $HOME",
+            "git status ${HOME}",
+            "g status",
+            "git st",
+            "env git status",
+            "git -c alias.status=!id status",
+            "git status --exec=id",
+            "git diff --output=/tmp/diff",
+            "git branch --show-current extra-command",
+            "git status; git log",
+            "git status 'unterminated",
+        )
+        for command in denied_commands:
+            with self.subTest(command=command):
+                result, recorder = invoke_permission_handler(
+                    permission_request("shell", full_command_text=command)
+                )
+                self.assertEqual(result.kind, "reject")
+                self.assertEqual(recorder.shell_commands, [])
+
+        redirected, _ = invoke_permission_handler(
+            permission_request(
+                "shell",
+                full_command_text="git status",
+                has_write_file_redirection=True,
+            )
+        )
+        self.assertEqual(redirected.kind, "reject")
+
+    def test_permission_handler_rejects_absolute_relative_and_mixed_outside_git_paths(self):
+        with tempfile.TemporaryDirectory() as outside_dir:
+            first = Path(outside_dir) / "first.txt"
+            second = Path(outside_dir) / "second.txt"
+            first.write_text("first secret")
+            second.write_text("second secret")
+            first_relative = os.path.relpath(first, REPO_ROOT)
+            second_relative = os.path.relpath(second, REPO_ROOT)
+            commands = (
+                f"git diff {first} {second}",
+                f"git diff {first_relative} {second_relative}",
+                f"git diff -- README.md {first}",
+                f"git diff {REPO_ROOT / 'README.md'} {first}",
+            )
+
+            for command in commands:
+                with self.subTest(command=command):
+                    result, recorder = invoke_permission_handler(
+                        permission_request("shell", full_command_text=command)
+                    )
+                    self.assertEqual(result.kind, "reject")
+                    self.assertEqual(recorder.shell_commands, [])
+
+    def test_permission_handler_rejects_outside_paths_for_every_positional_git_family(self):
+        with tempfile.TemporaryDirectory() as outside_dir:
+            outside_file = Path(outside_dir) / "secret.txt"
+            outside_file.write_text("secret")
+            commands = (
+                f"git status -- {outside_file}",
+                f"git diff -- {outside_file}",
+                f"git show HEAD -- {outside_file}",
+                f"git log -- {outside_file}",
+                f"git rev-parse -- {outside_file}",
+                f"git ls-files -- {outside_file}",
+            )
+
+            for command in commands:
+                with self.subTest(command=command):
+                    result, _ = invoke_permission_handler(
+                        permission_request("shell", full_command_text=command)
+                    )
+                    self.assertEqual(result.kind, "reject")
+
+    def test_permission_handler_rejects_outside_shell_possible_paths(self):
+        with tempfile.TemporaryDirectory() as outside_dir:
+            outside_file = Path(outside_dir) / "secret.txt"
+            outside_file.write_text("secret")
+            outside_relative = os.path.relpath(outside_file, REPO_ROOT)
+
+            for possible_path in (str(outside_file), outside_relative):
+                with self.subTest(possible_path=possible_path):
+                    result, recorder = invoke_permission_handler(
+                        permission_request(
+                            "shell",
+                            full_command_text="git diff HEAD",
+                            possible_paths=[possible_path],
+                        )
+                    )
+                    self.assertEqual(result.kind, "reject")
+                    self.assertEqual(recorder.shell_commands, [])
+
+    def test_permission_handler_preserves_repo_and_attachment_git_path_inspection(self):
+        repo_file = REPO_ROOT / "README.md"
+        with tempfile.TemporaryDirectory() as outside_dir:
+            attachment = Path(outside_dir) / "attached.md"
+            attachment.write_text("attachment")
+            allowed_requests = (
+                permission_request(
+                    "shell",
+                    full_command_text="git diff -- README.md",
+                    possible_paths=[str(repo_file)],
+                ),
+                permission_request(
+                    "shell",
+                    full_command_text=f"git diff -- {attachment}",
+                    possible_paths=[str(attachment)],
+                ),
+                permission_request(
+                    "shell",
+                    full_command_text=f"git show HEAD -- README.md {attachment}",
+                    possible_paths=[str(repo_file), str(attachment)],
+                ),
+            )
+
+            for request in allowed_requests:
+                with self.subTest(command=request.full_command_text):
+                    result, recorder = invoke_permission_handler(
+                        request,
+                        attachments=(str(attachment),),
+                    )
+                    self.assertEqual(result.kind, "approve-once")
+                    self.assertEqual(recorder.shell_commands, [request.full_command_text])
+
+    def test_permission_handler_denies_public_https_without_a_mediated_connector(self):
+        public_url = "https://research.example/meta"
+        public_dns = [(2, 1, 6, "", ("93.184.216.34", 443))]
+        with mock.patch("socket.getaddrinfo", return_value=public_dns) as resolver:
+            result, recorder = invoke_permission_handler(
+                permission_request("url", url=public_url),
+                allow_live_research=True,
+            )
+        self.assertEqual(result.kind, "reject")
+        self.assertEqual(recorder.requested_urls, [public_url])
+        self.assertEqual(recorder.approved_urls, [])
+        self.assertEqual(recorder.attempted_urls, [])
+        self.assertEqual(recorder.source_urls, [])
+        resolver.assert_not_called()
+
+    def test_sdk_connector_blocks_public_to_private_and_non_https_redirects(self):
+        redirect_targets = (
+            "https://127.0.0.1/admin",
+            "http://example.com/plaintext",
+        )
+
+        for redirect_target in redirect_targets:
+            connector_attempts: list[str] = []
+
+            def assert_boundary(options) -> None:
+                self.assertIn("web_fetch", options.get("excluded_tools", ()))
+                with mock.patch(
+                    "socket.getaddrinfo",
+                    return_value=[(2, 1, 6, "", ("93.184.216.34", 443))],
+                ):
+                    decision = options["on_permission_request"](
+                        permission_request("url", url="https://public.example/start"),
+                        {},
+                    )
+                if decision.kind == "approve-once":
+                    connector_attempts.append(redirect_target)
+                self.assertEqual(decision.kind, "reject")
+
+            with self.subTest(redirect_target=redirect_target):
+                result = run_sdk_session_with_assertion(
+                    assert_boundary,
+                    allow_live_research=True,
+                )
+                self.assertEqual(connector_attempts, [])
+                self.assertEqual(result.source_urls, ())
+
+    def test_sdk_connector_blocks_dns_rebinding_before_connection_resolution(self):
+        connection_resolutions: list[str] = []
+
+        def assert_boundary(options) -> None:
+            self.assertIn("web_fetch", options.get("excluded_tools", ()))
+            with mock.patch(
+                "socket.getaddrinfo",
+                side_effect=[
+                    [(2, 1, 6, "", ("93.184.216.34", 443))],
+                    [(2, 1, 6, "", ("127.0.0.1", 443))],
+                ],
+            ) as resolver:
+                decision = options["on_permission_request"](
+                    permission_request("url", url="https://rebind.example/data"),
+                    {},
+                )
+                if decision.kind == "approve-once":
+                    connection_resolutions.extend(
+                        entry[4][0]
+                        for entry in resolver("rebind.example", 443, type=1)
+                    )
+            self.assertEqual(decision.kind, "reject")
+
+        result = run_sdk_session_with_assertion(
+            assert_boundary,
+            allow_live_research=True,
+        )
+        self.assertEqual(connection_resolutions, [])
+        self.assertEqual(result.source_urls, ())
+
+    def test_permission_handler_rejects_unsafe_web_destinations(self):
+        public_dns = [(2, 1, 6, "", ("93.184.216.34", 443))]
+        private_dns = [(2, 1, 6, "", ("10.0.0.8", 443))]
+        mixed_dns = [
+            (2, 1, 6, "", ("93.184.216.34", 443)),
+            (2, 1, 6, "", ("127.0.0.1", 443)),
+        ]
+        denied_cases = (
+            (None, public_dns),
+            ("http://example.com/meta", public_dns),
+            ("https://user:password@example.com/meta", public_dns),
+            ("https://example.com:8443/meta", public_dns),
+            ("https://localhost/meta", private_dns),
+            ("https://service.localhost/meta", private_dns),
+            ("https://127.0.0.1/meta", public_dns),
+            ("https://169.254.169.254/latest/meta-data", public_dns),
+            ("https://10.0.0.8/meta", public_dns),
+            ("https://224.0.0.1/meta", public_dns),
+            ("https://240.0.0.1/meta", public_dns),
+            ("https://0.0.0.0/meta", public_dns),
+            ("https://metadata.google.internal/meta", public_dns),
+            ("https://private.example/meta", private_dns),
+            ("https://mixed.example/meta", mixed_dns),
+        )
+        for url, dns_result in denied_cases:
+            with self.subTest(url=url), mock.patch(
+                "socket.getaddrinfo", return_value=dns_result
+            ):
+                result, recorder = invoke_permission_handler(
+                    permission_request("url", url=url),
+                    allow_live_research=True,
+                )
+                self.assertEqual(result.kind, "reject")
+                self.assertEqual(recorder.approved_urls, [])
+
+    def test_permission_handler_fails_closed_when_dns_resolution_is_unavailable(self):
+        url = "https://unresolved.example/meta"
+        with mock.patch(
+            "socket.getaddrinfo",
+            side_effect=OSError("resolver unavailable"),
+        ):
+            result, recorder = invoke_permission_handler(
+                permission_request("url", url=url),
+                allow_live_research=True,
+            )
+        self.assertEqual(result.kind, "reject")
+        self.assertEqual(recorder.requested_urls, [url])
+        self.assertEqual(recorder.approved_urls, [])
+
     def test_session_recorder_keeps_web_tool_args_out_of_successful_evidence(self):
         async def run() -> None:
             recorder = SessionRecorder()
-            await recorder.on_pre_tool_use(
+            decision = await recorder.on_pre_tool_use(
                 {
                     "toolName": "web_fetch",
                     "toolArgs": {"url": "https://example.com/meta"},
                 },
                 {},
             )
+            self.assertIsNone(decision)
             self.assertEqual(tuple(sorted(set(recorder.tool_arg_urls))), ("https://example.com/meta",))
             self.assertEqual(tuple(sorted(set(recorder.attempted_urls))), ("https://example.com/meta",))
             self.assertEqual(tuple(recorder.source_urls), ())

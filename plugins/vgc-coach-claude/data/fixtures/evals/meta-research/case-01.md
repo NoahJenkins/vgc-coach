@@ -1,12 +1,12 @@
 # Case 01
 
-Request: summarize the current Champions Reg M-A meta and identify two anti-meta openings.
+Request: summarize the current Champions Regulation M-B meta and identify two anti-meta openings.
 
 Checks:
 
-- uses current format assumptions
+- identifies Regulation M-B and its June 17 through September 9, 2026 UTC window
 - names real current threats
-- does not mention Tera as active in Reg M-A
+- does not mention Tera as active in Regulation M-B
 - explains the strategic shape of the field, not just usage names
 - gives two anti-meta openings that are concrete and meta-tied
 - distinguishes sourced facts from interpretation where needed

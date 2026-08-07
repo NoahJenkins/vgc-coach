@@ -10,7 +10,7 @@ Read and follow these shared repo files directly:
 - `skills/vgc-practice-journal/SKILL.md`
 - `docs/skills/vgc-practice-journal/references/journaling-checklist.md`
 - `docs/skills/vgc-practice-journal/references/output-rubric.md`
-- `docs/skills/shared/references/champions-reg-m-a-legality.md`
+- `docs/skills/shared/references/champions-reg-m-b-legality.md`
 
 When the shared contract says to use another repo skill, load the matching `opencode-vgc-*` wrapper instead of a shared `vgc-*` skill name.
 

@@ -24,6 +24,22 @@ Prefer small, reviewable changes such as:
 
 For larger direction changes, open an issue or discussion first so the repo contract stays coherent.
 
+## Local Development Setup
+
+Use an isolated virtual environment and the repository-owned pinned requirements:
+
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -r tools/requirements-autoresearch.txt
+```
+
+Install the site dependencies when working on the production site:
+
+```sh
+pnpm --dir site install --frozen-lockfile
+```
+
 ## Repo Rules That Matter
 
 - Keep `skills/` as the only canonical editable source for shared coaching logic.
@@ -36,15 +52,24 @@ For larger direction changes, open an issue or discussion first so the repo cont
 
 ## Validation Expectations
 
+Run the complete repository validation entrypoint before opening a pull request:
+
+```sh
+python3 tools/validate.py
+```
+
+The default scope runs every Python test, checks the rendered source registry, checks generated plugin drift, and builds the production site. For focused CI-equivalent runs, use `python3 tools/validate.py --scope core` or `python3 tools/validate.py --scope site`.
+
 If your change affects skill behavior, validate it against the relevant fixed eval cases and rubric:
 
 - fixtures: `data/fixtures/evals/`
 - rubrics: `data/rubrics/`
-- install local eval dependency first: `python3 -m pip install -r tools/requirements-autoresearch.txt`
 - standalone eval runner: `python3 tools/eval_skill.py --skill <skill-name> --provider github-token --model gpt-5.4-mini --profile manual`
 - bounded smoke test: `python3 tools/eval_skill.py --skill <skill-name> --provider github-token --model gpt-5.4-mini --profile manual --case-limit 1 --session-timeout 180`
 - local full-suite runner: `python3 tools/full_eval.py --provider github-token --model gpt-5.4-mini --profile manual`
-- nightly/autoresearch harness: `python3 tools/autoresearch.py --mode review --skill <skill-name> --provider github-token --model gpt-5.4-mini --profile manual`
+- local autoresearch harness: `python3 tools/autoresearch.py --mode review --skill <skill-name> --provider github-token --model gpt-5.4-mini --profile manual`
+
+The GitHub autoresearch workflow's scheduled trigger is disabled. Manual dispatch is guarded to protected `main`; do not rely on unattended nightly execution.
 
 Both local runners write `run-status.json`, `result.json`, and `summary.md` into their target artifact directories under `.artifacts/autoresearch/`. The full-suite aggregate report lives under `.artifacts/autoresearch/<date>/full-eval/`.
 For local eval commands, `--session-timeout` is an inactivity timeout. Active tool or assistant progress can continue past that window until the runtime hard cap is reached.
@@ -58,8 +83,7 @@ If your change affects runtime support, also verify the matching discovery layer
 If your change affects packaged installs or runtime metadata, also refresh and verify the generated plugin outputs:
 
 - `python3 tools/build_plugins.py build`
-- `python3 tools/build_plugins.py check`
-- `python3 -m unittest tests.test_autoresearch tests.test_build_plugins tests.test_browser_damage_calc`
+- `python3 tools/validate.py --scope core`
 
 If your change touches exact-browser calc behavior, preserve the current limitation honestly: v1 exact support is only for damage, KO, and survival. Speed guidance is still assumption-framed unless a verified exact backend is added.
 

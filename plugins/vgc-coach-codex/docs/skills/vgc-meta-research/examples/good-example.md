@@ -2,13 +2,13 @@
 
 Request:
 
-`What is the current Pokemon Champions Reg M-A meta and what are two anti-meta openings?`
+`What is the current Pokemon Champions Regulation M-B meta and what are two anti-meta openings?`
 
 Good output shape:
 
 ## Format Check
 
-Confirms that Regulation M-A is active on April 18, 2026, and that Mega Evolution is active while Terastallization is not listed as active in the official regulation announcement.
+Confirms that Regulation M-B runs from June 17, 2026 at 02:00 UTC through September 9, 2026 at 01:59 UTC, and that Mega Evolution is active. It does not assume Terastallization is active.
 
 ## Meta Snapshot
 

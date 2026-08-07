@@ -177,7 +177,7 @@ Support skills reinforce that core layer:
 
 - `vgc-format-verifier`: verify legality, regulation, and current-format truth before coaching
 - `vgc-source-verifier`: audit whether a meta, matchup, or rules claim is actually sourced cleanly
-- `vgc-calcs-assistant`: damage, survival, speed, and benchmark framing; exact damage/KO/survival calculations are supported today; speed comparisons are stated as assumptions unless verified manually; also supports narrow team-builder benchmark handoffs
+- `vgc-calcs-assistant`: damage, survival, speed, and benchmark framing; exact damage/KO/survival calculations are available when complete inputs and the local browser helper are available; speed comparisons are stated as assumptions unless independently verified; also supports narrow team-builder benchmark handoffs
 - `vgc-opponent-scout`: turn public info into likely shells, techs, and prep notes
 - `vgc-practice-journal`: compress testing notes into next-session changes and follow-up questions
 
@@ -199,19 +199,20 @@ The repo already includes:
 - Scoring rubrics under `data/rubrics/`
 - Meta snapshot history under `data/snapshots/`
 - Helper tools under `tools/`
+- One repository validation entrypoint at `python3 tools/validate.py`
 - Local eval and autoresearch tooling under `tools/eval_skill.py` and `tools/autoresearch.py`
-- Eval artifacts include research-trace metadata and explicit verification state so nightly runs can be judged for signal, not just score
+- Eval artifacts include research-trace metadata and explicit verification state so manual and future automated runs can be judged for signal, not just score
 - Exact damage/KO/survival calc support for `vgc-calcs-assistant` via `python3 tools/browser_damage_calc.py`
+- A versioned, runtime-neutral `battle-state-v1` JSON contract and bounded local normalizer at `python3 tools/ingest_battle_state.py`
 - Opt-in `battle-ready` team building that can use live common cores, recent top teams, and calc-backed benchmark notes
 
 ## Planned Work
 
 These are still in progress, not yet available:
 
-- A more complete autoresearch workflow beyond the current local/nightly harness
+- A more complete autoresearch workflow beyond the current local harness and disabled scheduled workflow
 - Broader eval coverage beyond the current fixed-case autoresearch loop
-- Replay ingestion utilities
-- Battle-state data schema
+- Adapters for explicitly supported replay exports beyond the repository-defined JSON contract
 - Broader exact calc support beyond damage, KO, and survival
 
 ## Principles

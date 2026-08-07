@@ -25,7 +25,7 @@ from autoresearch.standalone import run_standalone_eval
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Nightly autoresearch harness for vgc-coach skills.")
+    parser = argparse.ArgumentParser(description="Local autoresearch harness for vgc-coach skills.")
     parser.add_argument("--skill", default="auto", help="Skill name or auto")
     parser.add_argument("--date", default=None, help="Run date override in YYYY-MM-DD format")
     parser.add_argument("--mode", choices=("review", "improve"), required=True)
@@ -350,7 +350,7 @@ async def _run_improvement(
         allow_live_research=ctx.config.live_research_policy != "off",
         config=ctx.config,
         system_message=(
-            "You are the vgc-coach nightly autoresearch worker. Make small, evidence-backed edits only."
+            "You are the vgc-coach guarded autoresearch worker. Make small, evidence-backed edits only."
         ),
         timeout=session_timeout,
     )

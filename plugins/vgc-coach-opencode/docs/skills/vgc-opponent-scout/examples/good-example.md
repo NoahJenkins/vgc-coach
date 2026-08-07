@@ -2,7 +2,7 @@
 
 Request:
 
-`Scout this player from their last two public Regulation M-A team lists and tell me what prep risks matter most for my balance team.`
+`Scout this player from their last two public Regulation M-B team lists and tell me what prep risks matter most for my balance team.`
 
 Why this is good:
 

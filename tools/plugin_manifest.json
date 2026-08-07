@@ -44,7 +44,8 @@
       "name": "vgc-battle-review",
       "codex_metadata": "skills/vgc-battle-review/agents/openai.yaml",
       "docs": [
-        "docs/skills/vgc-battle-review"
+        "docs/skills/vgc-battle-review",
+        "docs/skills/shared"
       ]
     },
     {
@@ -91,14 +92,17 @@
   "shared_copy": {
     "files": [
       "LICENSE",
-      "SECURITY.md"
+      "SECURITY.md",
+      "data/fixtures/battle-state-v1.example.json"
     ],
     "directories": [
       "data/fixtures/evals",
-      "data/rubrics"
+      "data/rubrics",
+      "data/schemas"
     ],
     "tools": [
-      "tools/browser_damage_calc.py"
+      "tools/browser_damage_calc.py",
+      "tools/ingest_battle_state.py"
     ]
   },
   "plugins": [
@@ -163,11 +167,14 @@
     }
   ],
   "release_notes": {
-    "date": "2026-06-02",
+    "date": "2026-08-07",
     "summary": [
-      "Generated Codex, Claude Code, and OpenCode plugin packages from the canonical shared skills tree.",
-      "Published local marketplace metadata for Codex and Claude Code, plus git-install metadata for OpenCode.",
-      "Kept `skills/` and `docs/skills/` as the only editable source of truth for shared coaching behavior."
+      "Updated current-format coaching to Regulation M-B with dated official-source snapshots, fail-closed freshness checks, and an external-content boundary that treats fetched pages as evidence rather than instructions.",
+      "Integrated the hardened meta-research evidence and evaluation gates plus battle-ready team-builder playbooks from the two retained feature lines.",
+      "Hardened autoresearch authorization and workflow privilege boundaries, plugin packaging paths and symlinks, and calculator subprocess time and output limits.",
+      "Added pinned development dependencies and one repository-native validation command for tests, source rendering, freshness, generated packages, trust data, and the production site build.",
+      "Introduced the versioned `battle-state-v1` replay interchange, bounded local ingestion, and coaching-skill guidance for battle review and practice journaling.",
+      "Added player-facing coaching examples and a generated trust dashboard, self-hosted fonts, responsive light and dark themes, and restrictive production security headers."
     ]
   }
 }

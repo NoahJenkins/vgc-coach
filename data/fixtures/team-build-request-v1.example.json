@@ -1,8 +1,18 @@
 {
+  "temporal_status": "current",
   "format": {
     "game": "pokemon-champions",
     "battle_mode": "doubles",
-    "regulation_id": "regulation-m-a"
+    "regulation_id": "regulation-m-b",
+    "active_window": {
+      "start": "2026-06-17T02:00:00Z",
+      "end": "2026-09-09T01:59:00Z"
+    }
+  },
+  "format_provenance": {
+    "source_url": "https://news.pokemon-home.com/en/page/776.html",
+    "source_title": "Regulation Set M-B (Updated on August 5)",
+    "verified_on": "2026-08-06"
   },
   "target_mons": ["Sableye"],
   "target_strategy": "anti-meta balance with one-turn tempo control",
@@ -14,4 +24,3 @@
     "prefer_clear_lead_plans": true
   }
 }
-

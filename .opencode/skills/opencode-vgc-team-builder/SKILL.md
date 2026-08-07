@@ -10,7 +10,7 @@ Read and follow these shared repo files directly:
 - `skills/vgc-team-builder/SKILL.md`
 - `docs/skills/vgc-team-builder/references/build-principles.md`
 - `docs/skills/vgc-team-builder/references/output-rubric.md`
-- `docs/skills/shared/references/champions-reg-m-a-legality.md`
+- `docs/skills/shared/references/champions-reg-m-b-legality.md`
 
 Treat the legality note as a hard constraint for current Reg M-A builds:
 - `Mega Gengar` is legal

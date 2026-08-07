@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
+import { trustData } from "./generated/trustData";
 import {
+  coachingExamples,
   coreSkills,
   evidenceSteps,
   footerLinks,
@@ -16,8 +18,17 @@ import {
 } from "./siteContent";
 
 type Theme = "light" | "dark";
+type CopyStatus = "copied" | "error";
+type FreshnessState = "fresh" | "stale";
 
 const themeStorageKey = "vgc-coach-theme";
+
+export function getPublicFreshnessState(
+  freshUntil: string,
+  now = Date.now(),
+): FreshnessState {
+  return now <= Date.parse(freshUntil) ? "fresh" : "stale";
+}
 
 function getInitialTheme(): Theme {
   if (typeof window === "undefined") {
@@ -37,8 +48,18 @@ function getInitialTheme(): Theme {
 
 function App() {
   const currentYear = new Date().getFullYear();
+  const freshnessState = getPublicFreshnessState(
+    trustData.regulation.fresh_until,
+  );
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
+  const [activeExampleId, setActiveExampleId] = useState(
+    coachingExamples[0].id,
+  );
+  const [copyStatus, setCopyStatus] = useState<{
+    exampleId: string;
+    status: CopyStatus;
+  } | null>(null);
   const externalLinkProps = {
     target: "_blank",
     rel: "noreferrer",
@@ -52,9 +73,53 @@ function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme;
     window.localStorage.setItem(themeStorageKey, theme);
   }, [theme]);
+
+  const selectExample = (exampleId: (typeof coachingExamples)[number]["id"]) => {
+    setActiveExampleId(exampleId);
+    setCopyStatus(null);
+  };
+
+  const handleExampleKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) => {
+    let nextIndex: number | null = null;
+
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      nextIndex = (index + 1) % coachingExamples.length;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      nextIndex = (index - 1 + coachingExamples.length) % coachingExamples.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = coachingExamples.length - 1;
+    }
+
+    if (nextIndex === null) {
+      return;
+    }
+
+    event.preventDefault();
+    const nextExample = coachingExamples[nextIndex];
+    selectExample(nextExample.id);
+    document.getElementById(`example-tab-${nextExample.id}`)?.focus();
+  };
+
+  const copyPrompt = async (
+    example: (typeof coachingExamples)[number],
+  ) => {
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard API unavailable");
+      }
+      await navigator.clipboard.writeText(example.prompt);
+      setCopyStatus({ exampleId: example.id, status: "copied" });
+    } catch {
+      setCopyStatus({ exampleId: example.id, status: "error" });
+    }
+  };
 
   return (
     <>
@@ -309,6 +374,215 @@ function App() {
           </div>
         </section>
 
+        <section className="section examples-layout" id="examples">
+          <div className="section-heading compact">
+            <div className="eyebrow">Try a coaching tool</div>
+            <h2>Bring a real prep question. Get a usable next move.</h2>
+            <p className="section-intro">
+              These abbreviated examples show the shape of the coaching, not a
+              frozen meta answer. Current-format claims are verified live when
+              you use the tool.
+            </p>
+          </div>
+          <div className="example-desk">
+            <div
+              className="example-tabs"
+              role="tablist"
+              aria-label="Coaching example"
+            >
+              {coachingExamples.map((example, index) => (
+                <button
+                  className="example-tab"
+                  id={`example-tab-${example.id}`}
+                  key={example.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeExampleId === example.id}
+                  aria-controls={`example-panel-${example.id}`}
+                  tabIndex={activeExampleId === example.id ? 0 : -1}
+                  onClick={() => selectExample(example.id)}
+                  onKeyDown={(event) => handleExampleKeyDown(event, index)}
+                >
+                  <span>{String(index + 1).padStart(2, "0")}</span>
+                  <strong>{example.tabLabel}</strong>
+                  <small>{example.skill}</small>
+                </button>
+              ))}
+            </div>
+            <div className="example-panels">
+              {coachingExamples.map((example) => {
+                const status =
+                  copyStatus?.exampleId === example.id
+                    ? copyStatus.status
+                    : null;
+                return (
+                  <article
+                    className="example-panel"
+                    id={`example-panel-${example.id}`}
+                    key={example.id}
+                    role="tabpanel"
+                    aria-labelledby={`example-tab-${example.id}`}
+                    hidden={activeExampleId !== example.id}
+                    tabIndex={0}
+                  >
+                    <div className="example-brief">
+                      <p className="card-kicker">Prep brief</p>
+                      <h3>{example.displayName}</h3>
+                      <p>{example.situation}</p>
+                    </div>
+                    <div className="prompt-block">
+                      <div className="prompt-topline">
+                        <span>Copyable prompt</span>
+                        <button
+                          type="button"
+                          className="copy-button"
+                          onClick={() => void copyPrompt(example)}
+                        >
+                          {status === "copied"
+                            ? "Copied"
+                            : status === "error"
+                              ? "Try copy again"
+                              : "Copy prompt"}
+                        </button>
+                      </div>
+                      <p>{example.prompt}</p>
+                      <p className="copy-status" aria-live="polite">
+                        {status === "copied" && "Prompt copied to your clipboard."}
+                        {status === "error" &&
+                          "Copy was blocked. Select the prompt text and copy it manually."}
+                      </p>
+                    </div>
+                    <div className="output-sheet">
+                      <div className="output-heading">
+                        <span>Representative output</span>
+                        <small>Abbreviated</small>
+                      </div>
+                      <ol>
+                        {example.output.map((item) => (
+                          <li key={item.label}>
+                            <strong>{item.label}</strong>
+                            <span>{item.detail}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                    <p className="example-caveat">
+                      Live use rechecks current regulation and source-sensitive
+                      claims. This sample demonstrates structure, not current
+                      field evidence.
+                    </p>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className="section trust-layout" id="trust">
+          <div className="section-heading compact">
+            <div className="eyebrow">Trust and freshness</div>
+            <h2>See what is fixed in the repo, and what still needs a live check.</h2>
+            <p className="section-intro">
+              This board is generated from versioned snapshots, source roles,
+              eval fixtures, and rubrics in the repository. It reports the
+              validation structure without pretending a live model just ran.
+            </p>
+          </div>
+          <div className="trust-board">
+            <article className="regulation-ticket">
+              <div className="ticket-topline">
+                <span>Current repository snapshot</span>
+                <strong>v{trustData.version}</strong>
+              </div>
+              <div className={`ticket-status ${freshnessState}`}>
+                <span className="status-dot" aria-hidden="true" />
+                {freshnessState === "fresh"
+                  ? trustData.regulation.fresh_label
+                  : trustData.regulation.stale_label}
+              </div>
+              <h3>{trustData.regulation.name}</h3>
+              <dl>
+                <div>
+                  <dt>Starts</dt>
+                  <dd>
+                    <time dateTime={trustData.regulation.starts_at}>
+                      {trustData.regulation.starts_label}
+                    </time>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Ends</dt>
+                  <dd>
+                    <time dateTime={trustData.regulation.ends_at}>
+                      {trustData.regulation.ends_label}
+                    </time>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Source fetched</dt>
+                  <dd>
+                    <time dateTime={trustData.regulation.verified_at}>
+                      {trustData.regulation.verified_label}
+                    </time>
+                  </dd>
+                </div>
+              </dl>
+              <a
+                className="source-link"
+                href={trustData.regulation.source_url}
+                {...externalLinkProps}
+              >
+                Open official regulation source
+              </a>
+              <p>
+                {freshnessState === "fresh"
+                  ? trustData.regulation.freshness_note
+                  : trustData.regulation.stale_note}
+              </p>
+            </article>
+
+            <div className="trust-ledger">
+              <article className="ledger-row">
+                <div>
+                  <p className="ledger-label">Evaluation assets</p>
+                  <h3>
+                    {trustData.evaluation.fixture_count} fixed cases ·{" "}
+                    {trustData.evaluation.rubric_count} scoring rubrics
+                  </h3>
+                </div>
+                <p>{trustData.evaluation.scope_note}</p>
+              </article>
+              <article className="ledger-row">
+                <div>
+                  <p className="ledger-label">Minimum source stack</p>
+                  <h3>{trustData.source_stack.required_sources.length} required roles configured</h3>
+                </div>
+                <ul className="source-stack-list">
+                  {trustData.source_stack.required_sources.map((source) => (
+                    <li key={source.id}>
+                      <span>{source.role.replaceAll("_", " ")}</span>
+                      <a href={source.url} {...externalLinkProps}>
+                        {source.name}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+                <p>{trustData.source_stack.scope_note}</p>
+              </article>
+              <article className="ledger-row ledger-calc-row">
+                <div>
+                  <p className="ledger-label">Exact-calculation boundary</p>
+                  <h3>{trustData.calculation_boundary.exact.join(" · ")} exact</h3>
+                </div>
+                <p>
+                  Speed stays assumption-framed unless a verified exact source
+                  confirms it. {trustData.calculation_boundary.scope_note}
+                </p>
+              </article>
+            </div>
+          </div>
+        </section>
+
         <section className="section runtimes-layout" id="runtimes">
           <div className="section-heading">
             <div className="eyebrow">Supported AI tools</div>
@@ -411,9 +685,9 @@ function App() {
               <div className="info-card">
                 <p className="card-label">Damage and survival checks</p>
                 <p>
-                  Damage, KO, and survival checks are exact. Speed comparisons
-                  are framed as benchmarks, not invented numbers, unless a
-                  verified exact source confirms them.
+                  With complete inputs and the local browser helper available,
+                  damage, KO, and survival can be verified exactly. Speed stays
+                  assumption-framed unless a verified exact source confirms it.
                 </p>
               </div>
               <div className="info-card">

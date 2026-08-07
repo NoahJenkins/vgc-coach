@@ -58,25 +58,49 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 permissions:
-  contents: write
-  pull-requests: write
-  actions: read
+  contents: read
 
 concurrency:
   group: nightly-skill-autoresearch
   cancel-in-progress: false
 
 jobs:
+  validation:
+    name: validation
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out protected main
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: refs/heads/main
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install validation dependencies
+        run: |
+          set -euo pipefail
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r tools/requirements-autoresearch.txt
+
+      - name: Run read-only validation
+        run: python3 tools/validate.py --scope core
+
   autoresearch:
     name: autoresearch
+    needs: validation
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
     env:
-      GH_TOKEN: ${{ github.token }}
-      GITHUB_TOKEN: ${{ github.token }}
-      COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
-      OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
       AUTORESEARCH_MODE: ${{ github.event_name == 'schedule' && 'improve' || inputs.mode }}
       AUTORESEARCH_SKILL: ${{ github.event_name == 'schedule' && 'auto' || inputs.skill }}
       AUTORESEARCH_PROVIDER: ${{ github.event_name == 'schedule' && 'github-token' || inputs.provider }}
@@ -86,9 +110,10 @@ jobs:
       AUTORESEARCH_CASE_LIMIT: ${{ github.event_name == 'schedule' && '' || inputs.case_limit }}
       AUTORESEARCH_SESSION_TIMEOUT: ${{ github.event_name == 'schedule' && '600' || inputs.session_timeout }}
     steps:
-      - name: Check out repository
+      - name: Check out protected main
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: refs/heads/main
           fetch-depth: 0
 
       - name: Set up Python
@@ -102,13 +127,15 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install -r tools/requirements-autoresearch.txt
 
-      - name: Run validation first
-        run: |
-          set -euo pipefail
-          python3 -m unittest tests.test_autoresearch tests.test_browser_damage_calc tests.test_build_plugins
-
       - name: Run autoresearch harness
         id: autoresearch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
         run: |
           set -euo pipefail
           cmd=(python3 tools/autoresearch.py --mode "$AUTORESEARCH_MODE" --provider "$AUTORESEARCH_PROVIDER" --profile "$AUTORESEARCH_PROFILE" --report-dir ".artifacts/autoresearch")
@@ -154,8 +181,7 @@ jobs:
           set -euo pipefail
           python3 tools/build_plugins.py build
           python3 tools/build_plugins.py update-release-notes
-          python3 tools/build_plugins.py check
-          python3 -m unittest tests.test_build_plugins
+          python3 tools/validate.py --scope core
 
       - name: Commit accepted candidate
         if: steps.autoresearch.outputs.pr_candidate == 'true' && env.AUTORESEARCH_OPEN_PR == 'true'
@@ -175,6 +201,8 @@ jobs:
 
       - name: Open or update draft PR
         if: steps.autoresearch.outputs.pr_candidate == 'true' && env.AUTORESEARCH_OPEN_PR == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           BRANCH="nightly/autoresearch/${{ steps.autoresearch.outputs.run_date }}/${{ steps.autoresearch.outputs.skill }}"
