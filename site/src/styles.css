@@ -98,6 +98,7 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --header-offset: clamp(0.65rem, 1.8vw, 1rem);
+  --anchor-offset: 9.5rem;
 }
 
 :root[data-theme="dark"] {
@@ -455,7 +456,7 @@ pre {
 
 .section {
   padding: clamp(2.6rem, 7vw, 6rem) 0;
-  scroll-margin-top: 7rem;
+  scroll-margin-top: var(--anchor-offset);
 }
 
 .hero.section {
@@ -1707,6 +1708,10 @@ pre {
 }
 
 @media (max-width: 1180px) {
+  :root {
+    --anchor-offset: 11rem;
+  }
+
   .hero,
   .split-section,
   .systems-grid,
@@ -1754,6 +1759,10 @@ pre {
 }
 
 @media (max-width: 760px) {
+  :root {
+    --anchor-offset: 6.5rem;
+  }
+
   .page-shell {
     padding-inline: 0.95rem;
   }
