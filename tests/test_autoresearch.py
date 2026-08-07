@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from unittest import mock
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +23,7 @@ from autoresearch.copilot_sdk import (  # noqa: E402
     CopilotSessionRuntimeError,
     SessionRecorder,
     SessionProgressTracker,
+    _run_session_once,
     compute_hard_cap_timeout,
     run_session,
     validate_github_token_auth,
@@ -44,6 +45,7 @@ from autoresearch.evals import (  # noqa: E402
 from autoresearch.policy import (  # noqa: E402
     get_allowed_write_roots,
     is_path_allowed_for_write,
+    make_permission_handler,
 )
 from autoresearch.results import (  # noqa: E402
     CaseEvaluation,
@@ -152,6 +154,57 @@ class FakeSession:
 
     async def get_messages(self) -> list[object]:
         return list(self.messages)
+
+
+class FakePermissionRequestResult:
+    def __init__(self, *, kind: str, message: str | None = None) -> None:
+        self.kind = kind
+        self.message = message
+
+
+def invoke_permission_handler(
+    request: SimpleNamespace,
+    *,
+    recorder: SessionRecorder | None = None,
+    attachments: tuple[str, ...] = (),
+    allow_writes: bool = False,
+    allow_live_research: bool = False,
+) -> tuple[FakePermissionRequestResult, SessionRecorder]:
+    recorder = recorder or SessionRecorder()
+    copilot_module = ModuleType("copilot")
+    session_module = ModuleType("copilot.session")
+    session_module.PermissionRequestResult = FakePermissionRequestResult
+    copilot_module.session = session_module
+    handler = make_permission_handler(
+        config=get_skill_config("vgc-team-builder"),
+        allow_writes=allow_writes,
+        allow_eval_tightening=False,
+        run_profile="manual",
+        allow_live_research=allow_live_research,
+        recorder=recorder,
+        attachment_paths=attachments,
+    )
+    with mock.patch.dict(
+        sys.modules,
+        {"copilot": copilot_module, "copilot.session": session_module},
+    ):
+        result = handler(request, {})
+    return result, recorder
+
+
+def permission_request(kind: str, **fields: object) -> SimpleNamespace:
+    defaults: dict[str, object] = {
+        "kind": SimpleNamespace(value=kind),
+        "possible_paths": [],
+        "path": None,
+        "file_name": None,
+        "url": None,
+        "possible_urls": [],
+        "full_command_text": None,
+        "has_write_file_redirection": False,
+    }
+    defaults.update(fields)
+    return SimpleNamespace(**defaults)
 
 
 class AutoresearchTests(unittest.TestCase):
@@ -798,6 +851,80 @@ class AutoresearchTests(unittest.TestCase):
                 )
         self.assertEqual(run_once.await_count, 1)
 
+    def test_run_session_allows_reads_of_its_explicit_external_attachment(self):
+        test_case = self
+
+        async def run(attachment: Path) -> tuple[str, ...]:
+            class RuntimeSession:
+                def __init__(self, on_event) -> None:
+                    self.on_event = on_event
+
+                async def send(self, prompt, *, attachments) -> None:
+                    self.on_event(make_event("assistant.message", content="complete"))
+                    self.on_event(make_event("session.idle"))
+
+                async def disconnect(self) -> None:
+                    return None
+
+            class RuntimeClient:
+                def __init__(self, config) -> None:
+                    self.config = config
+
+                async def start(self) -> None:
+                    return None
+
+                async def create_session(self, **options):
+                    decision = options["on_permission_request"](
+                        permission_request("read", path=str(attachment)),
+                        {},
+                    )
+                    test_case.assertEqual(decision.kind, "approved")
+                    return RuntimeSession(options["on_event"])
+
+                async def stop(self) -> None:
+                    return None
+
+            copilot_module = ModuleType("copilot")
+            client_module = ModuleType("copilot.client")
+            session_module = ModuleType("copilot.session")
+            copilot_module.CopilotClient = RuntimeClient
+            client_module.SubprocessConfig = lambda **values: SimpleNamespace(**values)
+            session_module.PermissionRequestResult = FakePermissionRequestResult
+
+            with mock.patch.dict(
+                sys.modules,
+                {
+                    "copilot": copilot_module,
+                    "copilot.client": client_module,
+                    "copilot.session": session_module,
+                },
+            ), mock.patch.dict(
+                "os.environ",
+                {"OPENAI_API_KEY": "test-key", "OPENAI_MODEL": "test-model"},
+                clear=False,
+            ):
+                result = await _run_session_once(
+                    prompt="inspect attachment",
+                    attachments=[{"type": "file", "path": str(attachment)}],
+                    provider_name="byok-openai",
+                    model="test-model",
+                    allow_writes=False,
+                    allow_eval_tightening=False,
+                    run_profile="manual",
+                    allow_live_research=False,
+                    config=get_skill_config("vgc-team-builder"),
+                    system_message="system",
+                    timeout=1.0,
+                )
+            return result.read_paths
+
+        with tempfile.TemporaryDirectory() as outside_dir:
+            attachment = Path(outside_dir) / "attached.md"
+            attachment.write_text("explicit attachment")
+            read_paths = asyncio.run(run(attachment))
+
+        self.assertEqual(read_paths, (str(attachment),))
+
     def test_write_policy_stays_inside_skill_scope(self):
         config = get_skill_config("vgc-team-builder")
         allowed = config.docs_dir / "examples" / "good-example.md"
@@ -831,16 +958,197 @@ class AutoresearchTests(unittest.TestCase):
         )
         self.assertEqual(roots, (config.skill_file, config.docs_dir))
 
+    def test_permission_handler_approves_only_existing_repo_and_attachment_reads(self):
+        repo_file = REPO_ROOT / "skills" / "vgc-team-builder" / "SKILL.md"
+        with tempfile.TemporaryDirectory() as outside_dir:
+            attachment = Path(outside_dir) / "attached.md"
+            attachment.write_text("explicit attachment")
+
+            for path in (repo_file, attachment):
+                with self.subTest(path=path):
+                    result, recorder = invoke_permission_handler(
+                        permission_request("read", path=str(path)),
+                        attachments=(str(attachment),),
+                    )
+                    self.assertEqual(result.kind, "approved")
+                    self.assertEqual(recorder.read_paths, [str(path)])
+
+    def test_permission_handler_rejects_invalid_or_out_of_scope_reads(self):
+        with tempfile.TemporaryDirectory() as outside_dir:
+            outside_file = Path(outside_dir) / "secret.txt"
+            outside_file.write_text("secret")
+            invalid_paths = (
+                None,
+                "",
+                "\0unparseable",
+                str(REPO_ROOT / "missing-autoresearch-file.txt"),
+                str(outside_file),
+                "../outside-repository.txt",
+            )
+            for path in invalid_paths:
+                with self.subTest(path=path):
+                    result, recorder = invoke_permission_handler(
+                        permission_request("read", path=path)
+                    )
+                    self.assertEqual(result.kind, "denied-by-rules")
+                    self.assertEqual(recorder.read_paths, [])
+
+    def test_permission_handler_rejects_repo_symlink_that_escapes_read_scope(self):
+        with (
+            tempfile.TemporaryDirectory(dir=REPO_ROOT) as repo_dir,
+            tempfile.TemporaryDirectory() as outside_dir,
+        ):
+            outside_file = Path(outside_dir) / "secret.txt"
+            outside_file.write_text("secret")
+            escaping_link = Path(repo_dir) / "escape.txt"
+            escaping_link.symlink_to(outside_file)
+
+            result, recorder = invoke_permission_handler(
+                permission_request("read", path=str(escaping_link))
+            )
+
+        self.assertEqual(result.kind, "denied-by-rules")
+        self.assertEqual(recorder.read_paths, [])
+
+    def test_permission_handler_preserves_approved_canonical_writes(self):
+        allowed = REPO_ROOT / "skills" / "vgc-team-builder" / "SKILL.md"
+        result, recorder = invoke_permission_handler(
+            permission_request("write", path=str(allowed)),
+            allow_writes=True,
+        )
+        self.assertEqual(result.kind, "approved")
+        self.assertEqual(recorder.write_paths, [str(allowed)])
+
+    def test_permission_handler_allows_only_structured_read_only_git_commands(self):
+        allowed_commands = (
+            "git status --short --branch",
+            "git diff --stat -- skills/vgc-team-builder/SKILL.md",
+            "git show --stat HEAD",
+            "git log --oneline -5",
+            "git rev-parse --show-toplevel",
+            "git branch --show-current",
+            "git ls-files --cached -- skills",
+        )
+        for command in allowed_commands:
+            with self.subTest(command=command):
+                result, recorder = invoke_permission_handler(
+                    permission_request("shell", full_command_text=command)
+                )
+                self.assertEqual(result.kind, "approved")
+                self.assertEqual(recorder.shell_commands, [command])
+
+    def test_permission_handler_rejects_shell_syntax_aliases_and_unsupported_options(self):
+        denied_commands = (
+            "git status; id",
+            "git status\nid",
+            "git status | id",
+            "git status && id",
+            "git status $(id)",
+            "git status `id`",
+            "git status > /tmp/status",
+            "git show $HOME",
+            "git status ${HOME}",
+            "g status",
+            "git st",
+            "env git status",
+            "git -c alias.status=!id status",
+            "git status --exec=id",
+            "git diff --output=/tmp/diff",
+            "git branch --show-current extra-command",
+            "git status; git log",
+            "git status 'unterminated",
+        )
+        for command in denied_commands:
+            with self.subTest(command=command):
+                result, recorder = invoke_permission_handler(
+                    permission_request("shell", full_command_text=command)
+                )
+                self.assertEqual(result.kind, "denied-by-rules")
+                self.assertEqual(recorder.shell_commands, [])
+
+        redirected, _ = invoke_permission_handler(
+            permission_request(
+                "shell",
+                full_command_text="git status",
+                has_write_file_redirection=True,
+            )
+        )
+        self.assertEqual(redirected.kind, "denied-by-rules")
+
+    def test_permission_handler_approves_public_https_and_records_it_separately(self):
+        public_url = "https://research.example/meta"
+        public_dns = [(2, 1, 6, "", ("93.184.216.34", 443))]
+        with mock.patch("socket.getaddrinfo", return_value=public_dns):
+            result, recorder = invoke_permission_handler(
+                permission_request("url", url=public_url),
+                allow_live_research=True,
+            )
+        self.assertEqual(result.kind, "approved")
+        self.assertEqual(recorder.requested_urls, [public_url])
+        self.assertEqual(recorder.approved_urls, [public_url])
+        self.assertEqual(recorder.attempted_urls, [])
+        self.assertEqual(recorder.source_urls, [])
+
+    def test_permission_handler_rejects_unsafe_web_destinations(self):
+        public_dns = [(2, 1, 6, "", ("93.184.216.34", 443))]
+        private_dns = [(2, 1, 6, "", ("10.0.0.8", 443))]
+        mixed_dns = [
+            (2, 1, 6, "", ("93.184.216.34", 443)),
+            (2, 1, 6, "", ("127.0.0.1", 443)),
+        ]
+        denied_cases = (
+            (None, public_dns),
+            ("http://example.com/meta", public_dns),
+            ("https://user:password@example.com/meta", public_dns),
+            ("https://example.com:8443/meta", public_dns),
+            ("https://localhost/meta", private_dns),
+            ("https://service.localhost/meta", private_dns),
+            ("https://127.0.0.1/meta", public_dns),
+            ("https://169.254.169.254/latest/meta-data", public_dns),
+            ("https://10.0.0.8/meta", public_dns),
+            ("https://224.0.0.1/meta", public_dns),
+            ("https://240.0.0.1/meta", public_dns),
+            ("https://0.0.0.0/meta", public_dns),
+            ("https://metadata.google.internal/meta", public_dns),
+            ("https://private.example/meta", private_dns),
+            ("https://mixed.example/meta", mixed_dns),
+        )
+        for url, dns_result in denied_cases:
+            with self.subTest(url=url), mock.patch(
+                "socket.getaddrinfo", return_value=dns_result
+            ):
+                result, recorder = invoke_permission_handler(
+                    permission_request("url", url=url),
+                    allow_live_research=True,
+                )
+                self.assertEqual(result.kind, "denied-by-rules")
+                self.assertEqual(recorder.approved_urls, [])
+
+    def test_permission_handler_fails_closed_when_dns_resolution_is_unavailable(self):
+        url = "https://unresolved.example/meta"
+        with mock.patch(
+            "socket.getaddrinfo",
+            side_effect=OSError("resolver unavailable"),
+        ):
+            result, recorder = invoke_permission_handler(
+                permission_request("url", url=url),
+                allow_live_research=True,
+            )
+        self.assertEqual(result.kind, "denied-by-rules")
+        self.assertEqual(recorder.requested_urls, [url])
+        self.assertEqual(recorder.approved_urls, [])
+
     def test_session_recorder_keeps_web_tool_args_out_of_successful_evidence(self):
         async def run() -> None:
             recorder = SessionRecorder()
-            await recorder.on_pre_tool_use(
+            decision = await recorder.on_pre_tool_use(
                 {
                     "toolName": "web_fetch",
                     "toolArgs": {"url": "https://example.com/meta"},
                 },
                 {},
             )
+            self.assertIsNone(decision)
             self.assertEqual(tuple(sorted(set(recorder.tool_arg_urls))), ("https://example.com/meta",))
             self.assertEqual(tuple(sorted(set(recorder.attempted_urls))), ("https://example.com/meta",))
             self.assertEqual(tuple(recorder.source_urls), ())

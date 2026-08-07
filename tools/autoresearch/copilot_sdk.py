@@ -71,7 +71,7 @@ class SessionRecorder:
 
     async def on_pre_tool_use(
         self, input_data: dict[str, Any], invocation: dict[str, str]
-    ) -> dict[str, Any]:
+    ) -> None:
         tool_name = input_data.get("toolName")
         if tool_name:
             normalized_tool_name = str(tool_name)
@@ -81,7 +81,6 @@ class SessionRecorder:
                 if urls:
                     self.tool_arg_urls.extend(urls)
                     self.attempted_urls.extend(urls)
-        return {"permissionDecision": "allow"}
 
     def on_event(self, event: Any) -> None:
         event_type = _event_type_name(event)
@@ -444,6 +443,12 @@ async def _run_session_once(
                 run_profile=run_profile,
                 allow_live_research=allow_live_research,
                 recorder=recorder,
+                attachment_paths=tuple(
+                    attachment["path"]
+                    for attachment in attachments
+                    if attachment.get("type") in {"file", "directory"}
+                    and attachment.get("path")
+                ),
             ),
             model=effective_model,
             provider=provider,
