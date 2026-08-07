@@ -1,9 +1,13 @@
 import base64
 import importlib.util
 import json
+import os
 import pathlib
 import sys
+import tempfile
+import time
 import unittest
+from unittest import mock
 
 
 MODULE_PATH = pathlib.Path(__file__).resolve().parents[1] / "tools" / "browser_damage_calc.py"
@@ -123,6 +127,132 @@ class BrowserDamageCalcTests(unittest.TestCase):
         self.assertEqual(result.status, "exact")
         self.assertEqual(result.numeric_result["ko_chance"], "50% chance to OHKO")
         self.assertEqual(result.assumptions_used["weather"], "Rain")
+
+    def fake_agent_browser(self, directory, body):
+        executable = pathlib.Path(directory) / "agent-browser"
+        executable.write_text(f"#!{sys.executable}\n" + body)
+        executable.chmod(0o755)
+        return executable
+
+    def test_agent_browser_timeout_terminates_and_returns_clear_fallback(self):
+        request = self.module.parse_request(self.sample_request())
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self.fake_agent_browser(tmp, "import time\ntime.sleep(1)\n")
+            started = time.monotonic()
+            with mock.patch.dict(os.environ, {"PATH": tmp}), mock.patch.object(
+                self.module, "AGENT_BROWSER_TIMEOUT_SECONDS", 0.05, create=True
+            ), mock.patch.object(
+                self.module, "PROCESS_TERMINATE_GRACE_SECONDS", 0.05, create=True
+            ):
+                result = self.module.execute_exact_calc(
+                    request,
+                    runner=lambda req: self.module.run_agent_browser_backend(req),
+                )
+            elapsed = time.monotonic() - started
+
+        self.assertEqual(result.status, "fallback")
+        self.assertIn("timed out", result.failure_reason.lower())
+        self.assertLess(elapsed, 0.8)
+
+    def test_agent_browser_stdout_limit_returns_clear_fallback(self):
+        request = self.module.parse_request(self.sample_request())
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self.fake_agent_browser(tmp, "print('x' * 1024)\n")
+
+            def runner(_request):
+                self.module._run_agent_browser_command(["open", "test"])
+                return self.module.CalcResult(
+                    status="exact",
+                    backend="agent-browser",
+                    site="pikalytics",
+                    numeric_result={},
+                    assumptions_used={},
+                    retrieval_timestamp="2026-08-06T00:00:00Z",
+                    failure_reason=None,
+                )
+
+            with mock.patch.dict(os.environ, {"PATH": tmp}), mock.patch.object(
+                self.module, "MAX_AGENT_BROWSER_STDOUT_BYTES", 128, create=True
+            ):
+                result = self.module.execute_exact_calc(request, runner=runner)
+
+        self.assertEqual(result.status, "fallback")
+        self.assertIn("stdout exceeded", result.failure_reason.lower())
+        self.assertNotIn("x" * 128, result.failure_reason)
+
+    def test_agent_browser_stderr_limit_returns_clear_fallback(self):
+        request = self.module.parse_request(self.sample_request())
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self.fake_agent_browser(
+                tmp,
+                "import sys\nsys.stderr.write('e' * 1024)\nsys.exit(1)\n",
+            )
+            with mock.patch.dict(os.environ, {"PATH": tmp}), mock.patch.object(
+                self.module, "MAX_AGENT_BROWSER_STDERR_BYTES", 128, create=True
+            ):
+                result = self.module.execute_exact_calc(
+                    request,
+                    runner=lambda _req: self.module._run_agent_browser_command(["open", "test"]),
+                )
+
+        self.assertEqual(result.status, "fallback")
+        self.assertIn("stderr exceeded", result.failure_reason.lower())
+        self.assertNotIn("e" * 128, result.failure_reason)
+
+    def test_oversized_extracted_remote_text_returns_clear_fallback(self):
+        request = self.module.parse_request(self.sample_request())
+        oversized = json.dumps({"summary": "remote" * 100})
+        responses = iter(["", "", "", "", oversized, ""])
+
+        with mock.patch.object(
+            self.module,
+            "_run_agent_browser_command",
+            side_effect=lambda *_args, **_kwargs: next(responses),
+        ), mock.patch.object(
+            self.module, "MAX_EXTRACTED_TEXT_BYTES", 128, create=True
+        ):
+            result = self.module.execute_exact_calc(
+                request,
+                runner=self.module.run_agent_browser_backend,
+            )
+
+        self.assertEqual(result.status, "fallback")
+        self.assertIn("extracted calc text exceeded", result.failure_reason.lower())
+
+    def test_bounded_browser_backend_preserves_exact_damage_contract(self):
+        request = self.module.parse_request(self.sample_request())
+        extracted = json.dumps(
+            {
+                "summary": "Damage: 145-171 (92.3 - 108.9%) Chance to KO: 50% chance to OHKO"
+            }
+        )
+        responses = iter(["", "", "", "", extracted, ""])
+
+        with mock.patch.object(
+            self.module,
+            "_run_agent_browser_command",
+            side_effect=lambda *_args, **_kwargs: next(responses),
+        ):
+            result = self.module.run_agent_browser_backend(request)
+
+        self.assertEqual(result.status, "exact")
+        self.assertEqual(result.numeric_result["damage"], "145-171 (92.3 - 108.9%)")
+        self.assertEqual(result.numeric_result["ko_chance"], "50% chance to OHKO")
+
+    def test_speed_request_remains_blocked_without_invoking_browser(self):
+        payload = self.sample_request()
+        payload["calc_type"] = "speed"
+        payload["move"] = ""
+        runner = mock.Mock(side_effect=AssertionError("browser must not run"))
+
+        result = self.module.run_from_payload(payload, runner=runner)
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertIn("only damage, ko, and survival", result["failure_reason"].lower())
+        runner.assert_not_called()
 
 
 if __name__ == "__main__":

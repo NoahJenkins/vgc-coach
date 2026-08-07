@@ -7,12 +7,14 @@ import argparse
 import ast
 import filecmp
 import json
+import os
 import shutil
+import stat
 import sys
 import tempfile
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict, Iterable, List
+from pathlib import Path, PurePosixPath
+from typing import Callable, Dict, Iterable, List
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,11 +33,130 @@ class SkillInfo:
 
 
 def load_manifest() -> dict:
+    _prewalk_source_tree(MANIFEST_PATH)
     return json.loads(MANIFEST_PATH.read_text())
 
 
 def load_version() -> str:
+    _prewalk_source_tree(VERSION_PATH)
     return VERSION_PATH.read_text().strip()
+
+
+def validate_relative_posix_path(value: object, field: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a normalized repository-relative POSIX path")
+    components = value.split("/")
+    invalid = (
+        not value
+        or value.startswith("/")
+        or "\\" in value
+        or any(ord(character) < 32 or ord(character) == 127 for character in value)
+        or any(component in {"", ".", ".."} for component in components)
+        or PurePosixPath(value).is_absolute()
+        or PurePosixPath(value).as_posix() != value
+    )
+    if invalid:
+        raise ValueError(
+            f"{field} must be a normalized repository-relative POSIX path: {value!r}"
+        )
+    return value
+
+
+def validate_manifest_paths(manifest: dict) -> None:
+    for index, entry in enumerate(manifest["skills"]):
+        validate_relative_posix_path(entry["name"], f"skills[{index}].name")
+        validate_relative_posix_path(
+            entry["codex_metadata"], f"skills[{index}].codex_metadata"
+        )
+        for doc_index, relative in enumerate(entry["docs"]):
+            validate_relative_posix_path(
+                relative, f"skills[{index}].docs[{doc_index}]"
+            )
+
+    for collection in ("files", "directories", "tools"):
+        for index, relative in enumerate(manifest["shared_copy"][collection]):
+            validate_relative_posix_path(
+                relative, f"shared_copy.{collection}[{index}]"
+            )
+
+    for index, plugin in enumerate(manifest["plugins"]):
+        validate_relative_posix_path(plugin["name"], f"plugins[{index}].name")
+        validate_relative_posix_path(
+            plugin["manifest_path"], f"plugins[{index}].manifest_path"
+        )
+        for doc_index, relative in enumerate(plugin["runtime_docs"]):
+            validate_relative_posix_path(
+                relative, f"plugins[{index}].runtime_docs[{doc_index}]"
+            )
+
+
+def assert_destination_contained(intended_root: Path, destination: Path) -> None:
+    resolved_root = intended_root.resolve(strict=False)
+    resolved_destination = destination.resolve(strict=False)
+    try:
+        resolved_destination.relative_to(resolved_root)
+    except ValueError as exc:
+        raise ValueError(
+            f"Destination outside intended root {resolved_root}: {destination}"
+        ) from exc
+
+
+def safe_mkdir(path: Path, intended_root: Path) -> None:
+    assert_destination_contained(intended_root, path)
+    path.mkdir(parents=True, exist_ok=True)
+
+
+def safe_rmtree(path: Path, intended_root: Path) -> None:
+    assert_destination_contained(intended_root, path)
+    shutil.rmtree(path)
+
+
+def _assert_source_components_not_symlinks(path: Path) -> None:
+    try:
+        relative = path.relative_to(ROOT)
+    except ValueError as exc:
+        raise ValueError(f"Source outside repository root: {path}") from exc
+    current = ROOT
+    for component in relative.parts:
+        current = current / component
+        mode = current.lstat().st_mode
+        if stat.S_ISLNK(mode):
+            raise ValueError(f"Source symlink not allowed: {current}")
+
+
+def _prewalk_source_tree(path: Path) -> None:
+    _assert_source_components_not_symlinks(path)
+    mode = path.lstat().st_mode
+    if stat.S_ISLNK(mode):
+        raise ValueError(f"Source symlink not allowed: {path}")
+    if not stat.S_ISDIR(mode):
+        return
+    with os.scandir(path) as entries:
+        for entry in entries:
+            entry_path = Path(entry.path)
+            entry_mode = entry.stat(follow_symlinks=False).st_mode
+            if stat.S_ISLNK(entry_mode):
+                raise ValueError(f"Source symlink not allowed: {entry_path}")
+            if stat.S_ISDIR(entry_mode):
+                _prewalk_source_tree(entry_path)
+
+
+def canonical_source_paths(manifest: dict) -> List[Path]:
+    relative_paths: List[str] = []
+    for collection in ("files", "directories", "tools"):
+        relative_paths.extend(manifest["shared_copy"][collection])
+    for entry in manifest["skills"]:
+        relative_paths.append(entry["codex_metadata"])
+        relative_paths.append(f"skills/{entry['name']}")
+        relative_paths.extend(entry["docs"])
+    for plugin in manifest["plugins"]:
+        relative_paths.extend(plugin["runtime_docs"])
+    return [ROOT / relative for relative in unique_paths(relative_paths)]
+
+
+def validate_canonical_sources(manifest: dict) -> None:
+    for source in canonical_source_paths(manifest):
+        _prewalk_source_tree(source)
 
 
 def parse_openai_metadata(path: Path) -> SkillInfo:
@@ -73,26 +194,58 @@ def trim_codex_prompt(prompt: str) -> str:
     return prompt[:125].rstrip() + "..."
 
 
-def ensure_parent(path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+def ensure_parent(path: Path, intended_root: Path) -> None:
+    safe_mkdir(path.parent, intended_root)
 
 
-def write_text(path: Path, content: str) -> None:
-    ensure_parent(path)
+def write_text(path: Path, content: str, intended_root: Path) -> None:
+    assert_destination_contained(intended_root, path)
+    ensure_parent(path, intended_root)
+    assert_destination_contained(intended_root, path)
     path.write_text(content)
 
 
-def write_json(path: Path, payload: dict) -> None:
-    ensure_parent(path)
+def write_json(path: Path, payload: dict, intended_root: Path) -> None:
+    assert_destination_contained(intended_root, path)
+    ensure_parent(path, intended_root)
+    assert_destination_contained(intended_root, path)
     path.write_text(json.dumps(payload, indent=2) + "\n")
 
 
-def copy_path(src: Path, dest: Path) -> None:
-    if src.is_dir():
-        shutil.copytree(src, dest, dirs_exist_ok=True)
+def copy_path(
+    src: Path,
+    dest: Path,
+    intended_root: Path,
+    *,
+    ignore: Callable[[str, List[str]], List[str]] | None = None,
+) -> None:
+    source_mode = src.lstat().st_mode
+    if stat.S_ISLNK(source_mode):
+        raise ValueError(f"Source symlink not allowed: {src}")
+    if stat.S_ISDIR(source_mode):
+        assert_destination_contained(intended_root, dest)
+        safe_mkdir(dest, intended_root)
+        with os.scandir(src) as entries:
+            ordered_entries = sorted(entries, key=lambda entry: entry.name)
+        ignored = (
+            set(ignore(str(src), [entry.name for entry in ordered_entries]))
+            if ignore
+            else set()
+        )
+        for entry in ordered_entries:
+            if entry.name in ignored:
+                continue
+            copy_path(
+                Path(entry.path),
+                dest / entry.name,
+                intended_root,
+                ignore=ignore,
+            )
         return
-    ensure_parent(dest)
-    shutil.copy2(src, dest)
+    assert_destination_contained(intended_root, dest)
+    ensure_parent(dest, intended_root)
+    assert_destination_contained(intended_root, dest)
+    shutil.copy2(src, dest, follow_symlinks=False)
 
 
 def unique_paths(paths: Iterable[str]) -> List[str]:
@@ -339,38 +492,48 @@ def build_plugin(plugin: dict, manifest: dict, skills: Dict[str, SkillInfo], ver
     repo_meta = manifest["repository"]
     destination = target_root / "plugins" / plugin["name"]
     if destination.exists():
-        shutil.rmtree(destination)
-    destination.mkdir(parents=True, exist_ok=True)
+        safe_rmtree(destination, target_root)
+    safe_mkdir(destination, target_root)
 
     for relative in manifest["shared_copy"]["files"]:
-        copy_path(ROOT / relative, destination / relative)
+        copy_path(ROOT / relative, destination / relative, target_root)
     for relative in manifest["shared_copy"]["directories"]:
-        copy_path(ROOT / relative, destination / relative)
+        copy_path(ROOT / relative, destination / relative, target_root)
     for relative in manifest["shared_copy"]["tools"]:
-        copy_path(ROOT / relative, destination / relative)
+        copy_path(ROOT / relative, destination / relative, target_root)
 
     for skill_name in skills:
-        shutil.copytree(
+        copy_path(
             ROOT / "skills" / skill_name,
             destination / "skills" / skill_name,
+            target_root,
             ignore=ignore_hidden_entries,
         )
 
     for relative in collect_skill_docs(manifest):
-        copy_path(ROOT / relative, destination / relative)
+        copy_path(ROOT / relative, destination / relative, target_root)
 
     for relative in plugin["runtime_docs"]:
         if relative.endswith(".md") and "docs/runtime/" in relative:
-            write_text(destination / relative, render_package_runtime_doc(plugin))
+            write_text(
+                destination / relative,
+                render_package_runtime_doc(plugin),
+                target_root,
+            )
             continue
-        copy_path(ROOT / relative, destination / relative)
+        copy_path(ROOT / relative, destination / relative, target_root)
 
-    write_text(destination / "README.md", render_plugin_readme(plugin, manifest, skills, version))
+    write_text(
+        destination / "README.md",
+        render_plugin_readme(plugin, manifest, skills, version),
+        target_root,
+    )
 
     if plugin["runtime"] == "codex":
         write_json(
             destination / plugin["manifest_path"],
             render_codex_manifest(plugin, repo_meta, skills, version),
+            target_root,
         )
         return
 
@@ -378,6 +541,7 @@ def build_plugin(plugin: dict, manifest: dict, skills: Dict[str, SkillInfo], ver
         write_json(
             destination / plugin["manifest_path"],
             render_claude_manifest(plugin, repo_meta, version),
+            target_root,
         )
         return
 
@@ -385,10 +549,12 @@ def build_plugin(plugin: dict, manifest: dict, skills: Dict[str, SkillInfo], ver
         write_json(
             destination / plugin["manifest_path"],
             render_opencode_package_json(plugin, repo_meta, version),
+            target_root,
         )
         write_text(
             destination / ".opencode" / "plugins" / "vgc-coach.js",
             render_opencode_plugin_js(plugin["name"]),
+            target_root,
         )
         return
 
@@ -403,19 +569,24 @@ def build_root_outputs(manifest: dict, version: str, target_root: Path) -> None:
     write_json(
         target_root / ".agents" / "plugins" / "marketplace.json",
         render_codex_marketplace(version),
+        target_root,
     )
     write_json(
         target_root / ".claude-plugin" / "marketplace.json",
         render_claude_marketplace(repo_meta, version),
+        target_root,
     )
     write_json(
         target_root / "package.json",
         render_root_package_json(opencode_plugin, repo_meta, version),
+        target_root,
     )
 
 
 def build_all(target_root: Path) -> None:
     manifest = load_manifest()
+    validate_manifest_paths(manifest)
+    validate_canonical_sources(manifest)
     version = load_version()
     skills = load_skills(manifest)
     for plugin in manifest["plugins"]:
@@ -430,8 +601,9 @@ def compare_directories(expected: Path, actual: Path) -> List[str]:
         differences.append(f"Missing in repo: {actual / name}")
     for name in comparison.right_only:
         differences.append(f"Unexpected in repo: {actual / name}")
-    for name in comparison.diff_files:
-        differences.append(f"Changed file: {actual / name}")
+    for name in comparison.common_files:
+        if not filecmp.cmp(expected / name, actual / name, shallow=False):
+            differences.append(f"Changed file: {actual / name}")
     for subdir in comparison.common_dirs:
         differences.extend(compare_directories(expected / subdir, actual / subdir))
     return differences
@@ -439,9 +611,20 @@ def compare_directories(expected: Path, actual: Path) -> List[str]:
 
 def validate_no_symlinks(root: Path) -> List[str]:
     issues: List[str] = []
-    for path in root.rglob("*"):
-        if path.is_symlink():
+
+    def walk(path: Path) -> None:
+        mode = path.lstat().st_mode
+        if stat.S_ISLNK(mode):
             issues.append(f"Symlink not allowed: {path}")
+            return
+        if not stat.S_ISDIR(mode):
+            return
+        with os.scandir(path) as entries:
+            for entry in entries:
+                walk(Path(entry.path))
+
+    if root.exists() or root.is_symlink():
+        walk(root)
     return issues
 
 
@@ -453,8 +636,22 @@ def validate_no_workspace_references(root: Path) -> List[str]:
         ".opencode/skills/",
         str(ROOT),
     ]
-    for path in root.rglob("*"):
-        if not path.is_file():
+    def regular_files(path: Path) -> Iterable[Path]:
+        mode = path.lstat().st_mode
+        if stat.S_ISLNK(mode):
+            return
+        if stat.S_ISDIR(mode):
+            with os.scandir(path) as entries:
+                for entry in entries:
+                    yield from regular_files(Path(entry.path))
+            return
+        if stat.S_ISREG(mode):
+            yield path
+
+    if not root.exists() or root.is_symlink():
+        return issues
+    for path in regular_files(root):
+        if path.is_symlink():
             continue
         try:
             content = path.read_text()
@@ -469,7 +666,7 @@ def validate_no_workspace_references(root: Path) -> List[str]:
 def validate_generated_outputs(target_root: Path) -> List[str]:
     issues: List[str] = []
     plugins_dir = target_root / "plugins"
-    if plugins_dir.exists():
+    if plugins_dir.exists() or plugins_dir.is_symlink():
         issues.extend(validate_no_symlinks(plugins_dir))
         issues.extend(validate_no_workspace_references(plugins_dir))
     return issues
@@ -480,7 +677,10 @@ def check_repo() -> int:
         temp_root = Path(tmp)
         build_all(temp_root)
         differences: List[str] = []
-        differences.extend(compare_directories(temp_root / "plugins", ROOT / "plugins"))
+        generated_issues = validate_generated_outputs(ROOT)
+        differences.extend(generated_issues)
+        if not any(issue.startswith("Symlink not allowed:") for issue in generated_issues):
+            differences.extend(compare_directories(temp_root / "plugins", ROOT / "plugins"))
         for relative in [
             ".agents/plugins/marketplace.json",
             ".claude-plugin/marketplace.json",
@@ -496,7 +696,6 @@ def check_repo() -> int:
             differences.append(f"Missing generated file: {RELEASE_NOTES_PATH}")
         elif RELEASE_NOTES_PATH.read_text() != expected_release_notes:
             differences.append(f"Changed file: {RELEASE_NOTES_PATH}")
-        differences.extend(validate_generated_outputs(ROOT))
         if differences:
             for issue in differences:
                 print(issue, file=sys.stderr)
@@ -507,7 +706,7 @@ def check_repo() -> int:
 def update_release_notes() -> None:
     manifest = load_manifest()
     version = load_version()
-    RELEASE_NOTES_PATH.write_text(render_release_notes(manifest, version))
+    write_text(RELEASE_NOTES_PATH, render_release_notes(manifest, version), ROOT)
 
 
 def print_release_notes() -> None:
