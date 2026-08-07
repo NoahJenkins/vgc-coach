@@ -260,6 +260,69 @@ class BattleStateIngestionTests(unittest.TestCase):
                     self.assertIn(b"absolute HTTP(S) URL", result.stderr)
                     self.assertNotIn(b"Traceback", result.stderr)
 
+    def test_non_uri_path_query_and_fragment_text_is_rejected_by_both_clis(self):
+        invalid_urls = (
+            "https://example.com/a b",
+            "https://example.com/a\u00a0b",
+            "https://example.com/%",
+            "https://example.com/%2",
+            "https://example.com/%zz",
+            "https://example.com/a#b#c",
+            "https://example.com/\u0085x",
+            "https://example.com/café",
+        )
+        for value in invalid_urls:
+            for cli_path in (CLI_PATH, PACKAGED_CLI_PATH):
+                with self.subTest(value=value, cli=cli_path):
+                    document = minimal_document()
+                    document["format_provenance"]["official_source_url"] = value
+
+                    result = self.run_document(document, cli_path=cli_path)
+
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout, b"")
+                    self.assertIn(b"absolute HTTP(S) URL", result.stderr)
+                    self.assertNotIn(b"Traceback", result.stderr)
+
+    def test_valid_percent_encoded_query_fragment_and_ipv6_urls_pass_both_clis(self):
+        valid_urls = (
+            "https://example.com/a%20b/%E2%9C%93?next=%2Fteams%3Fa%3D1&label=a+b#section-1",
+            "http://[2001:db8::1]:65535/a;b?x=@%2F#frag?ok",
+        )
+        for value in valid_urls:
+            for cli_path in (CLI_PATH, PACKAGED_CLI_PATH):
+                with self.subTest(value=value, cli=cli_path):
+                    document = minimal_document()
+                    document["format_provenance"]["official_source_url"] = value
+
+                    result = self.run_document(document, cli_path=cli_path)
+
+                    self.assertEqual(result.returncode, 0, result.stderr.decode())
+                    self.assertEqual(
+                        json.loads(result.stdout)["format_provenance"][
+                            "official_source_url"
+                        ],
+                        value,
+                    )
+
+    def test_invalid_uri_never_replaces_explicit_output(self):
+        document = minimal_document()
+        document["format_provenance"]["official_source_url"] = (
+            "https://example.com/\u0085x"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            input_path = Path(tmp) / "battle.json"
+            output_path = Path(tmp) / "existing.json"
+            input_path.write_text(json.dumps(document))
+            output_path.write_bytes(b"keep-me")
+
+            result = self.run_cli(str(input_path), "--output", str(output_path))
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, b"")
+            self.assertNotIn(b"Traceback", result.stderr)
+            self.assertEqual(output_path.read_bytes(), b"keep-me")
+
     def test_duplicate_or_non_monotonic_event_order_is_rejected(self):
         for pairs in (
             [(1, 1), (1, 1)],

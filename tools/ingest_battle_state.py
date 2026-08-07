@@ -15,6 +15,7 @@ import os
 import re
 import sys
 import tempfile
+import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,12 @@ HOSTNAME_PATTERN = re.compile(
     r"^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)"
     r"(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$"
 )
+RFC3986_PCHAR = r"(?:[A-Za-z0-9._~!$&'()*+,;=:@-]|%[0-9A-Fa-f]{2})"
+RFC3986_PATH_PATTERN = re.compile(rf"^(?:/{RFC3986_PCHAR}*)*$")
+RFC3986_QUERY_FRAGMENT_PATTERN = re.compile(
+    rf"^(?:{RFC3986_PCHAR}|[/?])*$"
+)
+MALFORMED_PERCENT_ESCAPE_PATTERN = re.compile(r"%(?![0-9A-Fa-f]{2})")
 
 
 class BattleStateError(ValueError):
@@ -117,7 +124,12 @@ def _validate_uri(
 
     if (
         "\\" in value
-        or any(ord(character) < 32 or ord(character) == 127 for character in value)
+        or any(
+            character.isspace() or unicodedata.category(character) == "Cc"
+            for character in value
+        )
+        or value.count("#") > 1
+        or MALFORMED_PERCENT_ESCAPE_PATTERN.search(value) is not None
         or (schema_pattern is not None and re.fullmatch(schema_pattern, value) is None)
     ):
         raise invalid()
@@ -142,6 +154,12 @@ def _validate_uri(
         except ValueError as exc:
             raise invalid() from exc
     elif len(hostname) > 253 or HOSTNAME_PATTERN.fullmatch(hostname) is None:
+        raise invalid()
+    if (
+        RFC3986_PATH_PATTERN.fullmatch(parsed.path) is None
+        or RFC3986_QUERY_FRAGMENT_PATTERN.fullmatch(parsed.query) is None
+        or RFC3986_QUERY_FRAGMENT_PATTERN.fullmatch(parsed.fragment) is None
+    ):
         raise invalid()
 
 

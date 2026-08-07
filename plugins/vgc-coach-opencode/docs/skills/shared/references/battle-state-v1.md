@@ -22,6 +22,12 @@ with a valid hostname (or bracketed IPv6 address) and optional port from 0 to
 non-HTTP schemes are rejected. Date-time fields use RFC 3339 syntax, including
 an explicit `Z` or numeric offset.
 
+Path, query, and fragment components use RFC 3986 URI characters. Spaces,
+non-ASCII text, and other bytes outside that grammar must be percent-encoded as
+two hexadecimal digits per byte. Valid percent-encoded data is preserved
+verbatim. Malformed percent escapes and more than one raw `#` fragment
+delimiter are rejected.
+
 ## Normalize a record
 
 ```bash
