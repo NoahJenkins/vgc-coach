@@ -4,7 +4,6 @@ import asyncio
 import datetime as dt
 import importlib.metadata
 import importlib.util
-import inspect
 import json
 import os
 import sys
@@ -252,33 +251,82 @@ def run_sdk_session_with_assertion(
 
 class AutoresearchTests(unittest.TestCase):
     def test_sdk_1_0_9_import_and_session_construction_needs_no_credentials_or_download(self):
-        from copilot import CopilotClient, RuntimeConnection
+        from copilot import CopilotClient, CopilotSession, RuntimeConnection
+
+        class ControlledJsonRpcClient:
+            def __init__(self):
+                self.requests = []
+
+            async def request(self, method, params, *, on_response_inline=None):
+                if method != "session.create":
+                    raise AssertionError(f"Unexpected SDK RPC request: {method}")
+                self.requests.append((method, params))
+                response = {
+                    "sessionId": params["sessionId"],
+                    "workspacePath": None,
+                    "capabilities": {},
+                }
+                if on_response_inline is not None:
+                    on_response_inline(response)
+                return response
 
         self.assertEqual(importlib.metadata.version("github-copilot-sdk"), "1.0.9")
-        with tempfile.TemporaryDirectory() as tmp:
-            runtime_path = Path(tmp) / "controlled-copilot-runtime"
-            runtime_path.write_text("not started by this smoke test")
-            connection = RuntimeConnection.for_stdio(path=str(runtime_path))
+        def permission_handler(request, invocation):
+            return None
+
+        def pre_tool_hook(input_data, invocation):
+            return None
+
+        def event_handler(event):
+            return None
+
+        rpc_client = ControlledJsonRpcClient()
+
+        with mock.patch(
+            "copilot.client._get_or_download_cli",
+            side_effect=AssertionError("SDK downloader must not run during the smoke test"),
+        ) as download_runtime, mock.patch(
+            "copilot.client.subprocess.Popen",
+            side_effect=AssertionError("SDK subprocess spawning must not run during the smoke test"),
+        ) as spawn_runtime:
+            connection = RuntimeConnection.for_stdio(path="/controlled/no-io/copilot-runtime")
             client = copilot_sdk_module.create_copilot_client(
                 env={"PATH": os.environ.get("PATH", "")},
                 github_token=None,
                 use_logged_in_user=False,
                 connection=connection,
             )
+            client._client = rpc_client
+
+            async def create_session():
+                return await client.create_session(
+                    on_permission_request=permission_handler,
+                    model="controlled-model",
+                    provider=None,
+                    working_directory=str(REPO_ROOT),
+                    system_message={"mode": "append", "content": "controlled system message"},
+                    hooks={"on_pre_tool_use": pre_tool_hook},
+                    on_event=event_handler,
+                    excluded_tools=["web_fetch"],
+                    streaming=True,
+                )
+
+            session = asyncio.run(create_session())
+            download_runtime.assert_not_called()
+            spawn_runtime.assert_not_called()
 
         self.assertIsInstance(client, CopilotClient)
-        bound_session = inspect.signature(client.create_session).bind(
-            on_permission_request=lambda request, invocation: None,
-            model="controlled-model",
-            provider=None,
-            working_directory=str(REPO_ROOT),
-            system_message={"mode": "append", "content": "controlled system message"},
-            hooks={"on_pre_tool_use": lambda input_data, invocation: None},
-            on_event=lambda event: None,
-            excluded_tools=["web_fetch"],
-            streaming=True,
-        )
-        self.assertEqual(bound_session.arguments["excluded_tools"], ["web_fetch"])
+        self.assertIsInstance(session, CopilotSession)
+        self.assertIs(session._permission_handler, permission_handler)
+        self.assertIs(session._hooks["on_pre_tool_use"], pre_tool_hook)
+        self.assertIn(event_handler, session._event_handlers)
+        self.assertEqual(len(rpc_client.requests), 1)
+        method, payload = rpc_client.requests[0]
+        self.assertEqual(method, "session.create")
+        self.assertEqual(payload["excludedTools"], ["web_fetch"])
+        self.assertEqual(payload["toolFilterPrecedence"], "excluded")
+        self.assertIs(payload["requestPermission"], True)
+        self.assertIs(payload["hooks"], True)
 
     def test_permission_handler_returns_sdk_1_0_9_decisions_and_rejects_web(self):
         from copilot.generated.rpc import PermissionDecisionApproveOnce, PermissionDecisionReject
