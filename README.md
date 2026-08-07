@@ -199,6 +199,7 @@ The repo already includes:
 - Scoring rubrics under `data/rubrics/`
 - Meta snapshot history under `data/snapshots/`
 - Helper tools under `tools/`
+- One repository validation entrypoint at `python3 tools/validate.py`
 - Local eval and autoresearch tooling under `tools/eval_skill.py` and `tools/autoresearch.py`
 - Eval artifacts include research-trace metadata and explicit verification state so nightly runs can be judged for signal, not just score
 - Exact damage/KO/survival calc support for `vgc-calcs-assistant` via `python3 tools/browser_damage_calc.py`

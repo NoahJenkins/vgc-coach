@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import importlib.metadata
 import importlib.util
+import inspect
 import json
 import os
 import sys
@@ -10,13 +12,14 @@ import tempfile
 import unittest
 from unittest import mock
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
 from autoresearch.config import choose_skill, get_skill_config  # noqa: E402
+import autoresearch.copilot_sdk as copilot_sdk_module  # noqa: E402
 from autoresearch.copilot_sdk import (  # noqa: E402
     AUTORESEARCH_INSTALL_COMMAND,
     CopilotRuntimeDiagnostics,
@@ -146,21 +149,15 @@ def make_event(type_name: str, *, content: str | None = None, message: str | Non
 
 
 class FakeSession:
-    def __init__(self, messages: list[object] | None = None) -> None:
-        self.messages = messages or []
+    def __init__(self, events: list[object] | None = None) -> None:
+        self.events = events or []
         self.abort_called = False
 
     async def abort(self) -> None:
         self.abort_called = True
 
-    async def get_messages(self) -> list[object]:
-        return list(self.messages)
-
-
-class FakePermissionRequestResult:
-    def __init__(self, *, kind: str, message: str | None = None) -> None:
-        self.kind = kind
-        self.message = message
+    async def get_events(self) -> list[object]:
+        return list(self.events)
 
 
 def invoke_permission_handler(
@@ -170,12 +167,8 @@ def invoke_permission_handler(
     attachments: tuple[str, ...] = (),
     allow_writes: bool = False,
     allow_live_research: bool = False,
-) -> tuple[FakePermissionRequestResult, SessionRecorder]:
+) -> tuple[object, SessionRecorder]:
     recorder = recorder or SessionRecorder()
-    copilot_module = ModuleType("copilot")
-    session_module = ModuleType("copilot.session")
-    session_module.PermissionRequestResult = FakePermissionRequestResult
-    copilot_module.session = session_module
     handler = make_permission_handler(
         config=get_skill_config("vgc-team-builder"),
         allow_writes=allow_writes,
@@ -185,11 +178,7 @@ def invoke_permission_handler(
         recorder=recorder,
         attachment_paths=attachments,
     )
-    with mock.patch.dict(
-        sys.modules,
-        {"copilot": copilot_module, "copilot.session": session_module},
-    ):
-        result = handler(request, {})
+    result = handler(request, {})
     return result, recorder
 
 
@@ -225,9 +214,6 @@ def run_sdk_session_with_assertion(
             return None
 
     class RuntimeClient:
-        def __init__(self, config) -> None:
-            self.config = config
-
         async def start(self) -> None:
             return None
 
@@ -239,20 +225,9 @@ def run_sdk_session_with_assertion(
             return None
 
     async def run() -> CopilotRunResult:
-        copilot_module = ModuleType("copilot")
-        client_module = ModuleType("copilot.client")
-        session_module = ModuleType("copilot.session")
-        copilot_module.CopilotClient = RuntimeClient
-        client_module.SubprocessConfig = lambda **values: SimpleNamespace(**values)
-        session_module.PermissionRequestResult = FakePermissionRequestResult
-
-        with mock.patch.dict(
-            sys.modules,
-            {
-                "copilot": copilot_module,
-                "copilot.client": client_module,
-                "copilot.session": session_module,
-            },
+        with mock.patch(
+            "autoresearch.copilot_sdk.create_copilot_client",
+            return_value=RuntimeClient(),
         ), mock.patch.dict(
             "os.environ",
             {"OPENAI_API_KEY": "test-key", "OPENAI_MODEL": "test-model"},
@@ -276,6 +251,66 @@ def run_sdk_session_with_assertion(
 
 
 class AutoresearchTests(unittest.TestCase):
+    def test_sdk_1_0_9_import_and_session_construction_needs_no_credentials_or_download(self):
+        from copilot import CopilotClient, RuntimeConnection
+
+        self.assertEqual(importlib.metadata.version("github-copilot-sdk"), "1.0.9")
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime_path = Path(tmp) / "controlled-copilot-runtime"
+            runtime_path.write_text("not started by this smoke test")
+            connection = RuntimeConnection.for_stdio(path=str(runtime_path))
+            client = copilot_sdk_module.create_copilot_client(
+                env={"PATH": os.environ.get("PATH", "")},
+                github_token=None,
+                use_logged_in_user=False,
+                connection=connection,
+            )
+
+        self.assertIsInstance(client, CopilotClient)
+        bound_session = inspect.signature(client.create_session).bind(
+            on_permission_request=lambda request, invocation: None,
+            model="controlled-model",
+            provider=None,
+            working_directory=str(REPO_ROOT),
+            system_message={"mode": "append", "content": "controlled system message"},
+            hooks={"on_pre_tool_use": lambda input_data, invocation: None},
+            on_event=lambda event: None,
+            excluded_tools=["web_fetch"],
+            streaming=True,
+        )
+        self.assertEqual(bound_session.arguments["excluded_tools"], ["web_fetch"])
+
+    def test_permission_handler_returns_sdk_1_0_9_decisions_and_rejects_web(self):
+        from copilot.generated.rpc import PermissionDecisionApproveOnce, PermissionDecisionReject
+        from copilot.generated.session_events import PermissionRequestRead, PermissionRequestUrl
+
+        handler = make_permission_handler(
+            config=get_skill_config("vgc-team-builder"),
+            allow_writes=False,
+            allow_eval_tightening=False,
+            run_profile="manual",
+            allow_live_research=True,
+            recorder=SessionRecorder(),
+        )
+        read_decision = handler(
+            PermissionRequestRead(
+                intention="inspect canonical skill",
+                path=str(REPO_ROOT / "skills" / "vgc-team-builder" / "SKILL.md"),
+            ),
+            {},
+        )
+        web_decision = handler(
+            PermissionRequestUrl(
+                intention="fetch current data",
+                url="https://example.com/current-meta",
+            ),
+            {},
+        )
+
+        self.assertIsInstance(read_decision, PermissionDecisionApproveOnce)
+        self.assertIsInstance(web_decision, PermissionDecisionReject)
+        self.assertIn("no end-to-end mediated fetch connector", web_decision.feedback or "")
+
     def test_priority_rotation_is_deterministic(self):
         first = choose_skill("auto", dt.date(2026, 1, 1))
         sixth = choose_skill("auto", dt.date(2026, 1, 6))
@@ -823,7 +858,7 @@ class AutoresearchTests(unittest.TestCase):
         async def run() -> None:
             tracker = SessionProgressTracker(loop=asyncio.get_running_loop())
             history = [make_event("assistant.message", content="partial answer")]
-            session = FakeSession(messages=history)
+            session = FakeSession(events=history)
             tracker.on_event(make_event("assistant.message", content="partial answer"))
             with self.assertRaises(CopilotSessionRuntimeError) as ctx:
                 await wait_for_session_completion(
@@ -835,6 +870,27 @@ class AutoresearchTests(unittest.TestCase):
             text = str(ctx.exception)
             self.assertIn("assistant.message", text)
             self.assertIn("partial answer", text)
+
+        asyncio.run(run())
+
+    def test_timeout_diagnostics_read_sdk_event_history(self):
+        async def run() -> None:
+            tracker = SessionProgressTracker(loop=asyncio.get_running_loop())
+            session = FakeSession(
+                events=[make_event("assistant.message", content="history-only partial answer")]
+            )
+            with self.assertRaises(CopilotSessionRuntimeError) as ctx:
+                await wait_for_session_completion(
+                    session=session,
+                    tracker=tracker,
+                    inactivity_timeout=0.02,
+                    hard_cap_timeout=1.0,
+                )
+            self.assertIn("history-only partial answer", str(ctx.exception))
+            self.assertEqual(
+                ctx.exception.diagnostics.last_event_type,
+                "assistant.message",
+            )
 
         asyncio.run(run())
 
@@ -935,9 +991,6 @@ class AutoresearchTests(unittest.TestCase):
                     return None
 
             class RuntimeClient:
-                def __init__(self, config) -> None:
-                    self.config = config
-
                 async def start(self) -> None:
                     return None
 
@@ -946,26 +999,15 @@ class AutoresearchTests(unittest.TestCase):
                         permission_request("read", path=str(attachment)),
                         {},
                     )
-                    test_case.assertEqual(decision.kind, "approved")
+                    test_case.assertEqual(decision.kind, "approve-once")
                     return RuntimeSession(options["on_event"])
 
                 async def stop(self) -> None:
                     return None
 
-            copilot_module = ModuleType("copilot")
-            client_module = ModuleType("copilot.client")
-            session_module = ModuleType("copilot.session")
-            copilot_module.CopilotClient = RuntimeClient
-            client_module.SubprocessConfig = lambda **values: SimpleNamespace(**values)
-            session_module.PermissionRequestResult = FakePermissionRequestResult
-
-            with mock.patch.dict(
-                sys.modules,
-                {
-                    "copilot": copilot_module,
-                    "copilot.client": client_module,
-                    "copilot.session": session_module,
-                },
+            with mock.patch(
+                "autoresearch.copilot_sdk.create_copilot_client",
+                return_value=RuntimeClient(),
             ), mock.patch.dict(
                 "os.environ",
                 {"OPENAI_API_KEY": "test-key", "OPENAI_MODEL": "test-model"},
@@ -1038,7 +1080,7 @@ class AutoresearchTests(unittest.TestCase):
                         permission_request("read", path=str(path)),
                         attachments=(str(attachment),),
                     )
-                    self.assertEqual(result.kind, "approved")
+                    self.assertEqual(result.kind, "approve-once")
                     self.assertEqual(recorder.read_paths, [str(path)])
 
     def test_permission_handler_rejects_invalid_or_out_of_scope_reads(self):
@@ -1058,7 +1100,7 @@ class AutoresearchTests(unittest.TestCase):
                     result, recorder = invoke_permission_handler(
                         permission_request("read", path=path)
                     )
-                    self.assertEqual(result.kind, "denied-by-rules")
+                    self.assertEqual(result.kind, "reject")
                     self.assertEqual(recorder.read_paths, [])
 
     def test_permission_handler_rejects_repo_symlink_that_escapes_read_scope(self):
@@ -1075,7 +1117,7 @@ class AutoresearchTests(unittest.TestCase):
                 permission_request("read", path=str(escaping_link))
             )
 
-        self.assertEqual(result.kind, "denied-by-rules")
+        self.assertEqual(result.kind, "reject")
         self.assertEqual(recorder.read_paths, [])
 
     def test_permission_handler_preserves_approved_canonical_writes(self):
@@ -1084,7 +1126,7 @@ class AutoresearchTests(unittest.TestCase):
             permission_request("write", path=str(allowed)),
             allow_writes=True,
         )
-        self.assertEqual(result.kind, "approved")
+        self.assertEqual(result.kind, "approve-once")
         self.assertEqual(recorder.write_paths, [str(allowed)])
 
     def test_permission_handler_allows_only_structured_read_only_git_commands(self):
@@ -1102,7 +1144,7 @@ class AutoresearchTests(unittest.TestCase):
                 result, recorder = invoke_permission_handler(
                     permission_request("shell", full_command_text=command)
                 )
-                self.assertEqual(result.kind, "approved")
+                self.assertEqual(result.kind, "approve-once")
                 self.assertEqual(recorder.shell_commands, [command])
 
     def test_permission_handler_rejects_shell_syntax_aliases_and_unsupported_options(self):
@@ -1131,7 +1173,7 @@ class AutoresearchTests(unittest.TestCase):
                 result, recorder = invoke_permission_handler(
                     permission_request("shell", full_command_text=command)
                 )
-                self.assertEqual(result.kind, "denied-by-rules")
+                self.assertEqual(result.kind, "reject")
                 self.assertEqual(recorder.shell_commands, [])
 
         redirected, _ = invoke_permission_handler(
@@ -1141,7 +1183,7 @@ class AutoresearchTests(unittest.TestCase):
                 has_write_file_redirection=True,
             )
         )
-        self.assertEqual(redirected.kind, "denied-by-rules")
+        self.assertEqual(redirected.kind, "reject")
 
     def test_permission_handler_rejects_absolute_relative_and_mixed_outside_git_paths(self):
         with tempfile.TemporaryDirectory() as outside_dir:
@@ -1163,7 +1205,7 @@ class AutoresearchTests(unittest.TestCase):
                     result, recorder = invoke_permission_handler(
                         permission_request("shell", full_command_text=command)
                     )
-                    self.assertEqual(result.kind, "denied-by-rules")
+                    self.assertEqual(result.kind, "reject")
                     self.assertEqual(recorder.shell_commands, [])
 
     def test_permission_handler_rejects_outside_paths_for_every_positional_git_family(self):
@@ -1184,7 +1226,7 @@ class AutoresearchTests(unittest.TestCase):
                     result, _ = invoke_permission_handler(
                         permission_request("shell", full_command_text=command)
                     )
-                    self.assertEqual(result.kind, "denied-by-rules")
+                    self.assertEqual(result.kind, "reject")
 
     def test_permission_handler_rejects_outside_shell_possible_paths(self):
         with tempfile.TemporaryDirectory() as outside_dir:
@@ -1201,7 +1243,7 @@ class AutoresearchTests(unittest.TestCase):
                             possible_paths=[possible_path],
                         )
                     )
-                    self.assertEqual(result.kind, "denied-by-rules")
+                    self.assertEqual(result.kind, "reject")
                     self.assertEqual(recorder.shell_commands, [])
 
     def test_permission_handler_preserves_repo_and_attachment_git_path_inspection(self):
@@ -1233,7 +1275,7 @@ class AutoresearchTests(unittest.TestCase):
                         request,
                         attachments=(str(attachment),),
                     )
-                    self.assertEqual(result.kind, "approved")
+                    self.assertEqual(result.kind, "approve-once")
                     self.assertEqual(recorder.shell_commands, [request.full_command_text])
 
     def test_permission_handler_denies_public_https_without_a_mediated_connector(self):
@@ -1244,7 +1286,7 @@ class AutoresearchTests(unittest.TestCase):
                 permission_request("url", url=public_url),
                 allow_live_research=True,
             )
-        self.assertEqual(result.kind, "denied-by-rules")
+        self.assertEqual(result.kind, "reject")
         self.assertEqual(recorder.requested_urls, [public_url])
         self.assertEqual(recorder.approved_urls, [])
         self.assertEqual(recorder.attempted_urls, [])
@@ -1270,9 +1312,9 @@ class AutoresearchTests(unittest.TestCase):
                         permission_request("url", url="https://public.example/start"),
                         {},
                     )
-                if decision.kind == "approved":
+                if decision.kind == "approve-once":
                     connector_attempts.append(redirect_target)
-                self.assertEqual(decision.kind, "denied-by-rules")
+                self.assertEqual(decision.kind, "reject")
 
             with self.subTest(redirect_target=redirect_target):
                 result = run_sdk_session_with_assertion(
@@ -1298,12 +1340,12 @@ class AutoresearchTests(unittest.TestCase):
                     permission_request("url", url="https://rebind.example/data"),
                     {},
                 )
-                if decision.kind == "approved":
+                if decision.kind == "approve-once":
                     connection_resolutions.extend(
                         entry[4][0]
                         for entry in resolver("rebind.example", 443, type=1)
                     )
-            self.assertEqual(decision.kind, "denied-by-rules")
+            self.assertEqual(decision.kind, "reject")
 
         result = run_sdk_session_with_assertion(
             assert_boundary,
@@ -1344,7 +1386,7 @@ class AutoresearchTests(unittest.TestCase):
                     permission_request("url", url=url),
                     allow_live_research=True,
                 )
-                self.assertEqual(result.kind, "denied-by-rules")
+                self.assertEqual(result.kind, "reject")
                 self.assertEqual(recorder.approved_urls, [])
 
     def test_permission_handler_fails_closed_when_dns_resolution_is_unavailable(self):
@@ -1357,7 +1399,7 @@ class AutoresearchTests(unittest.TestCase):
                 permission_request("url", url=url),
                 allow_live_research=True,
             )
-        self.assertEqual(result.kind, "denied-by-rules")
+        self.assertEqual(result.kind, "reject")
         self.assertEqual(recorder.requested_urls, [url])
         self.assertEqual(recorder.approved_urls, [])
 

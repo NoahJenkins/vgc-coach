@@ -179,25 +179,23 @@ def make_permission_handler(
     attachment_paths: tuple[str, ...] = (),
 ):
     def handler(request: "PermissionRequest", invocation: dict[str, str]) -> "PermissionRequestResult":
-        from copilot.session import PermissionRequestResult
+        from copilot.generated.rpc import PermissionDecisionApproveOnce, PermissionDecisionReject
 
         kind = getattr(request.kind, "value", str(request.kind))
         if kind == "read":
             paths = _paths_from_request(request)
             if paths and all(is_path_allowed_for_read(path, attachment_paths) for path in paths):
                 recorder.read_paths.extend(paths)
-                return PermissionRequestResult(kind="approved")
-            return PermissionRequestResult(
-                kind="denied-by-rules",
-                message="Reads are restricted to the repository and explicit attachments.",
+                return PermissionDecisionApproveOnce()
+            return PermissionDecisionReject(
+                feedback="Reads are restricted to the repository and explicit attachments.",
             )
 
         if kind == "write":
             paths = _paths_from_request(request)
             if not allow_writes:
-                return PermissionRequestResult(
-                    kind="denied-by-rules",
-                    message="This session is read-only.",
+                return PermissionDecisionReject(
+                    feedback="This session is read-only.",
                 )
             if paths and all(
                 is_path_allowed_for_write(
@@ -209,18 +207,16 @@ def make_permission_handler(
                 for path in paths
             ):
                 recorder.write_paths.extend(paths)
-                return PermissionRequestResult(kind="approved")
-            return PermissionRequestResult(
-                kind="denied-by-rules",
-                message="Writes are restricted to the skill write scope.",
+                return PermissionDecisionApproveOnce()
+            return PermissionDecisionReject(
+                feedback="Writes are restricted to the skill write scope.",
             )
 
         if kind == "url":
             urls = _urls_from_request(request)
             recorder.requested_urls.extend(urls)
-            return PermissionRequestResult(
-                kind="denied-by-rules",
-                message=(
+            return PermissionDecisionReject(
+                feedback=(
                     "Live web access is unavailable because this repository has no "
                     "end-to-end mediated fetch connector."
                     if allow_live_research
@@ -244,15 +240,13 @@ def make_permission_handler(
                 )
             ):
                 recorder.shell_commands.append(command)
-                return PermissionRequestResult(kind="approved")
-            return PermissionRequestResult(
-                kind="denied-by-rules",
-                message="Shell access is limited to read-only git inspection.",
+                return PermissionDecisionApproveOnce()
+            return PermissionDecisionReject(
+                feedback="Shell access is limited to read-only git inspection.",
             )
 
-        return PermissionRequestResult(
-            kind="denied-by-rules",
-            message=f"Permission kind '{kind}' is not allowed for autoresearch runs.",
+        return PermissionDecisionReject(
+            feedback=f"Permission kind '{kind}' is not allowed for autoresearch runs.",
         )
 
     return handler

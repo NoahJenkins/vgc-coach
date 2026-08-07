@@ -27,13 +27,20 @@ jobs:
             exit 1
           fi
 
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install validation dependencies
+        run: python3 -m pip install -r tools/requirements-autoresearch.txt
+
       - name: Run packaging checks
         run: |
           set -euo pipefail
-          python3 -m unittest tests.test_autoresearch tests.test_browser_damage_calc tests.test_build_plugins
           python3 tools/build_plugins.py build
           python3 tools/build_plugins.py update-release-notes
-          python3 tools/build_plugins.py check
+          python3 tools/validate.py --scope core
 
       - name: Commit generated release artifacts
         run: |

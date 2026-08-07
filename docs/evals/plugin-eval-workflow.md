@@ -18,7 +18,7 @@ Use `plugin-eval` to measure whether skill changes actually improve output quali
 
 ## Recommended Loop
 
-1. Install the local eval dependency with `python3 -m pip install -r tools/requirements-autoresearch.txt`.
+1. Complete the isolated virtual-environment setup in [CONTRIBUTING.md](../../CONTRIBUTING.md#local-development-setup).
 2. Pick one skill to change.
 3. Run the fixed eval cases for that skill with `python3 tools/eval_skill.py --skill <skill-name> --provider github-token --model gpt-5.4-mini --profile manual`.
 4. Review failures by category, not just by score.

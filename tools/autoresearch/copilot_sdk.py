@@ -247,6 +247,26 @@ def get_copilot_sdk_preflight_error() -> str | None:
     )
 
 
+def create_copilot_client(
+    *,
+    env: dict[str, str],
+    github_token: str | None,
+    use_logged_in_user: bool,
+    connection: Any | None = None,
+) -> Any:
+    from copilot import CopilotClient
+
+    options: dict[str, Any] = {
+        "working_directory": str(REPO_ROOT),
+        "env": env,
+        "github_token": github_token,
+        "use_logged_in_user": use_logged_in_user,
+    }
+    if connection is not None:
+        options["connection"] = connection
+    return CopilotClient(**options)
+
+
 def get_provider_config(provider_name: str, model: str | None) -> dict[str, Any] | None:
     if provider_name == "github-token":
         return None
@@ -398,9 +418,6 @@ async def _run_session_once(
     system_message: str,
     timeout: float,
 ) -> CopilotRunResult:
-    from copilot import CopilotClient
-    from copilot.client import SubprocessConfig
-
     recorder = SessionRecorder()
     effective_model = model or (os.environ.get("OPENAI_MODEL") if provider_name == "byok-openai" else None)
     provider = get_provider_config(provider_name, effective_model)
@@ -415,13 +432,10 @@ async def _run_session_once(
         )
         use_logged_in_user = not bool(github_token)
 
-    client = CopilotClient(
-        SubprocessConfig(
-            cwd=str(REPO_ROOT),
-            env=env,
-            github_token=github_token,
-            use_logged_in_user=use_logged_in_user,
-        )
+    client = create_copilot_client(
+        env=env,
+        github_token=github_token,
+        use_logged_in_user=use_logged_in_user,
     )
     session = None
     try:
@@ -470,13 +484,13 @@ async def _run_session_once(
 
         final_text = tracker.last_assistant_text or ""
         if not final_text:
-            messages = await session.get_messages()
-            final_text = _extract_final_text_from_history(messages)
+            events = await session.get_events()
+            final_text = _extract_final_text_from_history(events)
             if final_text:
                 tracker.last_assistant_text = final_text
                 tracker.assistant_message_received = True
-            if messages and not tracker.last_event_type:
-                tracker.last_event_type = _event_type_name(messages[-1])
+            if events and not tracker.last_event_type:
+                tracker.last_event_type = _event_type_name(events[-1])
 
         return CopilotRunResult(
             final_text=final_text.strip(),
@@ -510,16 +524,16 @@ async def _build_timeout_error(
 ) -> CopilotSessionRuntimeError:
     await _abort_session_quietly(session)
     try:
-        messages = await session.get_messages()
+        events = await session.get_events()
     except Exception:
-        messages = []
+        events = []
 
-    final_text = _extract_final_text_from_history(messages)
+    final_text = _extract_final_text_from_history(events)
     if final_text:
         tracker.last_assistant_text = final_text
         tracker.assistant_message_received = True
-    if messages:
-        tracker.last_event_type = _event_type_name(messages[-1]) or tracker.last_event_type
+    if events:
+        tracker.last_event_type = _event_type_name(events[-1]) or tracker.last_event_type
 
     diagnostics = tracker.build_diagnostics(timeout_kind=timeout_kind)
     if timeout_kind == "inactivity":
