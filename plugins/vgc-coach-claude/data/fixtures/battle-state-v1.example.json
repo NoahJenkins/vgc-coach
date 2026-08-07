@@ -42,6 +42,14 @@
         {"species_id": "charizard"},
         {"species_id": "rillaboom"},
         {"species_id": "incineroar"}
+      ],
+      "active": [
+        {"species_id": "whimsicott"},
+        {"species_id": "charizard"}
+      ],
+      "bench": [
+        {"species_id": "rillaboom"},
+        {"species_id": "incineroar"}
       ]
     },
     "opponent": {
@@ -54,6 +62,10 @@
         {"species_id": "flutter-mane"}
       ],
       "selected": [
+        {"species_id": "pelipper"},
+        {"species_id": "basculegion", "form_id": "male"}
+      ],
+      "active": [
         {"species_id": "pelipper"},
         {"species_id": "basculegion", "form_id": "male"}
       ]

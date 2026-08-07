@@ -10,6 +10,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CLI_PATH = REPO_ROOT / "tools" / "ingest_battle_state.py"
+PACKAGED_CLI_PATH = (
+    REPO_ROOT / "plugins" / "vgc-coach-codex" / "tools" / "ingest_battle_state.py"
+)
 SCHEMA_PATH = REPO_ROOT / "data" / "schemas" / "battle-state-v1.schema.json"
 EXAMPLE_PATH = REPO_ROOT / "data" / "fixtures" / "battle-state-v1.example.json"
 
@@ -46,9 +49,10 @@ class BattleStateIngestionTests(unittest.TestCase):
         input_path: str,
         *arguments: str,
         stdin: bytes | None = None,
+        cli_path: Path = CLI_PATH,
     ) -> subprocess.CompletedProcess[bytes]:
         return subprocess.run(
-            [sys.executable, str(CLI_PATH), input_path, *arguments],
+            [sys.executable, str(cli_path), input_path, *arguments],
             cwd=REPO_ROOT,
             input=stdin,
             stdout=subprocess.PIPE,
@@ -56,11 +60,16 @@ class BattleStateIngestionTests(unittest.TestCase):
             check=False,
         )
 
-    def run_document(self, document: dict, *arguments: str):
+    def run_document(
+        self,
+        document: dict,
+        *arguments: str,
+        cli_path: Path = CLI_PATH,
+    ):
         with tempfile.TemporaryDirectory() as tmp:
             input_path = Path(tmp) / "battle.json"
             input_path.write_text(json.dumps(document))
-            return self.run_cli(str(input_path), *arguments)
+            return self.run_cli(str(input_path), *arguments, cli_path=cli_path)
 
     def test_schema_is_draft_2020_12_with_stable_identifier(self):
         schema = json.loads(SCHEMA_PATH.read_text())
@@ -98,6 +107,14 @@ class BattleStateIngestionTests(unittest.TestCase):
         self.assertEqual(decoded["schema_version"], "battle-state-v1")
         self.assertEqual(decoded["format_provenance"]["regulation_id"], "regulation-m-b")
         self.assertEqual(decoded["outcome"]["winner"], "self")
+        self.assertEqual(
+            decoded["teams"]["self"]["active"],
+            [{"species_id": "whimsicott"}, {"species_id": "charizard"}],
+        )
+        self.assertEqual(
+            decoded["teams"]["self"]["bench"],
+            [{"species_id": "rillaboom"}, {"species_id": "incineroar"}],
+        )
         self.assertTrue(first.stdout.endswith(b"\n"))
 
     def test_stdin_to_stdout_uses_same_canonical_representation(self):
@@ -196,6 +213,53 @@ class BattleStateIngestionTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(b"active_window.end must not precede", result.stderr)
 
+    def test_rfc3339_offsets_are_accepted_by_root_and_packaged_clis(self):
+        document = minimal_document()
+        document["format_provenance"]["verified_at"] = "2026-08-06T07:00:00-05:00"
+        document["format_provenance"]["active_window"] = {
+            "start": "2026-06-17T02:00:00+00:00",
+            "end": "2026-09-09T01:59:00Z",
+        }
+
+        for cli_path in (CLI_PATH, PACKAGED_CLI_PATH):
+            with self.subTest(cli=cli_path):
+                result = self.run_document(document, cli_path=cli_path)
+                self.assertEqual(result.returncode, 0, result.stderr.decode())
+
+    def test_non_rfc3339_date_time_spellings_are_rejected_by_root_and_package(self):
+        for value in ("20260806T120000Z", "2026-08-06X12:00:00Z"):
+            for cli_path in (CLI_PATH, PACKAGED_CLI_PATH):
+                with self.subTest(value=value, cli=cli_path):
+                    document = minimal_document()
+                    document["format_provenance"]["verified_at"] = value
+
+                    result = self.run_document(document, cli_path=cli_path)
+
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(b"RFC 3339", result.stderr)
+                    self.assertNotIn(b"Traceback", result.stderr)
+
+    def test_malformed_http_authorities_are_rejected_without_traceback_in_both_clis(self):
+        invalid_urls = (
+            "https://@",
+            "https://:443",
+            "https://example.com:not-a-port",
+            "https://example.com\\redirect",
+            "https://example.com\n.evil",
+            "https://[",
+        )
+        for value in invalid_urls:
+            for cli_path in (CLI_PATH, PACKAGED_CLI_PATH):
+                with self.subTest(value=value, cli=cli_path):
+                    document = minimal_document()
+                    document["format_provenance"]["official_source_url"] = value
+
+                    result = self.run_document(document, cli_path=cli_path)
+
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(b"absolute HTTP(S) URL", result.stderr)
+                    self.assertNotIn(b"Traceback", result.stderr)
+
     def test_duplicate_or_non_monotonic_event_order_is_rejected(self):
         for pairs in (
             [(1, 1), (1, 1)],
@@ -255,7 +319,8 @@ class BattleStateIngestionTests(unittest.TestCase):
                 result = self.run_document(document)
 
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f"{field}.side".encode(), result.stderr)
+                expected_path = "actor.side" if field == "actor" else "target"
+                self.assertIn(expected_path.encode(), result.stderr)
 
     def test_field_is_a_valid_event_target_but_not_an_actor(self):
         valid = minimal_document()
@@ -285,6 +350,127 @@ class BattleStateIngestionTests(unittest.TestCase):
         self.assertEqual(valid_result.returncode, 0, valid_result.stderr.decode())
         self.assertNotEqual(invalid_result.returncode, 0)
         self.assertIn(b"actor.side", invalid_result.stderr)
+
+    def test_field_target_cannot_claim_a_pokemon_or_slot(self):
+        for extra in (
+            {"species_id": "pelipper"},
+            {"form_id": "male"},
+            {"position": "bench"},
+        ):
+            with self.subTest(extra=extra):
+                document = minimal_document()
+                document["turn_events"] = [
+                    {
+                        "turn": 1,
+                        "sequence": 1,
+                        "side": "field",
+                        "kind": "weather",
+                        "target": {"side": "field"} | extra,
+                    }
+                ]
+
+                result = self.run_document(document)
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(b"target", result.stderr)
+
+    def test_game_number_cannot_exceed_known_series_length(self):
+        document = minimal_document()
+        document["battle"]["best_of"] = 1
+        document["battle"]["game_number"] = 3
+
+        result = self.run_document(document)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b"game_number must not exceed best_of", result.stderr)
+
+    def test_team_member_cannot_be_active_and_benched_at_once(self):
+        document = minimal_document()
+        document["teams"]["self"] |= {
+            "active": [{"species_id": "charizard"}],
+            "bench": [{"species_id": "charizard"}],
+        }
+
+        result = self.run_document(document)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b"active and bench", result.stderr)
+
+    def test_revealed_value_and_evidence_must_contain_non_whitespace_text(self):
+        for field, value in (("value", ""), ("evidence", "   \n")):
+            with self.subTest(field=field):
+                document = minimal_document()
+                reveal = {
+                    "turn": 1,
+                    "side": "opponent",
+                    "kind": "item",
+                    "value": "focus-sash",
+                    "evidence": "The item activated.",
+                }
+                reveal[field] = value
+                document["revealed_information"] = [reveal]
+
+                result = self.run_document(document)
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(field.encode(), result.stderr)
+
+    def test_outcome_result_is_from_self_perspective_and_matches_winner(self):
+        invalid_outcomes = (
+            {"result": "win", "winner": "opponent"},
+            {"result": "loss", "winner": "self"},
+            {"result": "draw", "winner": "self"},
+            {"result": "unknown", "winner": "opponent"},
+            {"result": "win"},
+        )
+        for outcome in invalid_outcomes:
+            with self.subTest(outcome=outcome):
+                document = minimal_document()
+                document["outcome"] = outcome
+
+                result = self.run_document(document)
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(b"outcome", result.stderr)
+
+    def test_huge_integer_is_a_safe_error_and_preserves_explicit_output(self):
+        document_text = json.dumps(minimal_document())
+        huge_number = "9" * 5000
+        payload = document_text.replace(
+            '"source_type": "manual_transcription"',
+            f'"source_type": "manual_transcription", "game_number": {huge_number}',
+        ).encode()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            input_path = Path(tmp) / "battle.json"
+            output_path = Path(tmp) / "existing.json"
+            input_path.write_bytes(payload)
+            output_path.write_bytes(b"keep-me")
+
+            result = self.run_cli(str(input_path), "--output", str(output_path))
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(b"invalid JSON", result.stderr)
+            self.assertNotIn(b"Traceback", result.stderr)
+            self.assertEqual(output_path.read_bytes(), b"keep-me")
+
+    def test_unpaired_surrogate_is_a_safe_error_and_preserves_explicit_output(self):
+        document = minimal_document()
+        document["battle"]["player_sides"][0]["display_name"] = "\ud800"
+        payload = json.dumps(document).encode()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            input_path = Path(tmp) / "battle.json"
+            output_path = Path(tmp) / "existing.json"
+            input_path.write_bytes(payload)
+            output_path.write_bytes(b"keep-me")
+
+            result = self.run_cli(str(input_path), "--output", str(output_path))
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(b"Unicode scalar", result.stderr)
+            self.assertNotIn(b"Traceback", result.stderr)
+            self.assertEqual(output_path.read_bytes(), b"keep-me")
 
     def test_malformed_json_is_reported_without_traceback(self):
         result = self.run_cli("-", stdin=b'{"schema_version":')

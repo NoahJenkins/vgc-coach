@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import argparse
 import copy
+import ipaddress
 import json
 import os
 import re
 import sys
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -24,6 +25,15 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = REPO_ROOT / "data" / "schemas" / "battle-state-v1.schema.json"
 SUPPORTED_SCHEMA_VERSION = "battle-state-v1"
 MAX_INPUT_BYTES = 1024 * 1024
+RFC3339_PATTERN = re.compile(
+    r"^(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})[Tt]"
+    r"(?P<hour>[0-9]{2}):(?P<minute>[0-9]{2}):(?P<second>[0-9]{2})"
+    r"(?P<fraction>\.[0-9]+)?(?P<offset>[Zz]|[+-][0-9]{2}:[0-9]{2})$"
+)
+HOSTNAME_PATTERN = re.compile(
+    r"^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)"
+    r"(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$"
+)
 
 
 class BattleStateError(ValueError):
@@ -69,21 +79,94 @@ def _format_path(path: tuple[str | int, ...]) -> str:
     return rendered
 
 
-def _parse_datetime(value: str, path: str) -> datetime:
-    normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+def _parse_datetime(
+    value: str,
+    path: str,
+    schema_pattern: str | None = None,
+) -> datetime:
+    match = RFC3339_PATTERN.fullmatch(value)
+    if match is None or (
+        schema_pattern is not None and re.fullmatch(schema_pattern, value) is None
+    ):
+        raise BattleStateError(f"{path} must be an RFC 3339 date-time")
+
+    normalized = value[:10] + "T" + value[11:]
+    if normalized.endswith(("Z", "z")):
+        normalized = normalized[:-1] + "+00:00"
+    leap_second = match.group("second") == "60"
+    if leap_second:
+        normalized = normalized[:17] + "59" + normalized[19:]
     try:
         parsed = datetime.fromisoformat(normalized)
-    except ValueError as exc:
+        if leap_second:
+            parsed += timedelta(seconds=1)
+    except (OverflowError, ValueError) as exc:
         raise BattleStateError(f"{path} must be an RFC 3339 date-time") from exc
     if parsed.tzinfo is None:
         raise BattleStateError(f"{path} must include a timezone")
     return parsed
 
 
-def _validate_uri(value: str, path: str) -> None:
-    parsed = urlsplit(value)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise BattleStateError(f"{path} must be an absolute HTTP(S) URL")
+def _validate_uri(
+    value: str,
+    path: str,
+    schema_pattern: str | None = None,
+) -> None:
+    def invalid() -> BattleStateError:
+        return BattleStateError(f"{path} must be an absolute HTTP(S) URL")
+
+    if (
+        "\\" in value
+        or any(ord(character) < 32 or ord(character) == 127 for character in value)
+        or (schema_pattern is not None and re.fullmatch(schema_pattern, value) is None)
+    ):
+        raise invalid()
+    try:
+        parsed = urlsplit(value)
+        hostname = parsed.hostname
+        port = parsed.port
+    except (UnicodeError, ValueError) as exc:
+        raise invalid() from exc
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+        or (port is not None and not (0 <= port <= 65535))
+    ):
+        raise invalid()
+    if ":" in hostname:
+        try:
+            ipaddress.IPv6Address(hostname)
+        except ValueError as exc:
+            raise invalid() from exc
+    elif len(hostname) > 253 or HOSTNAME_PATTERN.fullmatch(hostname) is None:
+        raise invalid()
+
+
+def _require_unicode_scalar(value: str, path: str) -> None:
+    if any(0xD800 <= ord(character) <= 0xDFFF for character in value):
+        raise BattleStateError(f"{path} must contain only Unicode scalar values")
+
+
+def _validate_one_of(
+    value: Any,
+    options: list[dict[str, Any]],
+    root_schema: dict[str, Any],
+    path: tuple[str | int, ...],
+) -> None:
+    matches = 0
+    for option in options:
+        try:
+            _validate_against_schema(value, option, root_schema, path)
+        except BattleStateError:
+            continue
+        matches += 1
+    if matches != 1:
+        raise BattleStateError(
+            f"{_format_path(path)} must match exactly one allowed schema shape"
+        )
 
 
 def _validate_against_schema(
@@ -93,8 +176,16 @@ def _validate_against_schema(
     path: tuple[str | int, ...] = (),
 ) -> None:
     if "$ref" in schema:
-        _validate_against_schema(value, _resolve_ref(root_schema, schema["$ref"]), root_schema, path)
+        _validate_against_schema(
+            value,
+            _resolve_ref(root_schema, schema["$ref"]),
+            root_schema,
+            path,
+        )
         return
+
+    if "oneOf" in schema:
+        _validate_one_of(value, schema["oneOf"], root_schema, path)
 
     label = _format_path(path)
     expected = schema.get("type")
@@ -110,6 +201,8 @@ def _validate_against_schema(
         raise BattleStateError(f"{label} has an unknown value; expected one of: {allowed}")
 
     if isinstance(value, dict):
+        for key in value:
+            _require_unicode_scalar(key, f"{label} object key")
         for required in schema.get("required", []):
             if required not in value:
                 missing = _format_path((*path, required))
@@ -129,7 +222,10 @@ def _validate_against_schema(
         if "maxItems" in schema and len(value) > schema["maxItems"]:
             raise BattleStateError(f"{label} has too many items")
         if schema.get("uniqueItems"):
-            encoded = [json.dumps(item, sort_keys=True, separators=(",", ":")) for item in value]
+            encoded = [
+                json.dumps(item, sort_keys=True, separators=(",", ":"))
+                for item in value
+            ]
             if len(encoded) != len(set(encoded)):
                 raise BattleStateError(f"{label} must not contain duplicate items")
         item_schema = schema.get("items")
@@ -138,12 +234,17 @@ def _validate_against_schema(
                 _validate_against_schema(item, item_schema, root_schema, (*path, index))
 
     if isinstance(value, str):
-        if "pattern" in schema and re.fullmatch(schema["pattern"], value) is None:
-            raise BattleStateError(f"{label} does not match the required identifier format")
+        _require_unicode_scalar(value, label)
+        if len(value) < schema.get("minLength", 0):
+            raise BattleStateError(f"{label} must not be empty")
         if schema.get("format") == "date-time":
-            _parse_datetime(value, label)
+            _parse_datetime(value, label, schema.get("pattern"))
         elif schema.get("format") == "uri":
-            _validate_uri(value, label)
+            _validate_uri(value, label, schema.get("pattern"))
+        elif "pattern" in schema and re.search(schema["pattern"], value) is None:
+            raise BattleStateError(
+                f"{label} does not match the required identifier format"
+            )
 
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         if "minimum" in schema and value < schema["minimum"]:
@@ -167,8 +268,14 @@ def validate_and_normalize(document: Any) -> dict[str, Any]:
     provenance = document["format_provenance"]
     active_window = provenance.get("active_window")
     if active_window:
-        start = _parse_datetime(active_window["start"], "format_provenance.active_window.start")
-        end = _parse_datetime(active_window["end"], "format_provenance.active_window.end")
+        start = _parse_datetime(
+            active_window["start"],
+            "format_provenance.active_window.start",
+        )
+        end = _parse_datetime(
+            active_window["end"],
+            "format_provenance.active_window.end",
+        )
         if end < start:
             raise BattleStateError(
                 "format_provenance.active_window.end must not precede "
@@ -178,6 +285,28 @@ def validate_and_normalize(document: Any) -> dict[str, Any]:
     sides = [entry["side"] for entry in document["battle"]["player_sides"]]
     if sorted(sides) != ["opponent", "self"]:
         raise BattleStateError("battle.player_sides must map self and opponent exactly once")
+
+    battle = document["battle"]
+    if (
+        "best_of" in battle
+        and "game_number" in battle
+        and battle["game_number"] > battle["best_of"]
+    ):
+        raise BattleStateError("battle.game_number must not exceed best_of")
+
+    for side, team in document["teams"].items():
+        active = {
+            (member["species_id"], member.get("form_id"))
+            for member in team.get("active", [])
+        }
+        bench = {
+            (member["species_id"], member.get("form_id"))
+            for member in team.get("bench", [])
+        }
+        if active & bench:
+            raise BattleStateError(
+                f"teams.{side} cannot list the same Pokemon identity as active and bench"
+            )
 
     previous: tuple[int, int] | None = None
     for index, event in enumerate(document.get("turn_events", [])):
@@ -204,6 +333,10 @@ def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def _reject_nonfinite_number(value: str) -> None:
+    raise BattleStateError(f"invalid JSON: non-finite number {value!r}")
+
+
 def read_limited_input(path: str) -> bytes:
     try:
         if path == "-":
@@ -224,13 +357,23 @@ def parse_document(payload: bytes) -> Any:
     except UnicodeDecodeError as exc:
         raise BattleStateError("input must be UTF-8 JSON") from exc
     try:
-        return json.loads(text, object_pairs_hook=_reject_duplicate_keys)
+        return json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_reject_nonfinite_number,
+        )
     except BattleStateError:
         raise
     except json.JSONDecodeError as exc:
         raise BattleStateError(
             f"invalid JSON at line {exc.lineno}, column {exc.colno}: {exc.msg}"
         ) from exc
+    except ValueError as exc:
+        raise BattleStateError(
+            "invalid JSON: numeric value is too large or malformed"
+        ) from exc
+    except RecursionError as exc:
+        raise BattleStateError("invalid JSON: document nesting is too deep") from exc
 
 
 def render_document(document: dict[str, Any], pretty: bool) -> bytes:
@@ -243,13 +386,22 @@ def render_document(document: dict[str, Any], pretty: bool) -> bytes:
             ensure_ascii=False,
             separators=(",", ":"),
         )
-    return (rendered + "\n").encode("utf-8")
+    try:
+        return (rendered + "\n").encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise BattleStateError(
+            "document strings must contain only Unicode scalar values"
+        ) from exc
 
 
 def write_atomic(path: Path, payload: bytes) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile(dir=path.parent, prefix=f".{path.name}.", delete=False) as handle:
+        with tempfile.NamedTemporaryFile(
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            delete=False,
+        ) as handle:
             temporary = Path(handle.name)
             handle.write(payload)
         os.replace(temporary, path)
@@ -285,6 +437,12 @@ def main(argv: list[str] | None = None) -> int:
             sys.stdout.buffer.write(payload)
     except BattleStateError as exc:
         print(f"battle-state validation failed: {exc}", file=sys.stderr)
+        return 2
+    except RecursionError:
+        print(
+            "battle-state validation failed: document nesting is too deep",
+            file=sys.stderr,
+        )
         return 2
     return 0
 
