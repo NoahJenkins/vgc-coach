@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -12,6 +13,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CLI_PATH = REPO_ROOT / "tools" / "ingest_battle_state.py"
 PACKAGED_CLI_PATH = (
     REPO_ROOT / "plugins" / "vgc-coach-codex" / "tools" / "ingest_battle_state.py"
+)
+ALL_CLI_PATHS = (
+    CLI_PATH,
+    PACKAGED_CLI_PATH,
+    REPO_ROOT / "plugins" / "vgc-coach-claude" / "tools" / "ingest_battle_state.py",
+    REPO_ROOT / "plugins" / "vgc-coach-opencode" / "tools" / "ingest_battle_state.py",
 )
 SCHEMA_PATH = REPO_ROOT / "data" / "schemas" / "battle-state-v1.schema.json"
 EXAMPLE_PATH = REPO_ROOT / "data" / "fixtures" / "battle-state-v1.example.json"
@@ -477,6 +484,108 @@ class BattleStateIngestionTests(unittest.TestCase):
 
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(field.encode(), result.stderr)
+
+    def test_trailing_line_terminator_identifiers_are_rejected_by_every_cli(self):
+        def regulation(document: dict) -> None:
+            document["format_provenance"]["regulation_id"] = "regulation-m-b\n"
+
+        def species(document: dict) -> None:
+            document["teams"]["self"]["preview_roster"] = [
+                {"species_id": "charizard\n"}
+            ]
+
+        def form(document: dict) -> None:
+            document["teams"]["self"]["preview_roster"] = [
+                {"species_id": "charizard", "form_id": "mega-x\n"}
+            ]
+
+        def action(document: dict) -> None:
+            document["turn_events"] = [
+                {
+                    "turn": 1,
+                    "sequence": 1,
+                    "side": "self",
+                    "kind": "move",
+                    "action": {"identifier": "tailwind\n"},
+                }
+            ]
+
+        for field, mutate in (
+            ("regulation_id", regulation),
+            ("species_id", species),
+            ("form_id", form),
+            ("action.identifier", action),
+        ):
+            for cli_path in ALL_CLI_PATHS:
+                with self.subTest(field=field, cli=cli_path):
+                    document = minimal_document()
+                    mutate(document)
+
+                    result = self.run_document(document, cli_path=cli_path)
+
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout, b"")
+                    self.assertNotIn(b"Traceback", result.stderr)
+
+    def test_unicode_nel_alone_is_whitespace_in_reveals_for_every_cli(self):
+        for field in ("value", "evidence"):
+            for cli_path in ALL_CLI_PATHS:
+                with self.subTest(field=field, cli=cli_path):
+                    document = minimal_document()
+                    reveal = {
+                        "turn": 1,
+                        "side": "opponent",
+                        "kind": "item",
+                        "value": "focus-sash",
+                        "evidence": "The item activated.",
+                    }
+                    reveal[field] = "\u0085"
+                    document["revealed_information"] = [reveal]
+
+                    result = self.run_document(document, cli_path=cli_path)
+
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout, b"")
+                    self.assertNotIn(b"Traceback", result.stderr)
+
+    def test_schema_patterns_have_expected_ecmascript_boundaries(self):
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("Node.js is unavailable for ECMAScript regex comparison")
+        schema = json.loads(SCHEMA_PATH.read_text())
+        anchored_patterns = {
+            schema["$defs"]["pokemonRef"]["properties"]["species_id"]["pattern"],
+            schema["$defs"]["eventDetail"]["properties"]["identifier"]["pattern"],
+            schema["$defs"]["formatProvenance"]["properties"]["regulation_id"][
+                "pattern"
+            ],
+        }
+        reveal_pattern = schema["$defs"]["revealedFact"]["properties"]["value"][
+            "pattern"
+        ]
+
+        def javascript_matches(pattern: str, value: str) -> bool:
+            completed = subprocess.run(
+                [
+                    node,
+                    "-e",
+                    "const [p,v]=process.argv.slice(1); process.exit(new RegExp(p, 'u').test(v) ? 0 : 1)",
+                    pattern,
+                    value,
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            self.assertIn(completed.returncode, (0, 1), completed.stderr.decode())
+            return completed.returncode == 0
+
+        for pattern in anchored_patterns:
+            with self.subTest(pattern=pattern):
+                self.assertTrue(javascript_matches(pattern, "regulation-m-b"))
+                self.assertFalse(javascript_matches(pattern, "regulation-m-b\n"))
+        self.assertTrue(javascript_matches(reveal_pattern, "useful evidence"))
+        self.assertFalse(javascript_matches(reveal_pattern, "\u0085"))
 
     def test_outcome_result_is_from_self_perspective_and_matches_winner(self):
         invalid_outcomes = (

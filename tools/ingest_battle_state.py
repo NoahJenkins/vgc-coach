@@ -187,6 +187,19 @@ def _validate_one_of(
         )
 
 
+def _matches_schema_pattern(pattern: str, value: str) -> bool:
+    """Match the repository's portable JSON Schema pattern subset.
+
+    Anchored identifier patterns define the whole string, so fullmatch avoids
+    Python's special end-before-final-newline behavior for ``$``. Unanchored
+    patterns retain JSON Schema search semantics.
+    """
+
+    if pattern.startswith("^") and pattern.endswith("$"):
+        return re.fullmatch(pattern, value) is not None
+    return re.search(pattern, value) is not None
+
+
 def _validate_against_schema(
     value: Any,
     schema: dict[str, Any],
@@ -259,7 +272,9 @@ def _validate_against_schema(
             _parse_datetime(value, label, schema.get("pattern"))
         elif schema.get("format") == "uri":
             _validate_uri(value, label, schema.get("pattern"))
-        elif "pattern" in schema and re.search(schema["pattern"], value) is None:
+        elif "pattern" in schema and not _matches_schema_pattern(
+            schema["pattern"], value
+        ):
             raise BattleStateError(
                 f"{label} does not match the required identifier format"
             )

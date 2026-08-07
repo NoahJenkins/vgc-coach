@@ -28,6 +28,12 @@ two hexadecimal digits per byte. Valid percent-encoded data is preserved
 verbatim. Malformed percent escapes and more than one raw `#` fragment
 delimiter are rejected.
 
+Regulation, species, form, move, item, and other structured identifiers are
+whole-string lowercase slugs; trailing line terminators are invalid. Revealed
+`value` and `evidence` must contain at least one character outside the shared
+Unicode whitespace set, which treats C1 NEL (U+0085) as whitespace in every
+supported runtime.
+
 ## Normalize a record
 
 ```bash
