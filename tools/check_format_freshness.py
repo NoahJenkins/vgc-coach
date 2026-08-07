@@ -15,6 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = Path("docs/skills/shared/references/live-source-registry.yaml")
 REFERENCE_ROOT = Path("docs/skills/shared/references")
 SNAPSHOT_ROOT = Path("data/snapshots")
+FIXTURE_ROOT = Path("data/fixtures")
 
 
 def _parse_utc(value: Any, *, label: str) -> datetime:
@@ -45,9 +46,14 @@ def _designation(
     *,
     label: str,
     window_path: tuple[str, ...],
+    required: bool = False,
 ) -> tuple[str, datetime] | None:
     status = payload.get("temporal_status")
     if status is None:
+        if required:
+            raise ValueError(
+                f"{label}: regulation-bearing artifacts require temporal_status"
+            )
         return None
     if status not in {"current", "historical"}:
         raise ValueError(f"{label}: temporal_status must be current or historical")
@@ -78,13 +84,17 @@ def _iter_designations(repo_root: Path) -> Iterable[tuple[str, str, datetime]]:
             source,
             label=f"{REGISTRY_PATH}:sources[{index}]",
             window_path=("active_window",),
+            required=(
+                source.get("role") == "official_regulation"
+                or str(source.get("id", "")).startswith("regulation-")
+            ),
         )
         if result:
             status, end = result
             yield f"{REGISTRY_PATH}:sources[{index}]", status, end
 
     snapshot_root = repo_root / SNAPSHOT_ROOT
-    for path in sorted(snapshot_root.glob("*.json")):
+    for path in sorted(snapshot_root.rglob("*.json")):
         payload = json.loads(path.read_text())
         if not isinstance(payload, dict):
             raise ValueError(f"{path}: snapshot must be a mapping")
@@ -93,6 +103,7 @@ def _iter_designations(repo_root: Path) -> Iterable[tuple[str, str, datetime]]:
             payload,
             label=relative,
             window_path=("format", "active_window"),
+            required=_has_regulation_id(payload),
         )
         if result:
             status, end = result
@@ -108,10 +119,32 @@ def _iter_designations(repo_root: Path) -> Iterable[tuple[str, str, datetime]]:
             payload,
             label=relative,
             window_path=("active_window",),
+            required=bool(payload.get("regulation_id")),
         )
         if result:
             status, end = result
             yield relative, status, end
+
+    fixture_root = repo_root / FIXTURE_ROOT
+    for path in sorted(fixture_root.rglob("*.example.json")):
+        payload = json.loads(path.read_text())
+        if not isinstance(payload, dict):
+            raise ValueError(f"{path}: example fixture must be a mapping")
+        relative = path.relative_to(repo_root).as_posix()
+        result = _designation(
+            payload,
+            label=relative,
+            window_path=("format", "active_window"),
+            required=_has_regulation_id(payload),
+        )
+        if result:
+            status, end = result
+            yield relative, status, end
+
+
+def _has_regulation_id(payload: dict[str, Any]) -> bool:
+    format_payload = payload.get("format")
+    return isinstance(format_payload, dict) and bool(format_payload.get("regulation_id"))
 
 
 def find_expired_current_artifacts(

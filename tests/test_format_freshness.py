@@ -97,6 +97,29 @@ def write_designated_artifacts(
         )
     )
 
+    fixtures = root / "data/fixtures"
+    fixtures.mkdir(parents=True)
+    (fixtures / "request.example.json").write_text(
+        json.dumps(
+            {
+                "temporal_status": "current",
+                "format": {
+                    "regulation_id": f"regulation-{current_regulation}",
+                    "active_window": {
+                        "start": current_start,
+                        "end": current_end,
+                    },
+                },
+            }
+        )
+    )
+
+
+def write_empty_registry(root: Path) -> None:
+    registry = root / "docs/skills/shared/references/live-source-registry.yaml"
+    registry.parent.mkdir(parents=True)
+    registry.write_text("sources: []\n")
+
 
 class FormatFreshnessTests(unittest.TestCase):
     def setUp(self):
@@ -126,7 +149,7 @@ class FormatFreshnessTests(unittest.TestCase):
                 root, now=datetime(2026, 9, 9, 1, 59, 1, tzinfo=timezone.utc)
             )
 
-        self.assertEqual(len(expired), 3)
+        self.assertEqual(len(expired), 4)
         self.assertTrue(all("2026-09-09T01:59:00Z" in item for item in expired))
 
     def test_stale_current_m_a_fails_while_historical_m_a_is_ignored(self):
@@ -143,8 +166,129 @@ class FormatFreshnessTests(unittest.TestCase):
                 root, now=datetime(2026, 8, 6, 12, tzinfo=timezone.utc)
             )
 
-        self.assertEqual(len(expired), 3)
+        self.assertEqual(len(expired), 4)
         self.assertFalse(any("historical" in item for item in expired))
+
+    def test_regulation_bearing_paths_require_temporal_status(self):
+        scenarios = {
+            "registry": (
+                "docs/skills/shared/references/live-source-registry.yaml",
+                "sources:\n"
+                "  - id: regulation-set-future\n"
+                "    role: official_regulation\n"
+                "    active_window:\n"
+                "      start: '2027-01-01T00:00:00Z'\n"
+                "      end: '2027-02-01T00:00:00Z'\n",
+            ),
+            "snapshot": (
+                "data/snapshots/future/nested/future-format.json",
+                json.dumps(
+                    {
+                        "format": {
+                            "regulation_id": "regulation-future",
+                            "active_window": {
+                                "start": "2027-01-01T00:00:00Z",
+                                "end": "2027-02-01T00:00:00Z",
+                            },
+                        }
+                    }
+                ),
+            ),
+            "reference": (
+                "docs/skills/shared/references/future-format.md",
+                "---\n"
+                "regulation_id: regulation-future\n"
+                "active_window:\n"
+                "  start: '2027-01-01T00:00:00Z'\n"
+                "  end: '2027-02-01T00:00:00Z'\n"
+                "---\n# Future format\n",
+            ),
+            "ambiguous fixture": (
+                "data/fixtures/future/nested/anything.example.json",
+                json.dumps(
+                    {
+                        "format": {
+                            "regulation_id": "regulation-future",
+                            "active_window": {
+                                "start": "2027-01-01T00:00:00Z",
+                                "end": "2027-02-01T00:00:00Z",
+                            },
+                        }
+                    }
+                ),
+            ),
+        }
+
+        for label, (relative, content) in scenarios.items():
+            with self.subTest(path=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                write_empty_registry(root)
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content)
+
+                with self.assertRaisesRegex(ValueError, "temporal_status"):
+                    self.module.find_expired_current_artifacts(
+                        root, now=datetime(2026, 8, 6, 12, tzinfo=timezone.utc)
+                    )
+
+    def test_regulation_bearing_snapshot_and_fixture_require_active_window(self):
+        for relative in (
+            "data/snapshots/future/nested/future-format.json",
+            "data/fixtures/future/nested/anything.example.json",
+        ):
+            with self.subTest(path=relative), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                write_empty_registry(root)
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(
+                    json.dumps(
+                        {
+                            "temporal_status": "historical",
+                            "format": {"regulation_id": "regulation-future"},
+                        }
+                    )
+                )
+
+                with self.assertRaisesRegex(ValueError, "active_window"):
+                    self.module.find_expired_current_artifacts(
+                        root, now=datetime(2026, 8, 6, 12, tzinfo=timezone.utc)
+                    )
+
+    def test_checked_in_request_examples_use_current_m_b_provenance(self):
+        for filename in (
+            "team-build-request-v1.example.json",
+            "battle-review-request-v1.example.json",
+        ):
+            with self.subTest(filename=filename):
+                payload = json.loads((REPO_ROOT / "data/fixtures" / filename).read_text())
+                self.assertEqual(payload["temporal_status"], "current")
+                self.assertEqual(payload["format"]["regulation_id"], "regulation-m-b")
+                self.assertEqual(
+                    payload["format"]["active_window"]["end"],
+                    "2026-09-09T01:59:00Z",
+                )
+                self.assertEqual(
+                    payload["format_provenance"]["source_url"],
+                    "https://news.pokemon-home.com/en/page/776.html",
+                )
+
+    def test_checked_in_meta_snapshot_example_is_explicitly_historical(self):
+        payload = json.loads(
+            (REPO_ROOT / "data/snapshots/meta-snapshot-v1.example.json").read_text()
+        )
+
+        self.assertEqual(payload["temporal_status"], "historical")
+        self.assertEqual(payload["format"]["regulation_id"], "regulation-m-a")
+        self.assertEqual(
+            payload["format"]["active_window"],
+            {
+                "start": "2026-04-08T02:00:00Z",
+                "end": "2026-06-17T01:59:00Z",
+            },
+        )
+        self.assertTrue(any("historical" in note.lower() for note in payload["notes"]))
 
     def test_repository_current_designations_are_fresh_on_verified_date(self):
         expired = self.module.find_expired_current_artifacts(

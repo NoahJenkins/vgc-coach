@@ -1,12 +1,17 @@
 {
   "snapshot_id": "reg-m-a-2026-04-18",
+  "temporal_status": "historical",
   "generated_at": "2026-04-18T18:00:00Z",
   "format": {
     "game": "pokemon-champions",
     "battle_mode": "doubles",
     "regulation_id": "regulation-m-a",
     "rules_version": "2026-04-01",
-    "mechanics": ["mega-evolution"]
+    "mechanics": ["mega-evolution"],
+    "active_window": {
+      "start": "2026-04-08T02:00:00Z",
+      "end": "2026-06-17T01:59:00Z"
+    }
   },
   "sources": [
     {
@@ -44,8 +49,8 @@
   ],
   "fresh_until": "2026-04-25T18:00:00Z",
   "notes": [
+    "Historical Regulation M-A example; never use it as present-tense coaching evidence.",
     "Use official rules as the legality source of truth.",
     "Community usage sources may drift faster than the rules source."
   ]
 }
-
