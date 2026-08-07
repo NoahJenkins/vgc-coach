@@ -11,7 +11,7 @@ Read and follow these shared repo files directly:
 - `docs/skills/vgc-meta-research/references/source-policy.md`
 - `docs/skills/vgc-meta-research/references/current-source-map.md`
 - `docs/skills/vgc-meta-research/references/output-rubric.md`
-- `docs/skills/shared/references/champions-reg-m-a-legality.md`
+- `docs/skills/shared/references/champions-reg-m-b-legality.md`
 
 When the shared contract says to use another repo skill, load the matching `opencode-vgc-*` wrapper instead of a shared `vgc-*` skill name.
 

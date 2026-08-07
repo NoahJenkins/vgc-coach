@@ -34,6 +34,8 @@ def write_designated_artifacts(
     registry.write_text(
         "sources:\n"
         f"  - id: regulation-set-{current_regulation}\n"
+        "    role: official_regulation\n"
+        f"    regulation_id: regulation-{current_regulation}\n"
         "    temporal_status: current\n"
         "    active_window:\n"
         f"      start: '{current_start}'\n"
@@ -168,6 +170,24 @@ class FormatFreshnessTests(unittest.TestCase):
 
         self.assertEqual(len(expired), 4)
         self.assertFalse(any("historical" in item for item in expired))
+
+    def test_runtime_wrapper_cannot_route_current_coaching_to_historical_rules(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_designated_artifacts(root, current_end="2026-09-09T01:59:00Z")
+            wrapper = root / ".opencode/skills/opencode-vgc-team-builder/SKILL.md"
+            wrapper.parent.mkdir(parents=True)
+            wrapper.write_text(
+                "Read `docs/skills/shared/references/champions-reg-m-a-legality.md`.\n"
+            )
+
+            issues = self.module.find_expired_current_artifacts(
+                root, now=datetime(2026, 8, 6, 12, tzinfo=timezone.utc)
+            )
+
+        self.assertEqual(len(issues), 1)
+        self.assertIn("historical regulation reference", issues[0])
+        self.assertIn("champions-reg-m-b-legality.md", issues[0])
 
     def test_regulation_bearing_paths_require_temporal_status(self):
         scenarios = {

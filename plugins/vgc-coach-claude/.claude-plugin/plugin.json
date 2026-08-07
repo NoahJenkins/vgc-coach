@@ -1,7 +1,7 @@
 {
   "name": "vgc-coach-claude",
   "description": "Pokemon Champions coaching skills for Claude Code.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
     "name": "Noah Jenkins",
     "url": "https://github.com/NoahJenkins"

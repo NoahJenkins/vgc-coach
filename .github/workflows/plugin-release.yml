@@ -48,7 +48,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if ! git diff --quiet; then
-            git add VERSION RELEASE_NOTES.md package.json .agents/plugins/marketplace.json .claude-plugin/marketplace.json plugins
+            git add VERSION RELEASE_NOTES.md package.json site/package.json .agents/plugins/marketplace.json .claude-plugin/marketplace.json plugins
             git commit -m "release: refresh generated plugin artifacts"
             git push origin HEAD:main
           fi

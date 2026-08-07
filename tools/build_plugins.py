@@ -454,6 +454,14 @@ def render_root_package_json(plugin: dict, repo_meta: dict, version: str) -> dic
     }
 
 
+def render_site_package_json(version: str) -> dict:
+    site_package_path = ROOT / "site" / "package.json"
+    _prewalk_source_tree(site_package_path)
+    package = json.loads(site_package_path.read_text())
+    package["version"] = version
+    return package
+
+
 def render_codex_marketplace(version: str) -> dict:
     return {
         "name": "vgc-coach",
@@ -606,6 +614,11 @@ def build_root_outputs(manifest: dict, version: str, target_root: Path) -> None:
         render_root_package_json(opencode_plugin, repo_meta, version),
         target_root,
     )
+    write_json(
+        target_root / "site" / "package.json",
+        render_site_package_json(version),
+        target_root,
+    )
 
 
 def build_all(target_root: Path) -> None:
@@ -710,6 +723,7 @@ def check_repo() -> int:
             ".agents/plugins/marketplace.json",
             ".claude-plugin/marketplace.json",
             "package.json",
+            "site/package.json",
         ]:
             if not (ROOT / relative).exists():
                 differences.append(f"Missing generated file: {ROOT / relative}")

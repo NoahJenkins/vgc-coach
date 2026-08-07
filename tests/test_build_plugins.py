@@ -1,5 +1,6 @@
 import copy
 import importlib.util
+import json
 import pathlib
 import sys
 import tempfile
@@ -55,6 +56,26 @@ class BuildPluginsTests(unittest.TestCase):
             self.assertTrue((root / ".agents" / "plugins" / "marketplace.json").exists())
             self.assertTrue((root / ".claude-plugin" / "marketplace.json").exists())
             self.assertTrue((root / "package.json").exists())
+
+    def test_build_aligns_site_package_version_without_changing_site_metadata(self):
+        repo_root = pathlib.Path(__file__).resolve().parents[1]
+        canonical_site_package = json.loads(
+            (repo_root / "site" / "package.json").read_text()
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self.module.build_all(root)
+
+            generated_site_package = json.loads(
+                (root / "site" / "package.json").read_text()
+            )
+
+        self.assertEqual(generated_site_package["version"], self.module.load_version())
+        self.assertEqual(
+            {key: value for key, value in generated_site_package.items() if key != "version"},
+            {key: value for key, value in canonical_site_package.items() if key != "version"},
+        )
 
     def test_build_copies_docs_and_tools_into_plugin(self):
         with tempfile.TemporaryDirectory() as tmp:

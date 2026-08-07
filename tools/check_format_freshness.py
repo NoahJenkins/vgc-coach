@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -16,6 +17,7 @@ REGISTRY_PATH = Path("docs/skills/shared/references/live-source-registry.yaml")
 REFERENCE_ROOT = Path("docs/skills/shared/references")
 SNAPSHOT_ROOT = Path("data/snapshots")
 FIXTURE_ROOT = Path("data/fixtures")
+OPENCODE_SKILL_ROOT = Path(".opencode/skills")
 
 
 def _parse_utc(value: Any, *, label: str) -> datetime:
@@ -147,6 +149,48 @@ def _has_regulation_id(payload: dict[str, Any]) -> bool:
     return isinstance(format_payload, dict) and bool(format_payload.get("regulation_id"))
 
 
+def _runtime_reference_issues(repo_root: Path) -> tuple[str, ...]:
+    registry_path = repo_root / REGISTRY_PATH
+    registry = yaml.safe_load(registry_path.read_text())
+    current_official = [
+        source
+        for source in registry.get("sources", [])
+        if isinstance(source, dict)
+        and (
+            source.get("role") == "official_regulation"
+            or str(source.get("id", "")).startswith("regulation-")
+        )
+        and source.get("temporal_status") == "current"
+    ]
+    if len(current_official) != 1:
+        raise ValueError(
+            f"{REGISTRY_PATH}: expected exactly one current official regulation"
+        )
+    regulation_id = current_official[0].get("regulation_id")
+    if not isinstance(regulation_id, str) or not regulation_id.startswith("regulation-"):
+        raise ValueError(
+            f"{REGISTRY_PATH}: current official regulation_id is invalid"
+        )
+    expected_name = (
+        f"champions-reg-{regulation_id.removeprefix('regulation-')}-legality.md"
+    )
+
+    issues: list[str] = []
+    wrapper_root = repo_root / OPENCODE_SKILL_ROOT
+    if not wrapper_root.exists():
+        return ()
+    reference_pattern = re.compile(r"champions-reg-[a-z0-9-]+-legality\.md")
+    for path in sorted(wrapper_root.glob("*/SKILL.md")):
+        for reference in sorted(set(reference_pattern.findall(path.read_text()))):
+            if reference != expected_name:
+                relative = path.relative_to(repo_root).as_posix()
+                issues.append(
+                    f"{relative} routes current coaching to historical regulation "
+                    f"reference {reference}; expected {expected_name}"
+                )
+    return tuple(issues)
+
+
 def find_expired_current_artifacts(
     repo_root: Path = REPO_ROOT,
     *,
@@ -164,6 +208,7 @@ def find_expired_current_artifacts(
                 f"{label} is designated current but its active window ended "
                 f"{end.isoformat().replace('+00:00', 'Z')}"
             )
+    expired.extend(_runtime_reference_issues(repo_root))
     return tuple(expired)
 
 
