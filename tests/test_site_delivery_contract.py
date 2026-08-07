@@ -11,6 +11,19 @@ SITE_ROOT = REPO_ROOT / "site"
 
 
 class SiteDeliveryContractTests(unittest.TestCase):
+    def test_user_facing_site_copy_avoids_em_and_en_dashes(self):
+        rendered_sources = (
+            SITE_ROOT / "src/App.tsx",
+            SITE_ROOT / "src/siteContent.ts",
+            SITE_ROOT / "index.html",
+        )
+
+        for path in rendered_sources:
+            with self.subTest(path=path.name):
+                content = path.read_text()
+                self.assertNotIn("—", content)
+                self.assertNotIn("–", content)
+
     def test_section_anchors_clear_the_sticky_header_on_desktop_and_mobile(self):
         css = (SITE_ROOT / "src/styles.css").read_text()
 

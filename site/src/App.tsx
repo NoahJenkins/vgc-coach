@@ -470,7 +470,7 @@ function App() {
         <section className="section trust-layout" id="trust">
           <div className="section-heading compact">
             <div className="eyebrow">Trust and freshness</div>
-            <h2>See what is fixed in the repo—and what still needs a live check.</h2>
+            <h2>See what is fixed in the repo, and what still needs a live check.</h2>
             <p className="section-intro">
               This board is generated from versioned snapshots, source roles,
               eval fixtures, and rubrics in the repository. It reports the
