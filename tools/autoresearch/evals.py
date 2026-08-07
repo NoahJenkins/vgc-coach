@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -56,6 +57,9 @@ async def evaluate_skill(
 ) -> SkillEvaluation:
     output_dir.mkdir(parents=True, exist_ok=True)
     rubric_fail_triggers = extract_rubric_fail_triggers(ctx.rubric_text)
+    rubric_dimension_names = _extract_rubric_dimension_names(ctx.rubric_text)
+    if not rubric_dimension_names:
+        raise ValueError(f"Rubric for {ctx.config.name} does not define any score dimensions.")
     case_results: list[CaseEvaluation] = []
     cases = select_cases(ctx=ctx, run_profile=run_profile, case_limit=case_limit)
 
@@ -87,7 +91,11 @@ async def evaluate_skill(
             model=model,
             session_timeout=session_timeout,
         )
-        evaluation_payload = _normalize_evaluation_payload(raw_evaluation_payload, case.name)
+        evaluation_payload = _normalize_evaluation_payload(
+            raw_evaluation_payload,
+            case.name,
+            expected_dimension_names=rubric_dimension_names,
+        )
         evaluation_payload["research_trace"] = research_trace.to_dict()
         evaluation_payload["verification_state"] = research_trace.verification_state
         evaluation_payload["evidence_valid"] = research_trace.evidence_valid
@@ -306,9 +314,19 @@ async def _grade_case_response(
     return payload
 
 
-def _normalize_evaluation_payload(payload: dict[str, Any], case_name: str) -> dict[str, Any]:
+def _normalize_evaluation_payload(
+    payload: dict[str, Any],
+    case_name: str,
+    *,
+    expected_dimension_names: tuple[str, ...] | None = None,
+) -> dict[str, Any]:
     normalized = dict(payload)
     errors: list[str] = []
+    expected_dimensions = tuple(
+        dict.fromkeys(name.strip() for name in expected_dimension_names or () if name.strip())
+    )
+    expected_dimension_set = set(expected_dimensions)
+    observed_dimensions: set[str] = set()
 
     raw_dimension_scores = normalized.get("dimension_scores", [])
     if not isinstance(raw_dimension_scores, list):
@@ -324,6 +342,18 @@ def _normalize_evaluation_payload(payload: dict[str, Any], case_name: str) -> di
         if not name:
             errors.append(f"dimension_scores[{index}].name is empty for {case_name}")
             continue
+        if expected_dimensions:
+            if name not in expected_dimension_set:
+                errors.append(
+                    f"dimension_scores[{index}].name is an unknown rubric dimension for {case_name}: "
+                    f"{name!r}"
+                )
+            elif name in observed_dimensions:
+                errors.append(
+                    f"dimension_scores[{index}].name is a duplicate rubric dimension for {case_name}: "
+                    f"{name!r}"
+                )
+            observed_dimensions.add(name)
         try:
             score_value = int(raw_score.get("score"))
         except (TypeError, ValueError):
@@ -348,6 +378,16 @@ def _normalize_evaluation_payload(payload: dict[str, Any], case_name: str) -> di
 
     if not dimension_scores:
         errors.append(f"grader returned no usable dimension_scores for {case_name}")
+
+    if expected_dimensions:
+        missing_dimensions = tuple(
+            name for name in expected_dimensions if name not in observed_dimensions
+        )
+        if missing_dimensions:
+            errors.append(
+                f"grader returned missing rubric dimensions for {case_name}: "
+                f"{', '.join(missing_dimensions)}"
+            )
 
     computed_overall = sum(score["score"] for score in dimension_scores)
     normalized["checks_passed"] = _normalize_string_list(normalized.get("checks_passed"))
@@ -387,6 +427,40 @@ def _normalize_evaluation_payload(payload: dict[str, Any], case_name: str) -> di
 
     normalized["overall_score"] = computed_overall
     return normalized
+
+
+def _extract_rubric_dimension_names(rubric_text: str) -> tuple[str, ...]:
+    lines = rubric_text.splitlines()
+    primary_dimensions: list[str] = []
+    in_primary_dimensions = False
+    for line in lines:
+        if line.strip() == "## Primary Quality Dimensions":
+            in_primary_dimensions = True
+            continue
+        if in_primary_dimensions and line.startswith("## "):
+            break
+        if in_primary_dimensions:
+            match = re.fullmatch(r"### `([^`]+)`", line.strip())
+            if match:
+                primary_dimensions.append(match.group(1).strip())
+    if primary_dimensions:
+        return tuple(primary_dimensions)
+
+    for index, line in enumerate(lines):
+        if line.strip() not in {"Score each response on:", "Score outputs on:"}:
+            continue
+        dimensions: list[str] = []
+        for candidate in lines[index + 1 :]:
+            if candidate.strip().endswith(":") and not candidate.startswith((" ", "-")):
+                break
+            if not candidate.startswith("- "):
+                continue
+            text = candidate[2:].strip()
+            inline_name = re.fullmatch(r"`([^`]+)`", text)
+            dimensions.append((inline_name.group(1) if inline_name else text).strip())
+        if dimensions:
+            return tuple(dimensions)
+    return ()
 
 
 def _normalize_string_list(raw_value: Any) -> list[str]:

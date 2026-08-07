@@ -109,6 +109,9 @@ class SkillEvaluation:
             "verification_state": self.verification_state,
             "evidence_valid": self.evidence_valid,
             "research_trace_summary": self.research_trace_summary,
+            "score_scale": score_scale_descriptor(),
+            "evaluation_valid": self.evaluation_valid,
+            "grading_errors": list(self.grading_errors),
         }
 
 
@@ -234,6 +237,7 @@ class StandaloneEvalResult:
             "verification_state": self.verification_state,
             "evidence_valid": self.evidence_valid,
             "research_trace_summary": self.research_trace_summary,
+            "score_scale": score_scale_descriptor(),
             "evaluation_valid": self.evaluation_valid,
             "errors": list(self.errors),
             "install_hint": self.install_hint,
@@ -365,6 +369,26 @@ class FullEvalResult:
     evidence_valid: bool | None
     errors: tuple[str, ...]
 
+    @property
+    def research_trace_summary(self) -> str:
+        summaries = [
+            f"{report.skill}: {report.research_trace_summary}"
+            for report in self.skill_reports
+            if report.research_trace_summary
+        ]
+        return " ".join(summaries) or "No completed skill research trace data recorded."
+
+    @property
+    def evaluation_valid(self) -> bool | None:
+        values = [report.evaluation_valid for report in self.skill_reports]
+        if not values or all(value is None for value in values):
+            return None
+        if any(value is False for value in values):
+            return False
+        if all(value is True for value in values):
+            return True
+        return None
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "kind": self.kind,
@@ -386,6 +410,9 @@ class FullEvalResult:
             "skill_reports": [report.to_dict() for report in self.skill_reports],
             "verification_state": self.verification_state,
             "evidence_valid": self.evidence_valid,
+            "research_trace_summary": self.research_trace_summary,
+            "score_scale": score_scale_descriptor(),
+            "evaluation_valid": self.evaluation_valid,
             "errors": list(self.errors),
         }
 

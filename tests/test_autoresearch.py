@@ -303,6 +303,15 @@ class AutoresearchTests(unittest.TestCase):
             case = load_case_file(path)
             self.assertEqual(case.research_expectation, "repo_only")
 
+    def test_context_defaults_distinguish_off_conditional_and_required_research(self):
+        meta_context = load_skill_context(get_skill_config("vgc-meta-research"))
+        audit_context = load_skill_context(get_skill_config("vgc-team-audit"))
+        calc_context = load_skill_context(get_skill_config("vgc-calcs-assistant"))
+
+        self.assertEqual(meta_context.cases[0].research_expectation, "live_required")
+        self.assertEqual(audit_context.cases[0].research_expectation, "repo_only")
+        self.assertEqual(calc_context.cases[0].research_expectation, "repo_only")
+
     def test_real_multiline_meta_research_request_parses(self):
         case = load_case_file(REPO_ROOT / "data" / "fixtures" / "evals" / "meta-research" / "case-02.md")
         self.assertIn("Terastallization", case.request)
@@ -361,6 +370,7 @@ class AutoresearchTests(unittest.TestCase):
             self.assertEqual(payload["status"], "failed")
             self.assertEqual(status_payload["status"], "failed")
             self.assertEqual(payload["install_hint"], AUTORESEARCH_INSTALL_COMMAND)
+            self.assertEqual(payload["score_scale"]["allowed_values"], [0, 1, 2])
             self.assertIn("Missing local autoresearch dependency", payload["summary"])
 
     def test_standalone_eval_rerun_clears_stale_artifacts(self):
@@ -500,6 +510,9 @@ class AutoresearchTests(unittest.TestCase):
             self.assertEqual(len(payload["skill_reports"]), 2)
             self.assertEqual(status_payload["status"], "partial")
             self.assertEqual(payload["failed_skills"], ["vgc-team-audit"])
+            self.assertEqual(payload["score_scale"]["allowed_values"], [0, 1, 2])
+            self.assertIn("vgc-team-builder", payload["research_trace_summary"])
+            self.assertIsNone(payload["evaluation_valid"])
 
     def test_compute_hard_cap_timeout_uses_repo_default_formula(self):
         self.assertEqual(compute_hard_cap_timeout(30.0), 150.0)
@@ -775,7 +788,7 @@ class AutoresearchTests(unittest.TestCase):
         )
         self.assertEqual(roots, (config.skill_file, config.docs_dir))
 
-    def test_session_recorder_extracts_direct_url_from_web_fetch_tool_args(self):
+    def test_session_recorder_keeps_web_tool_args_out_of_successful_evidence(self):
         async def run() -> None:
             recorder = SessionRecorder()
             await recorder.on_pre_tool_use(
@@ -787,7 +800,7 @@ class AutoresearchTests(unittest.TestCase):
             )
             self.assertEqual(tuple(sorted(set(recorder.tool_arg_urls))), ("https://example.com/meta",))
             self.assertEqual(tuple(sorted(set(recorder.attempted_urls))), ("https://example.com/meta",))
-            self.assertEqual(tuple(sorted(set(recorder.source_urls))), ("https://example.com/meta",))
+            self.assertEqual(tuple(recorder.source_urls), ())
 
         asyncio.run(run())
 
@@ -827,7 +840,36 @@ class AutoresearchTests(unittest.TestCase):
         self.assertEqual(tuple(sorted(set(recorder.event_urls))), ("https://example.com/report",))
         self.assertEqual(tuple(sorted(set(recorder.source_urls))), ("https://example.com/report",))
 
-    def test_live_required_trace_accepts_tool_arg_only_evidence(self):
+    def test_session_recorder_rejects_failed_web_completion_as_successful_evidence(self):
+        recorder = SessionRecorder()
+        recorder.on_event(
+            SimpleNamespace(
+                type=SimpleNamespace(value="tool.execution_complete"),
+                data=SimpleNamespace(
+                    toolName="web_fetch",
+                    success=False,
+                    result={"error": "request failed for https://example.com/meta"},
+                ),
+            )
+        )
+        self.assertEqual(tuple(sorted(set(recorder.event_urls))), ("https://example.com/meta",))
+        self.assertEqual(tuple(recorder.source_urls), ())
+
+    def test_session_recorder_rejects_non_web_result_urls_as_successful_evidence(self):
+        recorder = SessionRecorder()
+        recorder.on_event(
+            SimpleNamespace(
+                type=SimpleNamespace(value="tool.execution_complete"),
+                data=SimpleNamespace(
+                    toolName="read_file",
+                    result={"contents": "reference https://example.com/meta"},
+                ),
+            )
+        )
+        self.assertEqual(tuple(sorted(set(recorder.event_urls))), ("https://example.com/meta",))
+        self.assertEqual(tuple(recorder.source_urls), ())
+
+    def test_live_required_trace_rejects_tool_arg_only_evidence(self):
         case = SimpleNamespace(research_expectation="live_required")
         trace = _build_research_trace(
             case,
@@ -837,16 +879,16 @@ class AutoresearchTests(unittest.TestCase):
                 "approved_urls": (),
                 "tool_arg_urls": ("https://example.com/meta",),
                 "event_urls": (),
-                "source_urls": ("https://example.com/meta",),
+                "source_urls": (),
                 "tool_names": ("web_fetch", "view"),
                 "read_paths": (),
                 "shell_commands": (),
             },
         )
-        self.assertTrue(trace.evidence_valid)
-        self.assertEqual(trace.verification_state, "verified")
+        self.assertFalse(trace.evidence_valid)
+        self.assertEqual(trace.verification_state, "inconclusive")
         self.assertEqual(trace.evidence_source, "tool-arg only")
-        self.assertIn("Resolved 1 concrete source URLs", trace.summary)
+        self.assertIn("URL resolution stayed unresolved", trace.summary)
 
     def test_live_required_trace_flags_unresolved_web_tool_usage(self):
         case = SimpleNamespace(research_expectation="live_required")
@@ -1164,6 +1206,56 @@ class AutoresearchTests(unittest.TestCase):
         self.assertTrue(payload["evaluation_valid"])
         self.assertEqual(payload["overall_score"], 3)
         self.assertEqual(payload["reported_overall_score"], 3)
+
+    def test_grading_rejects_unknown_rubric_dimension(self):
+        payload = _normalize_evaluation_payload(
+            {
+                "overall_score": 2,
+                "dimension_scores": [
+                    {"name": "Made up", "score": 2, "rationale": "x"},
+                ],
+            },
+            "case-04",
+            expected_dimension_names=("Build clarity",),
+        )
+        self.assertFalse(payload["evaluation_valid"])
+        self.assertIn("unknown rubric dimension", payload["grading_errors"][0])
+
+    def test_grading_rejects_duplicate_rubric_dimension(self):
+        payload = _normalize_evaluation_payload(
+            {
+                "overall_score": 4,
+                "dimension_scores": [
+                    {"name": "Build clarity", "score": 2, "rationale": "x"},
+                    {"name": "Build clarity", "score": 2, "rationale": "y"},
+                ],
+            },
+            "case-04",
+            expected_dimension_names=("Build clarity",),
+        )
+        self.assertFalse(payload["evaluation_valid"])
+        self.assertIn("duplicate rubric dimension", payload["grading_errors"][0])
+
+    def test_grading_rejects_missing_rubric_dimension(self):
+        payload = _normalize_evaluation_payload(
+            {
+                "overall_score": 2,
+                "dimension_scores": [
+                    {"name": "Build clarity", "score": 2, "rationale": "x"},
+                ],
+            },
+            "case-04",
+            expected_dimension_names=("Build clarity", "Team coherence"),
+        )
+        self.assertFalse(payload["evaluation_valid"])
+        self.assertIn("missing rubric dimensions", payload["grading_errors"][0])
+
+    def test_skill_evaluation_artifact_includes_grading_contract_fields(self):
+        evaluation = make_skill_evaluation(skill="vgc-team-builder")
+        payload = evaluation.to_dict()
+        self.assertIn("score_scale", payload)
+        self.assertTrue(payload["evaluation_valid"])
+        self.assertEqual(payload["grading_errors"], [])
 
     def test_out_of_range_dimension_score_fails_closed(self):
         payload = _normalize_evaluation_payload(

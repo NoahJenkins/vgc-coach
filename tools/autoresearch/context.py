@@ -44,7 +44,7 @@ def load_skill_context(config: SkillConfig) -> SkillContext:
     skill_text = config.skill_file.read_text()
     rubric_text = config.rubric_file.read_text()
     default_research_expectation = (
-        "repo_only" if config.live_research_policy == "off" else "live_required"
+        "live_required" if config.live_research_policy == "required" else "repo_only"
     )
     cases = tuple(
         load_case_file(path, default_research_expectation=default_research_expectation)

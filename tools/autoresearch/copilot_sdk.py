@@ -81,7 +81,6 @@ class SessionRecorder:
                 if urls:
                     self.tool_arg_urls.extend(urls)
                     self.attempted_urls.extend(urls)
-                    self.source_urls.extend(urls)
         return {"permissionDecision": "allow"}
 
     def on_event(self, event: Any) -> None:
@@ -120,7 +119,13 @@ class SessionRecorder:
             if urls:
                 self.event_urls.extend(urls)
                 self.attempted_urls.extend(urls)
-                self.source_urls.extend(urls)
+            if (
+                event_type == "tool.execution_complete"
+                and tool_name
+                and _is_web_facing_tool(tool_name)
+                and _tool_execution_succeeded(data)
+            ):
+                self.source_urls.extend(_extract_urls_from_value(data.get("result")))
             return
 
         urls: list[str] = []
@@ -616,6 +621,31 @@ def _event_type_name(event: Any) -> str | None:
 def _is_web_facing_tool(tool_name: str) -> bool:
     normalized = tool_name.strip().lower()
     return normalized in _WEB_TOOL_NAMES or normalized.startswith("web_")
+
+
+def _tool_execution_succeeded(payload: dict[str, Any]) -> bool:
+    """Return true only for a completed web tool result without failure markers."""
+    result = payload.get("result")
+    if result is None:
+        return False
+
+    for candidate in (payload, _as_mapping(result)):
+        for key in ("success", "ok", "isSuccess"):
+            if key in candidate and candidate[key] is False:
+                return False
+        for key in ("error", "errors", "exception"):
+            if candidate.get(key):
+                return False
+        status = candidate.get("status")
+        if isinstance(status, str) and status.strip().lower() in {
+            "cancelled",
+            "canceled",
+            "denied",
+            "error",
+            "failed",
+        }:
+            return False
+    return True
 
 
 def _extract_tool_name_from_payload(payload: dict[str, Any]) -> str | None:
