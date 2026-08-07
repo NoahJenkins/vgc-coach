@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -37,6 +38,7 @@ VALID_SOURCE_KINDS = {
     "supporting",
     "editorial",
 }
+VALID_TEMPORAL_STATUSES = {"current", "historical"}
 VALID_CLAIM_TYPES = {
     "legality",
     "mechanics",
@@ -147,6 +149,24 @@ def _validate_freshness(value: Any, *, label: str, role: str) -> dict[str, Any]:
     }
 
 
+def _validate_active_window(value: Any, *, label: str) -> dict[str, str]:
+    raw = _require_mapping(value, label=label)
+    normalized: dict[str, str] = {}
+    parsed: dict[str, datetime] = {}
+    for key in ("start", "end"):
+        timestamp = _require_nonempty_string(raw.get(key), label=f"{label}.{key}")
+        if not timestamp.endswith("Z"):
+            raise ValueError(f"{label}.{key} must be an ISO-8601 UTC timestamp ending in Z")
+        try:
+            parsed[key] = datetime.fromisoformat(timestamp[:-1] + "+00:00")
+        except ValueError as exc:
+            raise ValueError(f"{label}.{key} must be a valid ISO-8601 UTC timestamp") from exc
+        normalized[key] = timestamp
+    if parsed["start"] > parsed["end"]:
+        raise ValueError(f"{label}.start must not be after end")
+    return normalized
+
+
 def validate_registry(payload: Any) -> dict[str, Any]:
     root = _require_mapping(payload, label="registry")
     version = _require_nonempty_string(root.get("version"), label="version")
@@ -245,6 +265,20 @@ def validate_registry(payload: Any) -> dict[str, Any]:
                 label=f"sources[{index}].fallback_if_unavailable",
             ),
         }
+        if role == "official_regulation":
+            temporal_status = _require_nonempty_string(
+                item.get("temporal_status"),
+                label=f"sources[{index}].temporal_status",
+            )
+            if temporal_status not in VALID_TEMPORAL_STATUSES:
+                raise ValueError(
+                    f"invalid temporal_status for {source_id}: {temporal_status}"
+                )
+            normalized["temporal_status"] = temporal_status
+            normalized["active_window"] = _validate_active_window(
+                item.get("active_window"),
+                label=f"sources[{index}].active_window",
+            )
         sources.append(normalized)
 
     if sorted(source["priority"] for source in sources) != list(range(1, len(sources) + 1)):
@@ -287,6 +321,13 @@ def _render_source(source: dict[str, Any]) -> list[str]:
         f"re-check within {source['freshness']['max_age_days']} days; "
         f"{source['freshness']['policy']}"
     )
+    if source["role"] == "official_regulation":
+        lines.append(f"Temporal status: `{source['temporal_status']}`")
+        lines.append(
+            "Active window: "
+            f"`{source['active_window']['start']}` through "
+            f"`{source['active_window']['end']}`"
+        )
     lines.append(
         "Required evidence fields: "
         + ", ".join(f"`{field}`" for field in source["required_evidence_fields"])

@@ -411,9 +411,9 @@ function App() {
               <div className="info-card">
                 <p className="card-label">Damage and survival checks</p>
                 <p>
-                  Damage, KO, and survival checks are exact. Speed comparisons
-                  are framed as benchmarks, not invented numbers, unless a
-                  verified exact source confirms them.
+                  With complete inputs and the local browser helper available,
+                  damage, KO, and survival can be verified exactly. Speed stays
+                  assumption-framed unless a verified exact source confirms it.
                 </p>
               </div>
               <div className="info-card">

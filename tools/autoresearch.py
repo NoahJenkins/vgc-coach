@@ -350,7 +350,7 @@ async def _run_improvement(
         allow_live_research=ctx.config.live_research_policy != "off",
         config=ctx.config,
         system_message=(
-            "You are the vgc-coach nightly autoresearch worker. Make small, evidence-backed edits only."
+            "You are the vgc-coach guarded autoresearch worker. Make small, evidence-backed edits only."
         ),
         timeout=session_timeout,
     )

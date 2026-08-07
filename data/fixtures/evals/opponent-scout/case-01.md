@@ -2,7 +2,7 @@
 
 Research expectation: live_required
 
-Request: scout a player from two public Regulation M-A team lists and turn that into prep risks for a balance team.
+Request: scout a player from two public Regulation M-B team lists and turn that into prep risks for a balance team.
 
 Checks:
 

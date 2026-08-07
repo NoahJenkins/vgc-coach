@@ -20,13 +20,13 @@ Confirm that OpenCode team-builder answers stay inside the shared Champions trut
 
 Pass if:
 
-- the answer confirms current `Regulation M-A` and `Mega Evolution active` first
+- the answer confirms `Regulation M-B`, its June 17 through September 9, 2026 UTC window, and `Mega Evolution active` first
 - the answer includes `Evidence and Confidence` immediately after `Build Goal`
 - the answer verifies the exact form and role-critical assumption before building
 - the answer does not treat `Mega Sableye` as if it still had `Prankster`
 - the answer does not assume `Rain Dance` access without checking current Champions move data
 - the answer pivots cleanly to base `Sableye` or another nearest viable version if Mega support breaks the role
-- every recommended item is inside the current Regulation M-A allowlist
+- every exact item recommendation is verified for Regulation M-B or labeled unverified/provisional
 - the answer includes a `Supporting Species Legality` note before the team list
 - unverified move slots use provisional wording instead of exact locked moves
 - the matchup framing targets the actual current field instead of legacy threats
@@ -97,13 +97,13 @@ Ask these before accepting the output:
 2. Did it use `current-field recommendation` only if the shared recommended minimum live stack actually succeeded?
 3. Did `Evidence and Confidence` include source stack status, fetched dates, format confidence, meta confidence, and material gaps?
 4. Did it verify exact form, ability, move access, item legality, and supporting-species legality at the right confidence level?
-5. Did it target the actual current Reg M-A field?
+5. Did it target the actual current Regulation M-B field?
 6. Is this one coherent, testable team?
 7. Could a player import and test this immediately without fixing factual errors first?
 
 ## Supporting Artifacts
 
-- `docs/skills/shared/references/champions-reg-m-a-legality.md`
+- `docs/skills/shared/references/champions-reg-m-b-legality.md`
 - `docs/skills/shared/references/live-source-map.md`
 - `docs/skills/shared/references/verification-packet.md`
 - `docs/skills/vgc-team-builder/references/build-principles.md`
@@ -111,4 +111,4 @@ Ask these before accepting the output:
 - `data/rubrics/team-builder-rubric.md`
 - `data/fixtures/evals/team-builder/case-01.md`
 - `data/fixtures/evals/team-builder/case-04.md`
-- `data/snapshots/champions-reg-m-a-2026-04-18.json`
+- `data/snapshots/champions-reg-m-b-2026-08-06.json`

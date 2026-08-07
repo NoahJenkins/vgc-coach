@@ -67,6 +67,13 @@ class ValidateTests(unittest.TestCase):
                     ),
                 ),
                 (
+                    "current-format freshness check",
+                    (
+                        "/controlled/python",
+                        "tools/check_format_freshness.py",
+                    ),
+                ),
+                (
                     "generated-plugin drift check",
                     (
                         "/controlled/python",

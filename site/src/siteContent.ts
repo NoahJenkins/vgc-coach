@@ -127,7 +127,7 @@ export const supportSkills: Skill[] = [
     name: "vgc-calcs-assistant",
     displayName: "Calcs Assistant",
     summary:
-      "Damage, survival, speed, and benchmark checks. Damage and KO checks are exact. Speed comparisons are framed as benchmarks unless an exact source confirms them.",
+      "Damage, survival, speed, and benchmark checks. With complete inputs and the local browser helper available, damage, KO, and survival can be verified exactly. Speed remains assumption-framed unless a verified exact source confirms it.",
     emphasis: "Honest about what is exact and what is estimated.",
   },
   {

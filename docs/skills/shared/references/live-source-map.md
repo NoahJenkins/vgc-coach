@@ -8,12 +8,14 @@ Official sources define legality and active mechanics. Community sources describ
 
 ## Official Format Sources
 
-### Regulation Set M-A
+### Regulation Set M-B
 
 Role: `official_regulation`
 Kind: `official`
-Canonical URL: https://news.pokemon-home.com/en/page/751.html
+Canonical URL: https://news.pokemon-home.com/en/page/776.html
 Freshness: re-check within 30 days; Re-check live before present-tense rules, legality, mechanics, or item claims.
+Temporal status: `current`
+Active window: `2026-06-17T02:00:00Z` through `2026-09-09T01:59:00Z`
 Required evidence fields: `source_id`, `source_url`, `fetched_at`, `format_window`, `active_mechanics`, `claim_type`
 
 Use for:
@@ -47,8 +49,8 @@ Required evidence fields: `source_id`, `source_url`, `fetched_at`, `published_at
 Use for:
 
 - when official VGC events move to Champions
-- how Regulation I and Regulation M-A overlap during transition
-- timing context for current official play
+- historical context for the transition from Pokemon Scarlet and Violet to Pokemon Champions
+- dated timing context for official play during April and May 2026
 
 Do not use for:
 

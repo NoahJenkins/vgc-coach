@@ -47,6 +47,10 @@ def build_validation_steps(
             (python_executable, "tools/render_source_registry_docs.py", "check"),
         ),
         ValidationStep(
+            "current-format freshness check",
+            (python_executable, "tools/check_format_freshness.py"),
+        ),
+        ValidationStep(
             "generated-plugin drift check",
             (python_executable, "tools/build_plugins.py", "check"),
         ),

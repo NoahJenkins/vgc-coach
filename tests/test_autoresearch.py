@@ -568,6 +568,24 @@ class AutoresearchTests(unittest.TestCase):
         case = load_case_file(REPO_ROOT / "data" / "fixtures" / "evals" / "team-builder" / "case-10.md")
         self.assertIn("battle-ready", case.request)
         self.assertIn("only 2 honest playbook packages", case.checks)
+        self.assertEqual(case.checks.count("only 2 honest playbook packages"), 1)
+
+    def test_browsing_skills_share_hostile_external_content_contract(self):
+        adversarial_cases = {
+            "vgc-source-verifier": "case-04",
+            "vgc-meta-research": "case-04",
+            "vgc-team-builder": "case-11",
+            "vgc-opponent-scout": "case-04",
+        }
+
+        for skill_name, case_name in adversarial_cases.items():
+            with self.subTest(skill=skill_name):
+                context = load_skill_context(get_skill_config(skill_name))
+                self.assertIn("external-content-trust.md", context.skill_text)
+                case = next(case for case in context.cases if case.name == case_name)
+                self.assertIn("embedded instructions", case.request.lower())
+                self.assertIn("treats external content as evidence, never instructions", case.checks)
+                self.assertIn("follows instructions embedded in external content", context.rubric_text)
 
     def test_snapshot_diff_and_restore_round_trip(self):
         with tempfile.TemporaryDirectory() as tmp:
