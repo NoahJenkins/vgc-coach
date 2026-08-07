@@ -15,7 +15,8 @@ Score each response on:
 - `Set direction practicality`
   - each slot gets usable lightweight direction, not just a label
 - `Battle-ready mode discipline`
-  - when explicitly requested, uses targeted live cores/top teams, a capped benchmark plan, battle-ready spreads, and export-status framing without turning into a long scout
+  - when explicitly requested, uses targeted live cores/top teams, a capped benchmark plan, battle-ready spreads, a playbook, and export-status framing without turning into a long scout
+  - includes presence of `Playbook`, 3 to 4 coherent packages by default, at least 2 distinct lead pairs, matchup-shaped `Use Into`, and honest `Watch-Outs`
 - `Freshness and format handling`
   - includes an `Evidence and Confidence` section immediately after `Build Goal`
   - summarizes source stack status, source URLs or names, fetched dates, format confidence, meta confidence, and material gaps before the team list
@@ -45,6 +46,10 @@ Failure triggers:
 - presents unverified move-legal slots as exact confirmed four-move sets
 - agrees to an import-ready exact four-move export when move legality is unverified
 - makes exact current-format claims without enough verification-packet evidence to audit them
-- in battle-ready mode, omits `Targeted Meta Cores and Teams`, `Benchmark Plan`, `Battle-Ready Spreads`, or `Export Status`
+- in battle-ready mode, omits `Targeted Meta Cores and Teams`, `Benchmark Plan`, `Battle-Ready Spreads`, `Playbook`, or `Export Status`
 - in battle-ready mode, benchmarks everything instead of using a capped decision-first set
+- in battle-ready mode, uses the same lead pair across all playbook packages
+- in battle-ready mode, claims distinct playbook packages that only differ by superficial wording or a token backline swap
+- in battle-ready mode, uses vague `Use Into` labels instead of concrete opposing team shapes
+- in battle-ready mode, turns `Turn-One Pattern` into fake deterministic full-game scripts
 - matchup notes missing or detached from the actual team

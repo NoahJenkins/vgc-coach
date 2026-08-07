@@ -340,6 +340,31 @@ class AutoresearchTests(unittest.TestCase):
         self.assertIn("too many fast attackers", case.request)
         self.assertIn("positioning tools", case.request)
 
+    def test_team_builder_battle_ready_contract_requires_playbook_section(self):
+        ctx = load_skill_context(get_skill_config("vgc-team-builder"))
+        self.assertIn("10. `Playbook`", ctx.skill_text)
+        self.assertIn("11. `Why Each Slot Exists`", ctx.skill_text)
+        self.assertIn("12. `Matchup Notes`", ctx.skill_text)
+        self.assertIn("13. `Weaknesses and Next Refinements`", ctx.skill_text)
+        self.assertIn("14. `Export Status`", ctx.skill_text)
+        self.assertIn("at least 2 distinct lead pairs", ctx.skill_text)
+
+    def test_team_builder_battle_ready_rubric_and_fixture_cover_playbook(self):
+        ctx = load_skill_context(get_skill_config("vgc-team-builder"))
+        self.assertIn("presence of `Playbook`", ctx.rubric_text)
+        self.assertIn("at least 2 distinct lead pairs", ctx.rubric_text)
+        self.assertIn("same lead pair across all playbook packages", ctx.rubric_text)
+
+        case_07 = next(case for case in ctx.cases if case.name == "case-07")
+        self.assertIn("includes `Playbook`", case_07.checks)
+        self.assertIn("includes at least 3 playbook packages", case_07.checks)
+        self.assertIn("uses at least 2 distinct lead pairs across the playbook", case_07.checks)
+
+    def test_team_builder_has_narrow_team_playbook_fixture(self):
+        case = load_case_file(REPO_ROOT / "data" / "fixtures" / "evals" / "team-builder" / "case-10.md")
+        self.assertIn("battle-ready", case.request)
+        self.assertIn("only 2 honest playbook packages", case.checks)
+
     def test_snapshot_diff_and_restore_round_trip(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

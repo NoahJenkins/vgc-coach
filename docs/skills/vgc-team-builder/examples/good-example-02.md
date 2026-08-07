@@ -25,4 +25,5 @@ Why this is good:
 - explicitly requests battle-ready mode
 - asks for spreads and benchmark notes without forcing fake export certainty
 - gives the builder permission to use live cores, top teams, and `vgc-calcs-assistant`
+- expects a `Playbook` with multiple concrete lead/backline packages for different opposing shapes
 - still expects one committed team instead of multiple partial shells

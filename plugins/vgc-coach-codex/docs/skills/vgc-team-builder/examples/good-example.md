@@ -25,5 +25,6 @@ Why this is good:
 - clearly opts into battle-ready mode instead of leaving the spread pass ambiguous
 - still keeps Sableye tied to one real team identity
 - gives the builder room to use live cores and recent top teams for benchmark selection
-- expects `Targeted Meta Cores and Teams`, `Benchmark Plan`, `Battle-Ready Spreads`, and `Export Status`
+- expects `Targeted Meta Cores and Teams`, `Benchmark Plan`, `Battle-Ready Spreads`, `Playbook`, and `Export Status`
+- expects 3 to 4 materially distinct lead/backline packages instead of one default line
 - still keeps the main deliverable focused on the actual six instead of a long meta essay

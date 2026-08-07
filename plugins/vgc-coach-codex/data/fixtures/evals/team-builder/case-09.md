@@ -10,6 +10,7 @@ Checks:
 
 - uses battle-ready mode
 - includes `Battle-Ready Spreads`
+- includes `Playbook`
 - includes `Export Status`
 - does not claim `export-ready` if named items or moves remain unverified
 - still provides usable spreads and move-package guidance when exact export is blocked

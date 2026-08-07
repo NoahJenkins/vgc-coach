@@ -74,6 +74,7 @@ In battle-ready mode:
 - build a capped benchmark plan
 - hand narrow spread questions to `vgc-calcs-assistant`
 - return `Battle-Ready Spreads`
+- return `Playbook`
 - end with explicit `Export Status`
 
 ## Requested Mon Handling
@@ -157,6 +158,39 @@ Rules:
 - utility or support slots may keep heuristic spreads when no benchmark changes a real decision
 - hand off only narrow benchmark questions to `vgc-calcs-assistant`
 - do not ask `vgc-calcs-assistant` to optimize the whole team
+
+## Playbook
+
+In battle-ready mode, add a practical piloting layer after `Battle-Ready Spreads`.
+
+The `Playbook` section should:
+
+- usually contain 3 packages
+- allow a 4th package only when it is materially distinct
+- allow only 2 packages when the builder explicitly says the team does not honestly support a third
+- use at least 2 distinct lead pairs across the returned packages
+- derive each package from the chosen six plus the `Targeted Meta Cores and Teams` set
+- stay focused on common bring patterns, not full matchup scripting
+
+Each package should include:
+
+- `Use Into`
+- `Lead Pair`
+- `Preferred Backline`
+- `Opening Goal`
+- `Turn-One Pattern`
+- `Why This Package Works`
+- `Watch-Outs`
+
+Guidelines:
+
+- `Use Into` should name concrete opposing shapes such as a named core, common weather shell, or bulky setup shell
+- `Preferred Backline` should usually be 2 mons; only use a flex slot when the team genuinely has one
+- `Turn-One Pattern` should describe turn-one or turn-one-plus-turn-two intent only
+- `Why This Package Works` should tie back to the team's identity, not generic VGC advice
+- `Watch-Outs` should name the main way the line gets punished
+
+End the section with short `Playbook Notes` only when a cross-package default or warning helps the user choose between lines.
 
 ## Anti-Meta Framing
 
