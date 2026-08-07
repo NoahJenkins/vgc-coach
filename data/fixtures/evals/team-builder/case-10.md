@@ -1,5 +1,7 @@
 # Case 10
 
+Research expectation: live_required
+
 Request:
 
 `Build me a battle-ready Champions team around Mega Banette with spreads and a playbook, but be honest if the team only really has a couple of good bring patterns.`
