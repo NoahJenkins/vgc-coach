@@ -154,6 +154,22 @@ class FormatFreshnessTests(unittest.TestCase):
         self.assertEqual(len(expired), 4)
         self.assertTrue(all("2026-09-09T01:59:00Z" in item for item in expired))
 
+    def test_current_designations_fail_before_window(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_designated_artifacts(
+                root,
+                current_start="2026-09-10T02:00:00Z",
+                current_end="2026-12-01T01:59:00Z",
+            )
+
+            upcoming = self.module.find_expired_current_artifacts(
+                root, now=datetime(2026, 9, 10, 1, 59, 59, tzinfo=timezone.utc)
+            )
+
+        self.assertEqual(len(upcoming), 4)
+        self.assertTrue(all("2026-09-10T02:00:00Z" in item for item in upcoming))
+
     def test_stale_current_m_a_fails_while_historical_m_a_is_ignored(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -311,12 +327,15 @@ class FormatFreshnessTests(unittest.TestCase):
 
     def test_checked_in_battle_state_example_is_a_current_designation(self):
         designations = {
-            label: (status, end)
-            for label, status, end in self.module._iter_designations(REPO_ROOT)
+            label: (status, start, end)
+            for label, status, start, end in self.module._iter_designations(REPO_ROOT)
         }
 
-        status, end = designations["data/fixtures/battle-state-v1.example.json"]
+        status, start, end = designations[
+            "data/fixtures/battle-state-v1.example.json"
+        ]
         self.assertEqual(status, "current")
+        self.assertEqual(start, datetime(2026, 6, 17, 2, tzinfo=timezone.utc))
         self.assertEqual(end, datetime(2026, 9, 9, 1, 59, tzinfo=timezone.utc))
 
     def test_battle_state_example_fails_after_its_provenance_window(self):

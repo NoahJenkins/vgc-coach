@@ -50,7 +50,7 @@ def _designation(
     window_path: tuple[str, ...],
     required: bool = False,
     default_status: str | None = None,
-) -> tuple[str, datetime] | None:
+) -> tuple[str, datetime, datetime] | None:
     status = payload.get("temporal_status", default_status)
     if status is None:
         if required:
@@ -72,7 +72,7 @@ def _designation(
     end = _parse_utc(window.get("end"), label=f"{label}.active_window.end")
     if start > end:
         raise ValueError(f"{label}: active_window.start must not be after end")
-    return status, end
+    return status, start, end
 
 
 def _regulation_window_path(payload: dict[str, Any]) -> tuple[str, ...]:
@@ -85,7 +85,9 @@ def _regulation_window_path(payload: dict[str, Any]) -> tuple[str, ...]:
     return ("format", "active_window")
 
 
-def _iter_designations(repo_root: Path) -> Iterable[tuple[str, str, datetime]]:
+def _iter_designations(
+    repo_root: Path,
+) -> Iterable[tuple[str, str, datetime, datetime]]:
     registry_path = repo_root / REGISTRY_PATH
     registry = yaml.safe_load(registry_path.read_text())
     if not isinstance(registry, dict) or not isinstance(registry.get("sources"), list):
@@ -103,8 +105,8 @@ def _iter_designations(repo_root: Path) -> Iterable[tuple[str, str, datetime]]:
             ),
         )
         if result:
-            status, end = result
-            yield f"{REGISTRY_PATH}:sources[{index}]", status, end
+            status, start, end = result
+            yield f"{REGISTRY_PATH}:sources[{index}]", status, start, end
 
     snapshot_root = repo_root / SNAPSHOT_ROOT
     for path in sorted(snapshot_root.rglob("*.json")):
@@ -119,8 +121,8 @@ def _iter_designations(repo_root: Path) -> Iterable[tuple[str, str, datetime]]:
             required=_has_regulation_id(payload),
         )
         if result:
-            status, end = result
-            yield relative, status, end
+            status, start, end = result
+            yield relative, status, start, end
 
     reference_root = repo_root / REFERENCE_ROOT
     for path in sorted(reference_root.glob("*.md")):
@@ -135,8 +137,8 @@ def _iter_designations(repo_root: Path) -> Iterable[tuple[str, str, datetime]]:
             required=bool(payload.get("regulation_id")),
         )
         if result:
-            status, end = result
-            yield relative, status, end
+            status, start, end = result
+            yield relative, status, start, end
 
     fixture_root = repo_root / FIXTURE_ROOT
     for path in sorted(fixture_root.rglob("*.example.json")):
@@ -157,8 +159,8 @@ def _iter_designations(repo_root: Path) -> Iterable[tuple[str, str, datetime]]:
             ),
         )
         if result:
-            status, end = result
-            yield relative, status, end
+            status, start, end = result
+            yield relative, status, start, end
 
 
 def _has_regulation_id(payload: dict[str, Any]) -> bool:
@@ -224,8 +226,15 @@ def find_expired_current_artifacts(
     checked_at = checked_at.astimezone(timezone.utc)
 
     expired = []
-    for label, status, end in _iter_designations(repo_root):
-        if status == "current" and checked_at > end:
+    for label, status, start, end in _iter_designations(repo_root):
+        if status != "current":
+            continue
+        if checked_at < start:
+            expired.append(
+                f"{label} is designated current but its active window does not start "
+                f"until {start.isoformat().replace('+00:00', 'Z')}"
+            )
+        elif checked_at > end:
             expired.append(
                 f"{label} is designated current but its active window ended "
                 f"{end.isoformat().replace('+00:00', 'Z')}"
