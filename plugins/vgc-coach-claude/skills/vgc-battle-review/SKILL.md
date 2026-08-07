@@ -8,12 +8,18 @@ description: Use when reviewing a Pokemon Champions replay for mistakes and bett
 Turn a battle into actionable review instead of hindsight theater.
 
 ## Inputs
+- `battle-state-v1` JSON produced by `tools/ingest_battle_state.py`
 - replay summaries
 - logs
 - turn-by-turn notes
 - post-game self-reflections
 - optional review goal
 - optional player-side context
+
+Structured battle state is preferred when available, but prose notes and
+turn summaries remain supported. Treat omitted structured fields as unknown;
+do not infer hidden information. See the shared
+[battle-state-v1 contract](../../docs/skills/shared/references/battle-state-v1.md).
 
 If format is omitted, assume the current Pokemon Champions regulation and say so.
 
@@ -29,6 +35,8 @@ Return these sections in order:
 
 ## Workflow
 1. Identify the player's likely plan before judging the result.
+   When `battle-state-v1` is supplied, ground this in its observed events and
+   revealed-information timeline.
 2. Focus on the real swing turns instead of narrating every turn equally.
 3. Separate information the player had in game from hindsight-only knowledge.
 4. Distinguish sequencing or planning mistakes from acceptable losing lines and variance.

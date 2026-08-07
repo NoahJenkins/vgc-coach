@@ -1,0 +1,114 @@
+{
+  "schema_version": "battle-state-v1",
+  "format_provenance": {
+    "game": "pokemon-champions",
+    "battle_mode": "doubles",
+    "regulation_id": "regulation-m-b",
+    "official_source_url": "https://news.pokemon-home.com/en/page/776.html",
+    "verified_at": "2026-08-06T12:00:00Z",
+    "active_window": {
+      "start": "2026-06-17T02:00:00Z",
+      "end": "2026-09-09T01:59:00Z"
+    }
+  },
+  "battle": {
+    "source_type": "manual_transcription",
+    "source_id": "example-weather-game-1",
+    "occurred_at": "2026-08-05T20:30:00Z",
+    "best_of": 3,
+    "game_number": 1,
+    "player_sides": [
+      {
+        "side": "self",
+        "display_name": "Player"
+      },
+      {
+        "side": "opponent"
+      }
+    ]
+  },
+  "teams": {
+    "self": {
+      "preview_roster": [
+        {"species_id": "whimsicott"},
+        {"species_id": "charizard"},
+        {"species_id": "rillaboom"},
+        {"species_id": "incineroar"},
+        {"species_id": "urshifu", "form_id": "rapid-strike"},
+        {"species_id": "raging-bolt"}
+      ],
+      "selected": [
+        {"species_id": "whimsicott"},
+        {"species_id": "charizard"},
+        {"species_id": "rillaboom"},
+        {"species_id": "incineroar"}
+      ]
+    },
+    "opponent": {
+      "preview_roster": [
+        {"species_id": "pelipper"},
+        {"species_id": "basculegion", "form_id": "male"},
+        {"species_id": "archaludon"},
+        {"species_id": "amoonguss"},
+        {"species_id": "incineroar"},
+        {"species_id": "flutter-mane"}
+      ],
+      "selected": [
+        {"species_id": "pelipper"},
+        {"species_id": "basculegion", "form_id": "male"}
+      ]
+    }
+  },
+  "turn_events": [
+    {
+      "turn": 1,
+      "sequence": 1,
+      "side": "field",
+      "kind": "turn_start",
+      "observations": ["Whimsicott and Charizard face Pelipper and Basculegion."]
+    },
+    {
+      "turn": 1,
+      "sequence": 2,
+      "side": "self",
+      "kind": "move",
+      "actor": {"side": "self", "species_id": "whimsicott", "position": "left"},
+      "action": {"identifier": "tailwind", "text": "Whimsicott used Tailwind."},
+      "target": {"side": "self"},
+      "result": {"text": "Tailwind began on the player's side."}
+    },
+    {
+      "turn": 1,
+      "sequence": 3,
+      "side": "self",
+      "kind": "move",
+      "actor": {"side": "self", "species_id": "charizard", "position": "right"},
+      "action": {"identifier": "protect", "text": "Charizard used Protect."},
+      "result": {"text": "The opponent doubled into the protected slot."}
+    },
+    {
+      "turn": 2,
+      "sequence": 1,
+      "side": "opponent",
+      "kind": "faint",
+      "target": {"side": "self", "species_id": "charizard", "position": "right"},
+      "result": {"text": "Charizard fainted after the player kept it in under rain."},
+      "observations": ["The exact damage roll was not recorded."]
+    }
+  ],
+  "revealed_information": [
+    {
+      "turn": 1,
+      "side": "opponent",
+      "kind": "ability",
+      "species_id": "pelipper",
+      "value": "drizzle",
+      "evidence": "Rain began when Pelipper entered the field."
+    }
+  ],
+  "outcome": {
+    "result": "win",
+    "winner": "self",
+    "reason": "Opponent forfeited after the late-game position was decided."
+  }
+}

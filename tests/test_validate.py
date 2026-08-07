@@ -74,6 +74,14 @@ class ValidateTests(unittest.TestCase):
                     ),
                 ),
                 (
+                    "battle-state example check",
+                    (
+                        "/controlled/python",
+                        "tools/ingest_battle_state.py",
+                        "data/fixtures/battle-state-v1.example.json",
+                    ),
+                ),
+                (
                     "generated-plugin drift check",
                     (
                         "/controlled/python",

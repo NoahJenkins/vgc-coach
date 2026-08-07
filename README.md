@@ -203,6 +203,7 @@ The repo already includes:
 - Local eval and autoresearch tooling under `tools/eval_skill.py` and `tools/autoresearch.py`
 - Eval artifacts include research-trace metadata and explicit verification state so manual and future automated runs can be judged for signal, not just score
 - Exact damage/KO/survival calc support for `vgc-calcs-assistant` via `python3 tools/browser_damage_calc.py`
+- A versioned, runtime-neutral `battle-state-v1` JSON contract and bounded local normalizer at `python3 tools/ingest_battle_state.py`
 - Opt-in `battle-ready` team building that can use live common cores, recent top teams, and calc-backed benchmark notes
 
 ## Planned Work
@@ -211,8 +212,7 @@ These are still in progress, not yet available:
 
 - A more complete autoresearch workflow beyond the current local harness and disabled scheduled workflow
 - Broader eval coverage beyond the current fixed-case autoresearch loop
-- Replay ingestion utilities
-- Battle-state data schema
+- Adapters for explicitly supported replay exports beyond the repository-defined JSON contract
 - Broader exact calc support beyond damage, KO, and survival
 
 ## Principles

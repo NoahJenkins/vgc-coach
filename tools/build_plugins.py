@@ -310,7 +310,9 @@ def render_plugin_readme(plugin: dict, manifest: dict, skills: Dict[str, SkillIn
 Version: `{version}`
 
 This package is generated from the canonical shared skill source in `vgc-coach`.
-It is intentionally self-contained: the skills, supporting docs, eval artifacts, and exact-calc helper live inside this plugin package so installs do not depend on repo-local symlinks.
+It is intentionally self-contained: the skills, supporting docs, eval artifacts,
+battle-state contract, local ingestion helper, and exact-calc helper live inside
+this plugin package so installs do not depend on repo-local symlinks.
 
 ## Included Skills
 
@@ -324,6 +326,8 @@ It is intentionally self-contained: the skills, supporting docs, eval artifacts,
 
 - Shared coaching logic comes from `skills/`
 - Supporting references and examples come from `docs/skills/`
+- The runtime-neutral battle contract lives at `data/schemas/battle-state-v1.schema.json`
+- The bounded local normalizer lives at `tools/ingest_battle_state.py`
 - The exact damage helper lives at `tools/browser_damage_calc.py`
 - Generated files should be refreshed with `python3 tools/build_plugins.py`
 """
@@ -346,6 +350,8 @@ This plugin package is a generated, self-contained distribution of VGC Coach.
 - `skills/` contains the shared coaching skills
 - `docs/skills/` contains supporting references and examples
 - `data/fixtures/evals/` and `data/rubrics/` contain evaluation artifacts
+- `data/schemas/battle-state-v1.schema.json` defines structured battle evidence
+- `tools/ingest_battle_state.py` validates and normalizes battle-state JSON locally
 - `tools/browser_damage_calc.py` provides the optional exact damage helper
 
 ## Notes

@@ -8,11 +8,17 @@ description: Use when Pokemon Champions session notes need a concise practice jo
 Convert messy testing notes into a repeatable improvement loop.
 
 ## Inputs
+- one or more `battle-state-v1` JSON records
 - ladder session notes
 - testing-block recaps
 - scrim summaries
 - repeated review findings
 - optional target skill or matchup focus
+
+Structured battle records can be combined with prose notes. Omitted fields in
+the records remain unknown and must not be filled with inferred opponent sets
+or hidden decisions. See the shared
+[battle-state-v1 contract](../../docs/skills/shared/references/battle-state-v1.md).
 
 ## Output
 Return these sections in order:
@@ -27,6 +33,8 @@ Return these sections in order:
 ## Workflow
 1. Identify what the user was trying to improve during the session.
 2. Compress the session into a short factual recap rather than a blow-by-blow log.
+   For structured records, compare observed outcomes and decisions across games
+   without upgrading missing fields into facts.
 3. Extract repeated patterns across games, not one-off emotional reactions.
 4. Separate what should be preserved from what should change.
 5. Turn the next session into a small number of testable adjustments.

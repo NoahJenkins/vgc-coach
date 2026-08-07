@@ -44,7 +44,8 @@
       "name": "vgc-battle-review",
       "codex_metadata": "skills/vgc-battle-review/agents/openai.yaml",
       "docs": [
-        "docs/skills/vgc-battle-review"
+        "docs/skills/vgc-battle-review",
+        "docs/skills/shared"
       ]
     },
     {
@@ -91,14 +92,17 @@
   "shared_copy": {
     "files": [
       "LICENSE",
-      "SECURITY.md"
+      "SECURITY.md",
+      "data/fixtures/battle-state-v1.example.json"
     ],
     "directories": [
       "data/fixtures/evals",
-      "data/rubrics"
+      "data/rubrics",
+      "data/schemas"
     ],
     "tools": [
-      "tools/browser_damage_calc.py"
+      "tools/browser_damage_calc.py",
+      "tools/ingest_battle_state.py"
     ]
   },
   "plugins": [

@@ -51,6 +51,14 @@ def build_validation_steps(
             (python_executable, "tools/check_format_freshness.py"),
         ),
         ValidationStep(
+            "battle-state example check",
+            (
+                python_executable,
+                "tools/ingest_battle_state.py",
+                "data/fixtures/battle-state-v1.example.json",
+            ),
+        ),
+        ValidationStep(
             "generated-plugin drift check",
             (python_executable, "tools/build_plugins.py", "check"),
         ),

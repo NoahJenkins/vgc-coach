@@ -66,6 +66,9 @@ class BuildPluginsTests(unittest.TestCase):
             self.assertTrue((plugin_root / "docs" / "skills" / "shared" / "references" / "live-source-registry.yaml").exists())
             self.assertTrue((plugin_root / "docs" / "skills" / "shared" / "references" / "live-source-map.md").exists())
             self.assertTrue((plugin_root / "tools" / "browser_damage_calc.py").exists())
+            self.assertTrue((plugin_root / "tools" / "ingest_battle_state.py").exists())
+            self.assertTrue((plugin_root / "data" / "schemas" / "battle-state-v1.schema.json").exists())
+            self.assertTrue((plugin_root / "data" / "fixtures" / "battle-state-v1.example.json").exists())
             self.assertTrue((plugin_root / "skills" / "vgc-team-builder" / "agents" / "openai.yaml").exists())
 
     def test_validation_rejects_workspace_only_references(self):

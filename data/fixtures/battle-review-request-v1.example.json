@@ -15,6 +15,11 @@
     "verified_on": "2026-08-06"
   },
   "source_type": "turn_summary",
+  "structured_contract": {
+    "schema_version": "battle-state-v1",
+    "example": "data/fixtures/battle-state-v1.example.json",
+    "note": "Use the structured example when it is explicitly supplied as input; this request remains a supported prose turn summary."
+  },
   "player_side": "self",
   "review_goal": "identify key mistakes and stronger lines",
   "battle_log": [

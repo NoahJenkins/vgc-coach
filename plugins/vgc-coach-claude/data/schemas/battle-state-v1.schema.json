@@ -1,0 +1,285 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vgccoach.com/schemas/battle-state-v1.schema.json",
+  "title": "VGC Coach battle state v1",
+  "description": "A runtime-neutral record of observed Pokemon Champions battle evidence. Omitted values are unknown and must not be inferred.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "format_provenance",
+    "battle",
+    "teams"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "battle-state-v1"
+    },
+    "format_provenance": {
+      "$ref": "#/$defs/formatProvenance"
+    },
+    "battle": {
+      "$ref": "#/$defs/battleIdentity"
+    },
+    "teams": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["self", "opponent"],
+      "properties": {
+        "self": {"$ref": "#/$defs/team"},
+        "opponent": {"$ref": "#/$defs/team"}
+      }
+    },
+    "turn_events": {
+      "type": "array",
+      "default": [],
+      "items": {"$ref": "#/$defs/turnEvent"}
+    },
+    "revealed_information": {
+      "type": "array",
+      "default": [],
+      "items": {"$ref": "#/$defs/revealedFact"}
+    },
+    "outcome": {
+      "$ref": "#/$defs/outcome"
+    }
+  },
+  "$defs": {
+    "side": {
+      "type": "string",
+      "enum": ["self", "opponent"]
+    },
+    "battleSide": {
+      "type": "string",
+      "enum": ["self", "opponent", "field"]
+    },
+    "pokemonRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["species_id"],
+      "properties": {
+        "species_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "form_id": {
+          "type": ["string", "null"],
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "nickname": {"type": "string"}
+      }
+    },
+    "positionRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["side"],
+      "properties": {
+        "side": {"$ref": "#/$defs/battleSide"},
+        "species_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "form_id": {
+          "type": ["string", "null"],
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "position": {
+          "type": "string",
+          "enum": ["left", "right", "bench", "unknown"]
+        }
+      }
+    },
+    "actorRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["side"],
+      "properties": {
+        "side": {"$ref": "#/$defs/side"},
+        "species_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "form_id": {
+          "type": ["string", "null"],
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "position": {
+          "type": "string",
+          "enum": ["left", "right", "bench", "unknown"]
+        }
+      }
+    },
+    "formatProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "game",
+        "battle_mode",
+        "regulation_id",
+        "official_source_url",
+        "verified_at"
+      ],
+      "properties": {
+        "game": {"type": "string", "enum": ["pokemon-champions"]},
+        "battle_mode": {"type": "string", "enum": ["doubles"]},
+        "regulation_id": {"type": "string", "pattern": "^regulation-[a-z0-9-]+$"},
+        "official_source_url": {"type": "string", "format": "uri"},
+        "verified_at": {"type": "string", "format": "date-time"},
+        "active_window": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": {"type": "string", "format": "date-time"},
+            "end": {"type": "string", "format": "date-time"}
+          }
+        }
+      }
+    },
+    "playerSide": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["side"],
+      "properties": {
+        "side": {"$ref": "#/$defs/side"},
+        "player_id": {"type": ["string", "null"]},
+        "display_name": {"type": ["string", "null"]}
+      }
+    },
+    "battleIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_type", "player_sides"],
+      "properties": {
+        "source_type": {
+          "type": "string",
+          "enum": ["manual_transcription", "structured_notes", "adapter_output"]
+        },
+        "source_url": {"type": "string", "format": "uri"},
+        "source_id": {"type": "string"},
+        "occurred_at": {"type": "string", "format": "date-time"},
+        "best_of": {"type": "integer", "enum": [1, 3]},
+        "game_number": {"type": "integer", "minimum": 1},
+        "player_sides": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/playerSide"}
+        }
+      }
+    },
+    "team": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["preview_roster"],
+      "properties": {
+        "preview_roster": {
+          "type": "array",
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/pokemonRef"}
+        },
+        "selected": {
+          "type": "array",
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/pokemonRef"}
+        },
+        "active": {
+          "type": "array",
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/pokemonRef"}
+        },
+        "bench": {
+          "type": "array",
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/pokemonRef"}
+        }
+      }
+    },
+    "eventDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "identifier": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+        "text": {"type": "string"}
+      }
+    },
+    "turnEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["turn", "sequence", "side", "kind"],
+      "properties": {
+        "turn": {"type": "integer", "minimum": 0},
+        "sequence": {"type": "integer", "minimum": 1},
+        "side": {"$ref": "#/$defs/battleSide"},
+        "kind": {
+          "type": "string",
+          "enum": [
+            "turn_start",
+            "action",
+            "move",
+            "switch",
+            "damage",
+            "heal",
+            "status",
+            "faint",
+            "weather",
+            "terrain",
+            "ability",
+            "item",
+            "observation",
+            "turn_end",
+            "other"
+          ]
+        },
+        "actor": {"$ref": "#/$defs/actorRef"},
+        "action": {"$ref": "#/$defs/eventDetail"},
+        "target": {"$ref": "#/$defs/positionRef"},
+        "result": {"$ref": "#/$defs/eventDetail"},
+        "observations": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "revealedFact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["turn", "side", "kind", "value", "evidence"],
+      "properties": {
+        "turn": {"type": "integer", "minimum": 0},
+        "side": {"$ref": "#/$defs/side"},
+        "kind": {
+          "type": "string",
+          "enum": ["move", "item", "ability", "stat_clue", "other"]
+        },
+        "species_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "value": {"type": "string"},
+        "evidence": {"type": "string"}
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result"],
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": ["win", "loss", "draw", "incomplete", "unknown"]
+        },
+        "winner": {
+          "type": ["string", "null"],
+          "enum": ["self", "opponent", null]
+        },
+        "reason": {"type": ["string", "null"]}
+      }
+    }
+  }
+}
