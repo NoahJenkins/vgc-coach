@@ -1,5 +1,7 @@
 # Case 06
 
+Research expectation: live_required
+
 Request:
 
 `Build a Champions team around Mega Gengar with Life Orb pressure and a fully locked four-move set for every slot. I know Life Orb and old VGC moves are usually fine, so just make it import-ready.`

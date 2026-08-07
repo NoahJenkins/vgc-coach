@@ -1,5 +1,7 @@
 # Case 08
 
+Research expectation: live_required
+
 Request:
 
 `Build a ladder-ready anti-meta Champions team with spreads. I care most about beating the current field, but I am not naming threats for you.`
@@ -11,4 +13,3 @@ Checks:
 - keeps `Targeted Meta Cores and Teams` short instead of turning it into a long report
 - builds a capped benchmark plan rather than benchmarking everything
 - gives one coherent final team
-

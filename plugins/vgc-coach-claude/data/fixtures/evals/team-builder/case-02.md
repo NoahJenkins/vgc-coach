@@ -1,5 +1,7 @@
 # Case 02
 
+Research expectation: live_required
+
 Request:
 
 `Build the best team around Hisuian Zoroark as a Fake Out bait and speed-control piece.`

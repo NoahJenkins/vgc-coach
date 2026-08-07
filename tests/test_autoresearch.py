@@ -312,6 +312,24 @@ class AutoresearchTests(unittest.TestCase):
         self.assertEqual(audit_context.cases[0].research_expectation, "repo_only")
         self.assertEqual(calc_context.cases[0].research_expectation, "repo_only")
 
+    def test_conditional_fixture_metadata_marks_current_cases_and_preserves_structural_cases(self):
+        expected_expectations = {
+            "vgc-team-builder": "live_required",
+            "vgc-team-audit": "repo_only",
+            "vgc-lead-planner": "repo_only",
+            "vgc-opponent-scout": "live_required",
+        }
+        for skill_name, expected_expectation in expected_expectations.items():
+            with self.subTest(skill=skill_name):
+                context = load_skill_context(get_skill_config(skill_name))
+                self.assertTrue(context.cases)
+                self.assertTrue(
+                    all(
+                        case.research_expectation == expected_expectation
+                        for case in context.cases
+                    )
+                )
+
     def test_real_multiline_meta_research_request_parses(self):
         case = load_case_file(REPO_ROOT / "data" / "fixtures" / "evals" / "meta-research" / "case-02.md")
         self.assertIn("Terastallization", case.request)

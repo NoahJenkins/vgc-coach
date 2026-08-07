@@ -1,5 +1,7 @@
 # Case 05
 
+Research expectation: live_required
+
 Request:
 
 `Build a current-field Champions team around Mega Charizard Y. Assume ChampionsMeta is unavailable today, but still tell me if the team is a real current-field recommendation.`

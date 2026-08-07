@@ -1,5 +1,7 @@
 # Case 01
 
+Research expectation: live_required
+
 Request: build around Sableye for anti-meta balance in Champions Reg M-A.
 
 Checks:

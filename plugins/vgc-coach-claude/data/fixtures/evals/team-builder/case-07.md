@@ -1,5 +1,7 @@
 # Case 07
 
+Research expectation: live_required
+
 Request:
 
 `Build me a battle-ready Champions team around Mega Steelix with EVs and benchmark notes.`
@@ -13,4 +15,3 @@ Checks:
 - includes `Export Status`
 - uses live cores or recent top teams to explain at least some of the benchmark targets
 - keeps one committed Mega Steelix shell instead of branching into multiple variants
-
