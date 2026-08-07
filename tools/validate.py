@@ -65,6 +65,10 @@ def build_validation_steps(
     )
     site_steps = (
         ValidationStep(
+            "generated site trust-data check",
+            (python_executable, "tools/generate_site_trust_data.py", "check"),
+        ),
+        ValidationStep(
             "production site build",
             (pnpm_executable, "--dir", "site", "run", "build"),
         ),

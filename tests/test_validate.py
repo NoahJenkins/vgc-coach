@@ -95,6 +95,14 @@ class ValidateTests(unittest.TestCase):
             [(step.name, step.argv) for step in site],
             [
                 (
+                    "generated site trust-data check",
+                    (
+                        "/controlled/python",
+                        "tools/generate_site_trust_data.py",
+                        "check",
+                    ),
+                ),
+                (
                     "production site build",
                     ("controlled-pnpm", "--dir", "site", "run", "build"),
                 )
