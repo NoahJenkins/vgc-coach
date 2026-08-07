@@ -1,5 +1,7 @@
 # Case 02
 
+Research expectation: live_required
+
 Request: give an honest scout on what a current sand player is likely to bring when no team sheet is available.
 
 Checks:

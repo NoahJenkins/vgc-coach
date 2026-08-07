@@ -81,7 +81,7 @@ jobs:
       AUTORESEARCH_SKILL: ${{ github.event_name == 'schedule' && 'auto' || inputs.skill }}
       AUTORESEARCH_PROVIDER: ${{ github.event_name == 'schedule' && 'github-token' || inputs.provider }}
       AUTORESEARCH_PROFILE: ${{ github.event_name == 'schedule' && 'daily_sentinel' || inputs.profile }}
-      AUTORESEARCH_OPEN_PR: ${{ github.event_name == 'schedule' && 'true' || (inputs.open_pr && 'true' || 'false') }}
+      AUTORESEARCH_OPEN_PR: ${{ github.event_name == 'schedule' && 'false' || (inputs.open_pr && 'true' || 'false') }}
       AUTORESEARCH_MODEL: ${{ github.event_name == 'schedule' && 'gpt-5.4' || inputs.model }}
       AUTORESEARCH_CASE_LIMIT: ${{ github.event_name == 'schedule' && '' || inputs.case_limit }}
       AUTORESEARCH_SESSION_TIMEOUT: ${{ github.event_name == 'schedule' && '600' || inputs.session_timeout }}

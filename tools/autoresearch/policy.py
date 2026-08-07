@@ -106,8 +106,9 @@ def make_permission_handler(
 
         if kind == "url":
             urls = _urls_from_request(request)
+            recorder.requested_urls.extend(urls)
             if allow_live_research and all(url.startswith("https://") for url in urls):
-                recorder.source_urls.extend(urls)
+                recorder.approved_urls.extend(urls)
                 return PermissionRequestResult(kind="approved")
             return PermissionRequestResult(
                 kind="denied-by-rules",

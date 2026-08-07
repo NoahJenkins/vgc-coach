@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -8,7 +9,15 @@ from typing import Any
 from .config import REPO_ROOT, RunProfile
 from .context import CaseFile, SkillContext, extract_rubric_fail_triggers
 from .copilot_sdk import run_session
-from .results import CaseEvaluation, DimensionScore, SkillEvaluation
+from .reporting import write_json
+from .results import (
+    CaseEvaluation,
+    DimensionScore,
+    ResearchTrace,
+    SCORE_DIMENSION_MAX,
+    SCORE_DIMENSION_MIN,
+    SkillEvaluation,
+)
 
 GENERATION_SYSTEM_MESSAGE = """
 You are running inside the vgc-coach autoresearch harness.
@@ -25,6 +34,16 @@ Use the attached rubric and fixture literally. Return strict JSON only.
 Do not wrap the JSON in markdown fences. Do not add prose before or after it.
 """.strip()
 
+WEB_EVIDENCE_TOOL_NAMES = {
+    "click",
+    "find",
+    "open",
+    "screenshot",
+    "search_query",
+    "view",
+    "web_fetch",
+}
+
 
 async def evaluate_skill(
     *,
@@ -38,6 +57,9 @@ async def evaluate_skill(
 ) -> SkillEvaluation:
     output_dir.mkdir(parents=True, exist_ok=True)
     rubric_fail_triggers = extract_rubric_fail_triggers(ctx.rubric_text)
+    rubric_dimension_names = _extract_rubric_dimension_names(ctx.rubric_text)
+    if not rubric_dimension_names:
+        raise ValueError(f"Rubric for {ctx.config.name} does not define any score dimensions.")
     case_results: list[CaseEvaluation] = []
     cases = select_cases(ctx=ctx, run_profile=run_profile, case_limit=case_limit)
 
@@ -57,6 +79,9 @@ async def evaluate_skill(
         response_path.write_text(response["text"].strip() + "\n")
         response_path_abs = response_path.resolve()
 
+        research_trace = _build_research_trace(case=case, response=response)
+        write_json(case_dir / "research-trace.json", research_trace.to_dict())
+
         raw_evaluation_payload = await _grade_case_response(
             ctx=ctx,
             case=case,
@@ -66,9 +91,16 @@ async def evaluate_skill(
             model=model,
             session_timeout=session_timeout,
         )
-        evaluation_payload = _normalize_evaluation_payload(raw_evaluation_payload, case.name)
+        evaluation_payload = _normalize_evaluation_payload(
+            raw_evaluation_payload,
+            case.name,
+            expected_dimension_names=rubric_dimension_names,
+        )
+        evaluation_payload["research_trace"] = research_trace.to_dict()
+        evaluation_payload["verification_state"] = research_trace.verification_state
+        evaluation_payload["evidence_valid"] = research_trace.evidence_valid
         evaluation_path = case_dir / "evaluation.json"
-        evaluation_path.write_text(json.dumps(evaluation_payload, indent=2, sort_keys=True) + "\n")
+        write_json(evaluation_path, evaluation_payload)
         evaluation_path_abs = evaluation_path.resolve()
 
         case_results.append(
@@ -96,6 +128,9 @@ async def evaluate_skill(
                 source_urls=tuple(response["source_urls"]),
                 response_path=response_path_abs.relative_to(REPO_ROOT).as_posix(),
                 evaluation_path=evaluation_path_abs.relative_to(REPO_ROOT).as_posix(),
+                research_trace=research_trace,
+                verification_state=research_trace.verification_state,
+                evidence_valid=research_trace.evidence_valid,
                 evaluation_valid=bool(evaluation_payload.get("evaluation_valid", True)),
                 grading_errors=tuple(evaluation_payload.get("grading_errors", [])),
             )
@@ -107,13 +142,12 @@ async def evaluate_skill(
     )
     failure_categories = tuple(_top_items(case_results, "failure_categories"))
     matched_fail_triggers = tuple(_top_items(case_results, "matched_fail_triggers"))
-    summary = _build_skill_summary(case_results)
+    verification_state = _aggregate_verification_state(case_results)
+    summary = _build_skill_summary(case_results, verification_state=verification_state)
     grading_errors = tuple(
         error
         for case in case_results
-        for error in (
-            f"{case.case_name}: {message}" for message in case.grading_errors
-        )
+        for error in (f"{case.case_name}: {message}" for message in case.grading_errors)
     )
     return SkillEvaluation(
         skill=ctx.config.name,
@@ -122,6 +156,9 @@ async def evaluate_skill(
         failure_categories=failure_categories,
         matched_fail_triggers=matched_fail_triggers,
         summary=summary,
+        verification_state=verification_state,
+        evidence_valid=all(case.evidence_valid for case in case_results),
+        research_trace_summary=_build_research_trace_summary(case_results),
         evaluation_valid=all(case.evaluation_valid for case in case_results),
         grading_errors=grading_errors,
     )
@@ -172,9 +209,7 @@ async def _generate_case_response(
         {"type": "file", "path": str(ctx.config.skill_file)},
         {"type": "directory", "path": str(ctx.config.docs_dir)},
     ]
-    attachments.extend(
-        {"type": "file", "path": str(path)} for path in ctx.shared_reference_files
-    )
+    attachments.extend({"type": "file", "path": str(path)} for path in ctx.shared_reference_files)
     result = await run_session(
         prompt=prompt,
         attachments=attachments,
@@ -188,7 +223,19 @@ async def _generate_case_response(
         system_message=GENERATION_SYSTEM_MESSAGE,
         timeout=session_timeout,
     )
-    return {"text": result.final_text, "source_urls": result.source_urls}
+    return {
+        "text": result.final_text,
+        "source_urls": result.source_urls,
+        "requested_urls": result.requested_urls,
+        "attempted_urls": result.attempted_urls,
+        "approved_urls": result.approved_urls,
+        "tool_arg_urls": result.tool_arg_urls,
+        "event_urls": result.event_urls,
+        "tool_names": result.tool_names,
+        "read_paths": result.read_paths,
+        "write_paths": result.write_paths,
+        "shell_commands": result.shell_commands,
+    }
 
 
 async def _grade_case_response(
@@ -208,11 +255,19 @@ async def _grade_case_response(
             "Grade the candidate response using the attached rubric and fixture.",
             "Use the rubric's language exactly when possible.",
             "Score only the rubric dimensions explicitly named in the attached rubric.",
+            (
+                "Use this fixed integer scoring scale for every dimension: "
+                f"{SCORE_DIMENSION_MAX} = strong pass, 1 = mixed or partial, "
+                f"{SCORE_DIMENSION_MIN} = fail or materially missing."
+            ),
+            "Do not invent any other numeric scale.",
+            "Return `overall_score` as the exact sum of the dimension scores.",
             "If the rubric does not support a requested field, return an empty list instead of inventing structure.",
             "If fail-trigger language exists in the rubric or fixture, map it into `matched_fail_triggers`.",
             "Return JSON with this shape:",
             json.dumps(
                 {
+                    "overall_score": 0,
                     "dimension_scores": [{"name": "string", "score": 0, "rationale": "string"}],
                     "checks_passed": ["string"],
                     "checks_failed": ["string"],
@@ -248,6 +303,7 @@ async def _grade_case_response(
         timeout=session_timeout,
     )
     payload = _parse_json_response(result.final_text)
+    payload.setdefault("overall_score", None)
     payload.setdefault("dimension_scores", [])
     payload.setdefault("checks_passed", [])
     payload.setdefault("checks_failed", [])
@@ -258,9 +314,19 @@ async def _grade_case_response(
     return payload
 
 
-def _normalize_evaluation_payload(payload: dict[str, Any], case_name: str) -> dict[str, Any]:
+def _normalize_evaluation_payload(
+    payload: dict[str, Any],
+    case_name: str,
+    *,
+    expected_dimension_names: tuple[str, ...] | None = None,
+) -> dict[str, Any]:
     normalized = dict(payload)
     errors: list[str] = []
+    expected_dimensions = tuple(
+        dict.fromkeys(name.strip() for name in expected_dimension_names or () if name.strip())
+    )
+    expected_dimension_set = set(expected_dimensions)
+    observed_dimensions: set[str] = set()
 
     raw_dimension_scores = normalized.get("dimension_scores", [])
     if not isinstance(raw_dimension_scores, list):
@@ -276,12 +342,30 @@ def _normalize_evaluation_payload(payload: dict[str, Any], case_name: str) -> di
         if not name:
             errors.append(f"dimension_scores[{index}].name is empty for {case_name}")
             continue
+        if expected_dimensions:
+            if name not in expected_dimension_set:
+                errors.append(
+                    f"dimension_scores[{index}].name is an unknown rubric dimension for {case_name}: "
+                    f"{name!r}"
+                )
+            elif name in observed_dimensions:
+                errors.append(
+                    f"dimension_scores[{index}].name is a duplicate rubric dimension for {case_name}: "
+                    f"{name!r}"
+                )
+            observed_dimensions.add(name)
         try:
             score_value = int(raw_score.get("score"))
         except (TypeError, ValueError):
             errors.append(
                 f"dimension_scores[{index}].score is not numeric for {case_name}: "
                 f"{raw_score.get('score')!r}"
+            )
+            continue
+        if score_value < SCORE_DIMENSION_MIN or score_value > SCORE_DIMENSION_MAX:
+            errors.append(
+                f"dimension_scores[{index}].score is outside the allowed scale for {case_name}: "
+                f"{score_value}"
             )
             continue
         dimension_scores.append(
@@ -295,6 +379,16 @@ def _normalize_evaluation_payload(payload: dict[str, Any], case_name: str) -> di
     if not dimension_scores:
         errors.append(f"grader returned no usable dimension_scores for {case_name}")
 
+    if expected_dimensions:
+        missing_dimensions = tuple(
+            name for name in expected_dimensions if name not in observed_dimensions
+        )
+        if missing_dimensions:
+            errors.append(
+                f"grader returned missing rubric dimensions for {case_name}: "
+                f"{', '.join(missing_dimensions)}"
+            )
+
     computed_overall = sum(score["score"] for score in dimension_scores)
     normalized["checks_passed"] = _normalize_string_list(normalized.get("checks_passed"))
     normalized["checks_failed"] = _normalize_string_list(normalized.get("checks_failed"))
@@ -307,10 +401,23 @@ def _normalize_evaluation_payload(payload: dict[str, Any], case_name: str) -> di
         normalized.get("recommended_smallest_fix", "")
     ).strip()
     normalized["dimension_scores"] = dimension_scores
-    if "overall_score" in normalized:
-        normalized["reported_overall_score"] = normalized.get("overall_score")
-    else:
+
+    reported_overall = normalized.get("overall_score")
+    if reported_overall is None:
         normalized["reported_overall_score"] = None
+    else:
+        try:
+            normalized["reported_overall_score"] = int(reported_overall)
+        except (TypeError, ValueError):
+            errors.append(f"overall_score is not numeric for {case_name}: {reported_overall!r}")
+            normalized["reported_overall_score"] = reported_overall
+        else:
+            if normalized["reported_overall_score"] != computed_overall:
+                errors.append(
+                    f"reported overall_score does not match computed total for {case_name}: "
+                    f"{normalized['reported_overall_score']} != {computed_overall}"
+                )
+
     normalized["evaluation_valid"] = not errors
     normalized["grading_errors"] = errors
 
@@ -319,9 +426,41 @@ def _normalize_evaluation_payload(payload: dict[str, Any], case_name: str) -> di
         return normalized
 
     normalized["overall_score"] = computed_overall
-    if normalized["matched_fail_triggers"]:
-        normalized["overall_score"] = min(computed_overall, 40)
     return normalized
+
+
+def _extract_rubric_dimension_names(rubric_text: str) -> tuple[str, ...]:
+    lines = rubric_text.splitlines()
+    primary_dimensions: list[str] = []
+    in_primary_dimensions = False
+    for line in lines:
+        if line.strip() == "## Primary Quality Dimensions":
+            in_primary_dimensions = True
+            continue
+        if in_primary_dimensions and line.startswith("## "):
+            break
+        if in_primary_dimensions:
+            match = re.fullmatch(r"### `([^`]+)`", line.strip())
+            if match:
+                primary_dimensions.append(match.group(1).strip())
+    if primary_dimensions:
+        return tuple(primary_dimensions)
+
+    for index, line in enumerate(lines):
+        if line.strip() not in {"Score each response on:", "Score outputs on:"}:
+            continue
+        dimensions: list[str] = []
+        for candidate in lines[index + 1 :]:
+            if candidate.strip().endswith(":") and not candidate.startswith((" ", "-")):
+                break
+            if not candidate.startswith("- "):
+                continue
+            text = candidate[2:].strip()
+            inline_name = re.fullmatch(r"`([^`]+)`", text)
+            dimensions.append((inline_name.group(1) if inline_name else text).strip())
+        if dimensions:
+            return tuple(dimensions)
+    return ()
 
 
 def _normalize_string_list(raw_value: Any) -> list[str]:
@@ -363,7 +502,15 @@ def _top_items(cases: list[CaseEvaluation], attribute: str) -> list[str]:
     return [name for name, _count in counter.most_common()]
 
 
-def _build_skill_summary(cases: list[CaseEvaluation]) -> str:
+def _aggregate_verification_state(cases: list[CaseEvaluation]) -> str:
+    if any(not case.evaluation_valid for case in cases):
+        return "invalid_grading"
+    if any(not case.evidence_valid for case in cases):
+        return "inconclusive"
+    return "verified"
+
+
+def _build_skill_summary(cases: list[CaseEvaluation], *, verification_state: str) -> str:
     if not cases:
         return "No eval cases were available."
 
@@ -371,6 +518,13 @@ def _build_skill_summary(cases: list[CaseEvaluation]) -> str:
     if invalid_cases:
         invalid_names = ", ".join(case.case_name for case in invalid_cases)
         return f"Invalid grading output for: {invalid_names}."
+
+    if verification_state == "inconclusive":
+        inconclusive_cases = ", ".join(case.case_name for case in cases if not case.evidence_valid)
+        return (
+            f"Inconclusive verification for: {inconclusive_cases}. "
+            "Currentness-sensitive cases did not record enough live research evidence."
+        )
 
     weakest = min(cases, key=lambda case: case.overall_score)
     strongest = max(cases, key=lambda case: case.overall_score)
@@ -381,3 +535,136 @@ def _build_skill_summary(cases: list[CaseEvaluation]) -> str:
         f"Strongest case: {strongest.case_name} ({strongest.overall_score}). "
         f"Recurring failure categories: {category_text}."
     )
+
+
+def _build_research_trace(case: CaseFile, response: dict[str, Any]) -> ResearchTrace:
+    expectation = case.research_expectation
+    live_research_expected = expectation != "repo_only"
+    requested_urls = tuple(sorted(set(response.get("requested_urls", ()))))
+    tool_arg_urls = tuple(sorted(set(response.get("tool_arg_urls", ()))))
+    event_urls = tuple(sorted(set(response.get("event_urls", ()))))
+    successful_source_urls = tuple(sorted(set(response.get("source_urls", ()))))
+    attempted_urls = tuple(sorted(set(response.get("attempted_urls", ()))))
+    approved_urls = tuple(sorted(set(response.get("approved_urls", ()))))
+    tool_names = tuple(sorted(set(response.get("tool_names", ()))))
+    read_paths = tuple(sorted(set(response.get("read_paths", ()))))
+    shell_commands = tuple(dict.fromkeys(response.get("shell_commands", ())))
+    web_tool_names = tuple(name for name in tool_names if _is_web_evidence_tool(name))
+
+    evidence_valid = bool(successful_source_urls) if live_research_expected else True
+    verification_state = "verified" if evidence_valid else "inconclusive"
+    evidence_source = _describe_evidence_source(
+        requested_urls=requested_urls,
+        tool_arg_urls=tool_arg_urls,
+        event_urls=event_urls,
+    )
+    url_resolution_detail = _describe_url_resolution(
+        live_research_expected=live_research_expected,
+        evidence_valid=evidence_valid,
+        evidence_source=evidence_source,
+        successful_source_urls=successful_source_urls,
+        web_tool_names=web_tool_names,
+        requested_urls=requested_urls,
+    )
+
+    if live_research_expected:
+        summary = (
+            f"Expected live research. Evidence source: {evidence_source}. "
+            f"{url_resolution_detail} Recorded {len(requested_urls)} requested URL accesses, "
+            f"{len(approved_urls)} approved URL accesses, {len(attempted_urls)} executed URL observations, "
+            f"and {len(successful_source_urls)} successful source URLs."
+        )
+    else:
+        summary = (
+            f"Live research not required. Recorded {len(read_paths)} local reads and "
+            f"{len(shell_commands)} shell inspection commands."
+        )
+
+    return ResearchTrace(
+        expectation=expectation,
+        live_research_expected=live_research_expected,
+        requested_urls=requested_urls,
+        attempted_urls=attempted_urls,
+        approved_urls=approved_urls,
+        tool_arg_urls=tool_arg_urls,
+        event_urls=event_urls,
+        successful_source_urls=successful_source_urls,
+        tool_names=tool_names,
+        read_paths=read_paths,
+        shell_commands=shell_commands,
+        evidence_valid=evidence_valid,
+        verification_state=verification_state,
+        evidence_source=evidence_source,
+        url_resolution_detail=url_resolution_detail,
+        summary=summary,
+    )
+
+
+def _build_research_trace_summary(cases: list[CaseEvaluation]) -> str:
+    if not cases:
+        return "No research trace data recorded."
+
+    verified_count = sum(1 for case in cases if case.evidence_valid)
+    requested_urls = sum(len(case.research_trace.requested_urls) for case in cases)
+    attempted_urls = sum(len(case.research_trace.attempted_urls) for case in cases)
+    approved_urls = sum(len(case.research_trace.approved_urls) for case in cases)
+    successful_urls = sum(len(case.research_trace.successful_source_urls) for case in cases)
+    sources = Counter(case.research_trace.evidence_source for case in cases)
+    source_summary = ", ".join(
+        f"{source} x{count}" for source, count in sorted(sources.items())
+    )
+    return (
+        f"Verified evidence for {verified_count}/{len(cases)} cases. "
+        f"Recorded {requested_urls} requested URL accesses, {approved_urls} approved URL accesses, "
+        f"{attempted_urls} executed URL observations, and {successful_urls} successful source URLs. "
+        f"Evidence sources: {source_summary or 'none'}."
+    )
+
+
+def _is_web_evidence_tool(tool_name: str) -> bool:
+    normalized = tool_name.strip().lower()
+    return normalized in WEB_EVIDENCE_TOOL_NAMES or normalized.startswith("web_")
+
+
+def _describe_evidence_source(
+    *,
+    requested_urls: tuple[str, ...],
+    tool_arg_urls: tuple[str, ...],
+    event_urls: tuple[str, ...],
+) -> str:
+    channels = []
+    if requested_urls or event_urls or tool_arg_urls:
+        if requested_urls:
+            channels.append("permission-path")
+        if tool_arg_urls:
+            channels.append("tool-arg")
+        if event_urls:
+            channels.append("tool-event/result")
+    if not channels:
+        return "none"
+    if len(channels) == 1:
+        return f"{channels[0]} only"
+    return "mixed"
+
+
+def _describe_url_resolution(
+    *,
+    live_research_expected: bool,
+    evidence_valid: bool,
+    evidence_source: str,
+    successful_source_urls: tuple[str, ...],
+    web_tool_names: tuple[str, ...],
+    requested_urls: tuple[str, ...],
+) -> str:
+    if not live_research_expected:
+        return "Local-only verification was sufficient."
+    if evidence_valid:
+        return (
+            f"Resolved {len(successful_source_urls)} concrete source URLs from {evidence_source}."
+        )
+    if web_tool_names:
+        tools = ", ".join(f"`{name}`" for name in web_tool_names)
+        return f"Web tools ran ({tools}) but URL resolution stayed unresolved, so evidence is inconclusive."
+    if requested_urls:
+        return "Only permission-path URL requests were recorded, which is not enough to prove a live source was actually used."
+    return "No concrete live-research URL evidence was recorded."

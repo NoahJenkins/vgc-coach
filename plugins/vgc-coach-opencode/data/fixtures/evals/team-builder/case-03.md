@@ -1,5 +1,7 @@
 # Case 03
 
+Research expectation: live_required
+
 Request:
 
 `Build around base Sableye as a late-game attacker, but be honest if that is bad and still give me the best viable version. No format given.`

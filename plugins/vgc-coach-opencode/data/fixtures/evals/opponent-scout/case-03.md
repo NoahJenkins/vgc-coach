@@ -1,5 +1,7 @@
 # Case 03
 
+Research expectation: live_required
+
 Request: prep for a public opponent whose open results suggest one shell but whose latest event result may indicate a pivot.
 
 Checks:
