@@ -506,9 +506,9 @@ function App() {
                   </dd>
                 </div>
                 <div>
-                  <dt>Snapshot verified</dt>
+                  <dt>Source fetched</dt>
                   <dd>
-                    <time dateTime={trustData.regulation.verified_on}>
+                    <time dateTime={trustData.regulation.verified_at}>
                       {trustData.regulation.verified_label}
                     </time>
                   </dd>

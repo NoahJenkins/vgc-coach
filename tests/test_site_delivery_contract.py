@@ -5,12 +5,37 @@ import re
 import unittest
 from pathlib import Path
 
+import yaml
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SITE_ROOT = REPO_ROOT / "site"
 
 
 class SiteDeliveryContractTests(unittest.TestCase):
+    def test_site_ci_installs_pinned_python_validation_requirements(self):
+        workflow = yaml.safe_load(
+            (REPO_ROOT / ".github/workflows/site-ci.yml").read_text()
+        )
+        job = workflow["jobs"]["site-build"]
+        steps = job["steps"]
+        uses = [step["uses"] for step in steps if "uses" in step]
+        step_names = [step["name"] for step in steps]
+
+        self.assertEqual(job["name"], "site-build")
+        self.assertIn(
+            "actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405",
+            uses,
+        )
+        self.assertTrue(all(re.fullmatch(r"[^@]+@[0-9a-f]{40}", use) for use in uses))
+        install_index = step_names.index("Install validation dependencies")
+        build_index = step_names.index("Build site")
+        self.assertLess(install_index, build_index)
+        self.assertIn(
+            "python3 -m pip install -r tools/requirements-autoresearch.txt",
+            steps[install_index]["run"],
+        )
+
     def test_user_facing_site_copy_avoids_em_and_en_dashes(self):
         rendered_sources = (
             SITE_ROOT / "src/App.tsx",
@@ -86,7 +111,7 @@ class SiteDeliveryContractTests(unittest.TestCase):
         self.assertIn("default-src 'self'", csp)
         self.assertIn("font-src 'self'", csp)
         self.assertIn("object-src 'none'", csp)
-        self.assertIn("base-uri 'self'", csp)
+        self.assertIn("base-uri 'none'", csp)
         self.assertIn("frame-ancestors 'none'", csp)
         self.assertEqual(headers["x-content-type-options"], "nosniff")
         self.assertEqual(headers["referrer-policy"], "strict-origin-when-cross-origin")

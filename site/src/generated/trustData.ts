@@ -17,7 +17,8 @@ export const trustData = {
     "ends_at": "2026-09-09T01:59:00Z",
     "ends_label": "September 9, 2026 at 01:59 UTC",
     "verified_on": "2026-08-06",
-    "verified_label": "August 6, 2026",
+    "verified_at": "2026-08-07T02:57:04Z",
+    "verified_label": "August 7, 2026 at 02:57:04 UTC",
     "freshness_state": "current_snapshot",
     "freshness_note": "Current repository snapshot; live recheck required before present-tense coaching."
   },
@@ -29,6 +30,11 @@ export const trustData = {
   },
   "source_stack": {
     "status": "configured",
+    "required_role_counts": {
+      "official_regulation": 1,
+      "tournament_meta": 1,
+      "broader_meta": 1
+    },
     "required_sources": [
       {
         "id": "regulation-set-m-b",

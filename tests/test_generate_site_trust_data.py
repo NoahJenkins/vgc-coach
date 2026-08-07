@@ -7,6 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = REPO_ROOT / "tools" / "generate_site_trust_data.py"
@@ -36,25 +38,81 @@ def write_repo_facts(root: Path) -> None:
 
     registry = root / "docs/skills/shared/references/live-source-registry.yaml"
     registry.parent.mkdir(parents=True)
+
+    def source(
+        source_id: str,
+        role: str,
+        priority: int,
+        *,
+        url: str,
+    ) -> dict:
+        item = {
+            "id": source_id,
+            "display_name": source_id.replace("-", " ").title(),
+            "role": role,
+            "source_kind": "official" if role == "official_regulation" else "community",
+            "canonical_url": url,
+            "priority": priority,
+            "allowed_claim_types": [
+                "legality" if role == "official_regulation" else "current_snapshot"
+            ],
+            "required_for_minimum_stack": True,
+            "freshness": {
+                "max_age_days": 7,
+                "policy": "Re-check live before current claims.",
+            },
+            "required_evidence_fields": ["source_url", "fetched_at"],
+            "use_for": ["test claims"],
+            "do_not_use_for": ["unsupported claims"],
+            "fallback_if_unavailable": ["label the evidence gap"],
+        }
+        if role == "official_regulation":
+            item.update(
+                {
+                    "regulation_id": "regulation-test",
+                    "temporal_status": "current",
+                    "active_window": {
+                        "start": "2026-01-01T00:00:00Z",
+                        "end": "2026-12-31T23:59:59Z",
+                    },
+                }
+            )
+        return item
+
     registry.write_text(
-        "minimum_stack:\n"
-        "  official: 1\n"
-        "  tournament_meta: 1\n"
-        "sources:\n"
-        "  - id: regulation-test\n"
-        "    display_name: Regulation Test\n"
-        "    role: official_regulation\n"
-        "    canonical_url: https://example.com/rules\n"
-        "    required_for_minimum_stack: true\n"
-        "    temporal_status: current\n"
-        "    active_window:\n"
-        "      start: '2026-01-01T00:00:00Z'\n"
-        "      end: '2026-12-31T23:59:59Z'\n"
-        "  - id: tournament-test\n"
-        "    display_name: Tournament Test\n"
-        "    role: tournament_meta\n"
-        "    canonical_url: https://example.com/meta\n"
-        "    required_for_minimum_stack: true\n"
+        yaml.safe_dump(
+            {
+                "version": "1",
+                "summary": "Test source registry.",
+                "usage": "Use test sources for generator validation.",
+                "minimum_stack": {
+                    "official": 1,
+                    "tournament_meta": 1,
+                    "broader_meta": 1,
+                },
+                "sources": [
+                    source(
+                        "regulation-test",
+                        "official_regulation",
+                        1,
+                        url="https://example.com/rules",
+                    ),
+                    source(
+                        "tournament-test",
+                        "tournament_meta",
+                        2,
+                        url="https://example.com/tournament",
+                    ),
+                    source(
+                        "broader-test",
+                        "broader_meta",
+                        3,
+                        url="https://example.com/meta",
+                    ),
+                ],
+            },
+            sort_keys=False,
+        )
     )
 
     snapshot_root = root / "data/snapshots"
@@ -78,6 +136,7 @@ def write_repo_facts(root: Path) -> None:
                         "source_id": "regulation-test",
                         "label": "Regulation Test",
                         "url": "https://example.com/rules",
+                        "fetched_at": "2026-08-06T12:34:56Z",
                     }
                 ],
             }
@@ -102,8 +161,15 @@ class GenerateSiteTrustDataTests(unittest.TestCase):
         self.assertEqual(facts["evaluation"]["skill_count"], 2)
         self.assertEqual(facts["regulation"]["id"], "regulation-test")
         self.assertEqual(facts["regulation"]["verified_on"], "2026-08-06")
+        self.assertEqual(
+            facts["regulation"]["verified_at"], "2026-08-06T12:34:56Z"
+        )
+        self.assertEqual(
+            facts["regulation"]["verified_label"],
+            "August 6, 2026 at 12:34:56 UTC",
+        )
         self.assertEqual(facts["regulation"]["freshness_state"], "current_snapshot")
-        self.assertEqual(len(facts["source_stack"]["required_sources"]), 2)
+        self.assertEqual(len(facts["source_stack"]["required_sources"]), 3)
         self.assertEqual(facts["source_stack"]["status"], "configured")
         self.assertEqual(
             facts["calculation_boundary"]["exact"],
@@ -138,6 +204,60 @@ class GenerateSiteTrustDataTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "exactly one current"):
                 self.module.collect_trust_facts(root)
+
+    def test_rejects_wrong_required_source_distribution_by_role(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_repo_facts(root)
+            registry_path = (
+                root / "docs/skills/shared/references/live-source-registry.yaml"
+            )
+            registry = yaml.safe_load(registry_path.read_text())
+            registry["sources"][1]["role"] = "broader_meta"
+            registry_path.write_text(yaml.safe_dump(registry, sort_keys=False))
+
+            with self.assertRaisesRegex(ValueError, "minimum_stack.tournament_meta"):
+                self.module.collect_trust_facts(root)
+
+    def test_rejects_snapshot_and_current_registry_mismatches(self):
+        mutations = {
+            "regulation id": lambda snapshot: snapshot["format"].__setitem__(
+                "regulation_id", "regulation-wrong"
+            ),
+            "official URL": lambda snapshot: snapshot["sources"][0].__setitem__(
+                "url", "https://example.com/wrong"
+            ),
+            "active window": lambda snapshot: snapshot["format"][
+                "active_window"
+            ].__setitem__("end", "2026-11-30T23:59:59Z"),
+        }
+
+        for label, mutate in mutations.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                write_repo_facts(root)
+                snapshot_path = root / "data/snapshots/reg-test.json"
+                snapshot = json.loads(snapshot_path.read_text())
+                mutate(snapshot)
+                snapshot_path.write_text(json.dumps(snapshot))
+
+                with self.assertRaisesRegex(ValueError, "does not match"):
+                    self.module.collect_trust_facts(root)
+
+    def test_uses_snapshot_generated_at_when_source_fetch_time_is_absent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_repo_facts(root)
+            snapshot_path = root / "data/snapshots/reg-test.json"
+            snapshot = json.loads(snapshot_path.read_text())
+            del snapshot["sources"][0]["fetched_at"]
+            snapshot_path.write_text(json.dumps(snapshot))
+
+            facts = self.module.collect_trust_facts(root)
+
+        self.assertEqual(
+            facts["regulation"]["verified_at"], "2026-08-06T12:00:00Z"
+        )
 
     def test_check_detects_committed_artifact_drift(self):
         with tempfile.TemporaryDirectory() as tmp:

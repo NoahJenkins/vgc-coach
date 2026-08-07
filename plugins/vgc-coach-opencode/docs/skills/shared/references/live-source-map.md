@@ -14,6 +14,7 @@ Role: `official_regulation`
 Kind: `official`
 Canonical URL: https://news.pokemon-home.com/en/page/776.html
 Freshness: re-check within 30 days; Re-check live before present-tense rules, legality, mechanics, or item claims.
+Regulation ID: `regulation-m-b`
 Temporal status: `current`
 Active window: `2026-06-17T02:00:00Z` through `2026-09-09T01:59:00Z`
 Required evidence fields: `source_id`, `source_url`, `fetched_at`, `format_window`, `active_mechanics`, `claim_type`

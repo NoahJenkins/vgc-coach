@@ -46,6 +46,7 @@ class SourceRegistryTests(unittest.TestCase):
         self.assertFalse(by_id["pikalytics-champions"]["required_for_minimum_stack"])
         self.assertIn("set_tendencies", by_id["pikalytics-champions"]["allowed_claim_types"])
         regulation = by_id["regulation-set-m-b"]
+        self.assertEqual(regulation["regulation_id"], "regulation-m-b")
         self.assertEqual(regulation["canonical_url"], "https://news.pokemon-home.com/en/page/776.html")
         self.assertEqual(regulation["temporal_status"], "current")
         self.assertEqual(regulation["active_window"]["start"], "2026-06-17T02:00:00Z")
@@ -73,6 +74,13 @@ class SourceRegistryTests(unittest.TestCase):
         del payload["sources"][0]["required_evidence_fields"]
 
         with self.assertRaisesRegex(ValueError, "required_evidence_fields"):
+            self.module.validate_registry(payload)
+
+    def test_official_regulation_requires_regulation_id(self):
+        payload = copy.deepcopy(self.module.load_registry(REGISTRY_PATH))
+        del payload["sources"][0]["regulation_id"]
+
+        with self.assertRaisesRegex(ValueError, "regulation_id"):
             self.module.validate_registry(payload)
 
     def test_registry_rejects_missing_minimum_stack_url(self):

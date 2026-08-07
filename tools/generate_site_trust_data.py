@@ -5,25 +5,25 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import yaml
-
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tools.render_source_registry_docs import (  # noqa: E402
+    MINIMUM_STACK_ROLE_MAP,
+    load_registry,
+)
+
+
 DEFAULT_OUTPUT = REPO_ROOT / "site/src/generated/trustData.ts"
 REGISTRY_PATH = Path("docs/skills/shared/references/live-source-registry.yaml")
 SNAPSHOTS_ROOT = Path("data/snapshots")
-
-
-def _read_yaml(path: Path) -> dict[str, Any]:
-    loaded = yaml.safe_load(path.read_text())
-    if not isinstance(loaded, dict):
-        raise ValueError(f"Expected a YAML mapping in {path}")
-    return loaded
 
 
 def _current_snapshot(repo_root: Path) -> dict[str, Any]:
@@ -41,21 +41,31 @@ def _current_snapshot(repo_root: Path) -> dict[str, Any]:
     return current[0]
 
 
-def _utc_label(value: str) -> str:
+def _parse_rfc3339_utc(value: Any, *, label: str) -> datetime:
+    if not isinstance(value, str) or not re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z", value
+    ):
+        raise ValueError(f"{label} must be an RFC 3339 UTC timestamp ending in Z.")
+    try:
+        return datetime.fromisoformat(value[:-1] + "+00:00").astimezone(timezone.utc)
+    except ValueError as exc:
+        raise ValueError(f"{label} must be a valid RFC 3339 UTC timestamp.") from exc
+
+
+def _utc_label(value: str, *, include_seconds: bool = False) -> str:
     instant = datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(
         timezone.utc
     )
     month = instant.strftime("%B")
-    return f"{month} {instant.day}, {instant.year} at {instant:%H:%M} UTC"
-
-
-def _date_label(value: str) -> str:
-    day = datetime.fromisoformat(value).date()
-    return f"{day:%B} {day.day}, {day.year}"
+    time_format = "%H:%M:%S" if include_seconds else "%H:%M"
+    return (
+        f"{month} {instant.day}, {instant.year} at "
+        f"{instant.strftime(time_format)} UTC"
+    )
 
 
 def collect_trust_facts(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
-    registry = _read_yaml(repo_root / REGISTRY_PATH)
+    registry = load_registry(repo_root / REGISTRY_PATH)
     snapshot = _current_snapshot(repo_root)
     snapshot_format = snapshot.get("format")
     if not isinstance(snapshot_format, dict):
@@ -64,26 +74,44 @@ def collect_trust_facts(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     if not isinstance(active_window, dict):
         raise ValueError("Current regulation snapshot is missing its active window.")
 
-    sources = registry.get("sources")
-    if not isinstance(sources, list):
-        raise ValueError("Live-source registry is missing its sources list.")
-    required_sources = [
-        {
-            "id": source["id"],
-            "name": source["display_name"],
-            "role": source["role"],
-            "url": source["canonical_url"],
-        }
-        for source in sources
-        if isinstance(source, dict) and source.get("required_for_minimum_stack") is True
-    ]
-    minimum_stack = registry.get("minimum_stack")
-    if not isinstance(minimum_stack, dict) or len(required_sources) != sum(
-        int(count) for count in minimum_stack.values()
-    ):
-        raise ValueError(
-            "Live-source registry minimum_stack does not match its required sources."
+    sources = registry["sources"]
+    required_sources: list[dict[str, str]] = []
+    required_role_counts: dict[str, int] = {}
+    for stack_key, role in MINIMUM_STACK_ROLE_MAP.items():
+        role_sources = [
+            source
+            for source in sources
+            if source["role"] == role and source["required_for_minimum_stack"]
+        ]
+        required_count = registry["minimum_stack"][stack_key]
+        if len(role_sources) < required_count:
+            raise ValueError(
+                f"minimum_stack.{stack_key} requires {required_count} sources, "
+                f"but only {len(role_sources)} required {role} sources are configured"
+            )
+        required_role_counts[role] = len(role_sources)
+        required_sources.extend(
+            {
+                "id": source["id"],
+                "name": source["display_name"],
+                "role": source["role"],
+                "url": source["canonical_url"],
+            }
+            for source in role_sources
         )
+
+    current_official_sources = [
+        source
+        for source in sources
+        if source["role"] == "official_regulation"
+        and source["temporal_status"] == "current"
+    ]
+    if len(current_official_sources) != 1:
+        raise ValueError(
+            "Site trust data requires exactly one current official registry source; "
+            f"found {len(current_official_sources)}."
+        )
+    registry_official = current_official_sources[0]
 
     snapshot_sources = snapshot.get("sources")
     if not isinstance(snapshot_sources, list) or len(snapshot_sources) != 1:
@@ -91,6 +119,37 @@ def collect_trust_facts(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     official_source = snapshot_sources[0]
     if not isinstance(official_source, dict):
         raise ValueError("Current regulation source must be a mapping.")
+
+    consistency_checks = (
+        (
+            "snapshot source id",
+            official_source.get("source_id"),
+            registry_official["id"],
+        ),
+        (
+            "snapshot regulation id",
+            snapshot_format.get("regulation_id"),
+            registry_official["regulation_id"],
+        ),
+        (
+            "snapshot official URL",
+            official_source.get("url"),
+            registry_official["canonical_url"],
+        ),
+        (
+            "snapshot active window",
+            active_window,
+            registry_official["active_window"],
+        ),
+    )
+    for label, snapshot_value, registry_value in consistency_checks:
+        if snapshot_value != registry_value:
+            raise ValueError(
+                f"{label} does not match the current official registry entry."
+            )
+
+    verified_at = official_source.get("fetched_at") or snapshot.get("generated_at")
+    _parse_rfc3339_utc(verified_at, label="snapshot verification timestamp")
 
     eval_paths = sorted((repo_root / "data/fixtures/evals").glob("*/case-*.md"))
     rubric_paths = sorted((repo_root / "data/rubrics").glob("*-rubric.md"))
@@ -113,7 +172,8 @@ def collect_trust_facts(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
             "ends_at": active_window["end"],
             "ends_label": _utc_label(active_window["end"]),
             "verified_on": snapshot["verified_on"],
-            "verified_label": _date_label(snapshot["verified_on"]),
+            "verified_at": verified_at,
+            "verified_label": _utc_label(verified_at, include_seconds=True),
             "freshness_state": "current_snapshot",
             "freshness_note": (
                 "Current repository snapshot; live recheck required before "
@@ -131,6 +191,7 @@ def collect_trust_facts(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         },
         "source_stack": {
             "status": "configured",
+            "required_role_counts": required_role_counts,
             "required_sources": required_sources,
             "scope_note": (
                 "The repository defines the minimum source roles. Live pages "

@@ -266,6 +266,10 @@ def validate_registry(payload: Any) -> dict[str, Any]:
             ),
         }
         if role == "official_regulation":
+            normalized["regulation_id"] = _require_nonempty_string(
+                item.get("regulation_id"),
+                label=f"sources[{index}].regulation_id",
+            )
             temporal_status = _require_nonempty_string(
                 item.get("temporal_status"),
                 label=f"sources[{index}].temporal_status",
@@ -322,6 +326,7 @@ def _render_source(source: dict[str, Any]) -> list[str]:
         f"{source['freshness']['policy']}"
     )
     if source["role"] == "official_regulation":
+        lines.append(f"Regulation ID: `{source['regulation_id']}`")
         lines.append(f"Temporal status: `{source['temporal_status']}`")
         lines.append(
             "Active window: "

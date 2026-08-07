@@ -9,6 +9,7 @@ sources:
   - id: regulation-set-m-b
     display_name: Regulation Set M-B
     role: official_regulation
+    regulation_id: regulation-m-b
     source_kind: official
     canonical_url: https://news.pokemon-home.com/en/page/776.html
     priority: 1
