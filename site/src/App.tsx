@@ -282,7 +282,7 @@ function App() {
                     <path d="M222 134 H286" />
                   </g>
 
-                  <path className="route-line route-primary" d="M178 69 H214 V92 H250 V116 H292 V134 H340" />
+                  <path className="route-line route-primary" d="M178 69 H222 V92 H250 V116 H292 V134 H340" />
                   <path className="route-line route-alt" d="M178 229 H214 V202 H250 V178 H292 V154 H340" />
                   <path className="route-line route-risk" d="M142 99 H198 V134 H252 V154 H292" />
                   <path className="route-line route-risk" d="M142 169 H198 V154 H252 V134 H292" />

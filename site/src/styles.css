@@ -507,7 +507,7 @@ pre {
 .cta-card h2 {
   font-family: var(--display-font);
   font-size: 5.15rem;
-  line-height: 0.95;
+  line-height: 1.05;
   letter-spacing: 0;
   margin: 0.6rem 0 1rem;
   max-width: 11ch;
@@ -1871,7 +1871,7 @@ pre {
 
   .hero h1 {
     font-size: 2.55rem;
-    line-height: 1;
+    line-height: 1.05;
   }
 
   .hero-intro {
@@ -1904,7 +1904,7 @@ pre {
   .section-heading h2,
   .cta-card h2 {
     font-size: 2.2rem;
-    line-height: 1;
+    line-height: 1.05;
   }
 
   .hero h1,
