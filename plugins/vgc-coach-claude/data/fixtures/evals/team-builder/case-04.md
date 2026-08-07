@@ -1,5 +1,7 @@
 # Case 04
 
+Research expectation: live_required
+
 Request:
 
 `Build me an anti-meta Mega Venusaur team for current Champions. One of the community sources might be missing or down, so keep the confidence honest and do not assume unverified species, item, or move legality.`
