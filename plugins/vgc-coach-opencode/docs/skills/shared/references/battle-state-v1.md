@@ -20,7 +20,17 @@ URL provenance fields accept absolute lowercase `http://` or `https://` URLs
 with a valid hostname (or bracketed IPv6 address) and optional port from 0 to
 65535. Userinfo, control characters, backslashes, malformed authorities, and
 non-HTTP schemes are rejected. Date-time fields use RFC 3339 syntax, including
-an explicit `Z` or numeric offset.
+an explicit `Z` or numeric offset. Years are limited to `0001` through `9999`;
+year `0000` is rejected so the schema and local validator share Gregorian
+calendar semantics. Hours range from `00` through `23`, minutes from `00`
+through `59`, and numeric offsets use hours `00` through `23` and minutes `00`
+through `59`. Calendar dates are checked for month length and leap years.
+
+Seconds range from `00` through `60`. The validator accepts `60` as RFC 3339
+leap-second syntax and orders it immediately after `59` and before the following
+minute, but it does not check an external leap-second schedule. Fractional
+seconds may contain any positive number of digits and active-window ordering
+compares every digit exactly; it does not truncate to microseconds.
 
 Path, query, and fragment components use RFC 3986 URI characters. Spaces,
 non-ASCII text, and other bytes outside that grammar must be percent-encoded as

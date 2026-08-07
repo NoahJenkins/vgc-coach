@@ -246,6 +246,140 @@ class BattleStateIngestionTests(unittest.TestCase):
                     self.assertIn(b"RFC 3339", result.stderr)
                     self.assertNotIn(b"Traceback", result.stderr)
 
+    def test_rfc3339_component_bounds_are_enforced_by_every_cli(self):
+        invalid_values = (
+            "2026-08-06T24:00:00Z",
+            "2026-08-06T24:00:00.0000001Z",
+            "2026-08-06T23:60:00Z",
+            "2026-08-06T23:59:61Z",
+            "2026-08-06T12:00:00+00:60",
+            "2026-08-06T12:00:00-22:99",
+            "2026-08-06T12:00:00+24:00",
+            "2026-08-06T12:00:00-23:60",
+        )
+        for value in invalid_values:
+            for cli_path in ALL_CLI_PATHS:
+                with self.subTest(value=value, cli=cli_path):
+                    document = minimal_document()
+                    document["format_provenance"]["verified_at"] = value
+
+                    result = self.run_document(document, cli_path=cli_path)
+
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout, b"")
+                    self.assertIn(b"RFC 3339", result.stderr)
+                    self.assertNotIn(b"Traceback", result.stderr)
+
+    def test_rfc3339_clock_offset_and_leap_second_boundaries_pass_every_cli(self):
+        valid_values = (
+            "0001-01-01T00:00:00-23:59",
+            "2026-08-06T23:59:59+23:59",
+            "2026-12-31T23:59:60Z",
+            "2026-08-06t12:00:00.123456789z",
+            "9999-12-31T23:59:59Z",
+        )
+        for value in valid_values:
+            for cli_path in ALL_CLI_PATHS:
+                with self.subTest(value=value, cli=cli_path):
+                    document = minimal_document()
+                    document["format_provenance"]["verified_at"] = value
+
+                    result = self.run_document(document, cli_path=cli_path)
+
+                    self.assertEqual(result.returncode, 0, result.stderr.decode())
+                    self.assertEqual(
+                        json.loads(result.stdout)["format_provenance"]["verified_at"],
+                        value,
+                    )
+
+    def test_calendar_and_year_bounds_are_enforced_by_every_cli(self):
+        invalid_values = (
+            "0000-01-01T00:00:00Z",
+            "2026-00-01T00:00:00Z",
+            "2026-01-00T00:00:00Z",
+            "2023-02-29T00:00:00Z",
+            "1900-02-29T00:00:00Z",
+            "2026-04-31T00:00:00Z",
+        )
+        valid_values = (
+            "2000-02-29T00:00:00Z",
+            "2024-02-29T00:00:00Z",
+        )
+        cases = [(value, False) for value in invalid_values]
+        cases.extend((value, True) for value in valid_values)
+        for value, expected_success in cases:
+            for cli_path in ALL_CLI_PATHS:
+                with self.subTest(value=value, cli=cli_path):
+                    document = minimal_document()
+                    document["format_provenance"]["verified_at"] = value
+
+                    result = self.run_document(document, cli_path=cli_path)
+
+                    if expected_success:
+                        self.assertEqual(result.returncode, 0, result.stderr.decode())
+                    else:
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertEqual(result.stdout, b"")
+                        self.assertIn(b"RFC 3339", result.stderr)
+                        self.assertNotIn(b"Traceback", result.stderr)
+
+    def test_high_precision_active_window_ordering_is_exact_in_every_cli(self):
+        cases = (
+            (
+                "2026-06-17T02:00:00.0000009Z",
+                "2026-06-17T02:00:00.0000001Z",
+                False,
+            ),
+            (
+                "2026-06-17T02:00:00.1234569Z",
+                "2026-06-17T02:00:00.1234561Z",
+                False,
+            ),
+            (
+                "2026-06-17T02:00:00.0000001Z",
+                "2026-06-17T02:00:00.0000009Z",
+                True,
+            ),
+            (
+                "2026-06-17T02:00:00.1Z",
+                "2026-06-17T02:00:00.100000000000000000Z",
+                True,
+            ),
+            (
+                "2026-06-17T03:00:00.123456789123456789+01:00",
+                "2026-06-17T02:00:00.123456789123456789Z",
+                True,
+            ),
+            (
+                "2026-06-30T23:59:60.999999999Z",
+                "2026-07-01T00:00:00Z",
+                True,
+            ),
+            (
+                "2026-07-01T00:00:00Z",
+                "2026-06-30T23:59:60.999999999Z",
+                False,
+            ),
+        )
+        for start, end, expected_success in cases:
+            for cli_path in ALL_CLI_PATHS:
+                with self.subTest(start=start, end=end, cli=cli_path):
+                    document = minimal_document()
+                    document["format_provenance"]["active_window"] = {
+                        "start": start,
+                        "end": end,
+                    }
+
+                    result = self.run_document(document, cli_path=cli_path)
+
+                    if expected_success:
+                        self.assertEqual(result.returncode, 0, result.stderr.decode())
+                    else:
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertEqual(result.stdout, b"")
+                        self.assertIn(b"must not precede", result.stderr)
+                        self.assertNotIn(b"Traceback", result.stderr)
+
     def test_malformed_http_authorities_are_rejected_without_traceback_in_both_clis(self):
         invalid_urls = (
             "https://@",
@@ -563,6 +697,7 @@ class BattleStateIngestionTests(unittest.TestCase):
         reveal_pattern = schema["$defs"]["revealedFact"]["properties"]["value"][
             "pattern"
         ]
+        date_pattern = schema["$defs"]["rfc3339DateTime"]["pattern"]
 
         def javascript_matches(pattern: str, value: str) -> bool:
             completed = subprocess.run(
@@ -586,6 +721,20 @@ class BattleStateIngestionTests(unittest.TestCase):
                 self.assertFalse(javascript_matches(pattern, "regulation-m-b\n"))
         self.assertTrue(javascript_matches(reveal_pattern, "useful evidence"))
         self.assertFalse(javascript_matches(reveal_pattern, "\u0085"))
+        for value in (
+            "2026-08-06T24:00:00Z",
+            "2026-08-06T12:00:00+00:60",
+            "0000-01-01T00:00:00Z",
+        ):
+            with self.subTest(date=value):
+                self.assertFalse(javascript_matches(date_pattern, value))
+        for value in (
+            "2026-08-06T23:59:59+23:59",
+            "2026-12-31T23:59:60Z",
+            "2026-08-06t12:00:00.123456789z",
+        ):
+            with self.subTest(date=value):
+                self.assertTrue(javascript_matches(date_pattern, value))
 
     def test_outcome_result_is_from_self_perspective_and_matches_winner(self):
         invalid_outcomes = (

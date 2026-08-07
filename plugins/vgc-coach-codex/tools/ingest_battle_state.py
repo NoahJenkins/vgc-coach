@@ -16,7 +16,8 @@ import re
 import sys
 import tempfile
 import unicodedata
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from itertools import zip_longest
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -27,9 +28,13 @@ SCHEMA_PATH = REPO_ROOT / "data" / "schemas" / "battle-state-v1.schema.json"
 SUPPORTED_SCHEMA_VERSION = "battle-state-v1"
 MAX_INPUT_BYTES = 1024 * 1024
 RFC3339_PATTERN = re.compile(
-    r"^(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})[Tt]"
-    r"(?P<hour>[0-9]{2}):(?P<minute>[0-9]{2}):(?P<second>[0-9]{2})"
-    r"(?P<fraction>\.[0-9]+)?(?P<offset>[Zz]|[+-][0-9]{2}:[0-9]{2})$"
+    r"^(?!0000-)(?P<year>[0-9]{4})-(?P<month>0[1-9]|1[0-2])-"
+    r"(?P<day>0[1-9]|[12][0-9]|3[01])[Tt]"
+    r"(?P<hour>[01][0-9]|2[0-3]):(?P<minute>[0-5][0-9]):"
+    r"(?P<second>[0-5][0-9]|60)(?:\.(?P<fraction>[0-9]+))?"
+    r"(?:[Zz]|(?P<offset_sign>[+-])"
+    r"(?P<offset_hour>[01][0-9]|2[0-3]):"
+    r"(?P<offset_minute>[0-5][0-9]))$"
 )
 HOSTNAME_PATTERN = re.compile(
     r"^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)"
@@ -45,6 +50,29 @@ MALFORMED_PERCENT_ESCAPE_PATTERN = re.compile(r"%(?![0-9A-Fa-f]{2})")
 
 class BattleStateError(ValueError):
     """A safe, user-facing validation failure."""
+
+
+@dataclass(frozen=True)
+class RFC3339Instant:
+    """An exact comparable instant without datetime precision normalization."""
+
+    whole_seconds: int
+    is_leap_second: bool
+    fractional_digits: str
+
+    def __lt__(self, other: RFC3339Instant) -> bool:
+        if self.whole_seconds != other.whole_seconds:
+            return self.whole_seconds < other.whole_seconds
+        if self.is_leap_second != other.is_leap_second:
+            return self.is_leap_second
+        for left, right in zip_longest(
+            self.fractional_digits,
+            other.fractional_digits,
+            fillvalue="0",
+        ):
+            if left != right:
+                return left < right
+        return False
 
 
 def _json_type_matches(value: Any, expected: str) -> bool:
@@ -90,28 +118,64 @@ def _parse_datetime(
     value: str,
     path: str,
     schema_pattern: str | None = None,
-) -> datetime:
+) -> RFC3339Instant:
     match = RFC3339_PATTERN.fullmatch(value)
     if match is None or (
         schema_pattern is not None and re.fullmatch(schema_pattern, value) is None
     ):
         raise BattleStateError(f"{path} must be an RFC 3339 date-time")
 
-    normalized = value[:10] + "T" + value[11:]
-    if normalized.endswith(("Z", "z")):
-        normalized = normalized[:-1] + "+00:00"
-    leap_second = match.group("second") == "60"
-    if leap_second:
-        normalized = normalized[:17] + "59" + normalized[19:]
-    try:
-        parsed = datetime.fromisoformat(normalized)
-        if leap_second:
-            parsed += timedelta(seconds=1)
-    except (OverflowError, ValueError) as exc:
-        raise BattleStateError(f"{path} must be an RFC 3339 date-time") from exc
-    if parsed.tzinfo is None:
-        raise BattleStateError(f"{path} must include a timezone")
-    return parsed
+    year = int(match.group("year"))
+    month = int(match.group("month"))
+    day = int(match.group("day"))
+    leap_year = year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
+    month_lengths = (
+        31,
+        29 if leap_year else 28,
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    )
+    if day > month_lengths[month - 1]:
+        raise BattleStateError(f"{path} must be an RFC 3339 date-time")
+
+    days_before_month = sum(month_lengths[: month - 1])
+    prior_year = year - 1
+    days_before_year = (
+        365 * prior_year
+        + prior_year // 4
+        - prior_year // 100
+        + prior_year // 400
+    )
+    whole_seconds = (
+        (days_before_year + days_before_month + day - 1) * 86_400
+        + int(match.group("hour")) * 3_600
+        + int(match.group("minute")) * 60
+        + int(match.group("second"))
+    )
+    if match.group("offset_sign") is not None:
+        offset_seconds = (
+            int(match.group("offset_hour")) * 3_600
+            + int(match.group("offset_minute")) * 60
+        )
+        whole_seconds += (
+            -offset_seconds
+            if match.group("offset_sign") == "+"
+            else offset_seconds
+        )
+
+    return RFC3339Instant(
+        whole_seconds,
+        match.group("second") == "60",
+        match.group("fraction") or "",
+    )
 
 
 def _validate_uri(
