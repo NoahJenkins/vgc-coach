@@ -237,6 +237,21 @@ class FormatFreshnessTests(unittest.TestCase):
                     }
                 ),
             ),
+            "ambiguous provenance fixture": (
+                "data/fixtures/future/nested/provenance.example.json",
+                json.dumps(
+                    {
+                        "schema_version": "future-state-v1",
+                        "format_provenance": {
+                            "regulation_id": "regulation-future",
+                            "active_window": {
+                                "start": "2027-01-01T00:00:00Z",
+                                "end": "2027-02-01T00:00:00Z",
+                            },
+                        },
+                    }
+                ),
+            ),
         }
 
         for label, (relative, content) in scenarios.items():
@@ -293,6 +308,49 @@ class FormatFreshnessTests(unittest.TestCase):
                     payload["format_provenance"]["source_url"],
                     "https://news.pokemon-home.com/en/page/776.html",
                 )
+
+    def test_checked_in_battle_state_example_is_a_current_designation(self):
+        designations = {
+            label: (status, end)
+            for label, status, end in self.module._iter_designations(REPO_ROOT)
+        }
+
+        status, end = designations["data/fixtures/battle-state-v1.example.json"]
+        self.assertEqual(status, "current")
+        self.assertEqual(end, datetime(2026, 9, 9, 1, 59, tzinfo=timezone.utc))
+
+    def test_battle_state_example_fails_after_its_provenance_window(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_designated_artifacts(
+                root,
+                current_start="2026-01-01T00:00:00Z",
+                current_end="2026-12-31T23:59:59Z",
+            )
+            fixture = root / "data/fixtures/battle-state-v1.example.json"
+            fixture.parent.mkdir(parents=True, exist_ok=True)
+            fixture.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "battle-state-v1",
+                        "format_provenance": {
+                            "regulation_id": "regulation-expired",
+                            "active_window": {
+                                "start": "2026-01-01T00:00:00Z",
+                                "end": "2026-02-01T00:00:00Z",
+                            },
+                        },
+                    }
+                )
+            )
+
+            expired = self.module.find_expired_current_artifacts(
+                root, now=datetime(2026, 2, 1, 0, 0, 1, tzinfo=timezone.utc)
+            )
+
+        self.assertEqual(len(expired), 1)
+        self.assertIn("battle-state-v1.example.json", expired[0])
+        self.assertIn("2026-02-01T00:00:00Z", expired[0])
 
     def test_checked_in_meta_snapshot_example_is_explicitly_historical(self):
         payload = json.loads(

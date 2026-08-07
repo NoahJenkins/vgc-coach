@@ -1234,6 +1234,14 @@ pre {
   gap: 1rem;
 }
 
+.ticket-status.stale {
+  color: var(--accent);
+}
+
+.ticket-status.stale .status-dot {
+  background: var(--accent);
+}
+
 .prompt-topline > span,
 .output-heading > span,
 .ticket-topline > span,

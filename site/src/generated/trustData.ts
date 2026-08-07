@@ -19,8 +19,13 @@ export const trustData = {
     "verified_on": "2026-08-06",
     "verified_at": "2026-08-07T02:57:04Z",
     "verified_label": "August 7, 2026 at 02:57:04 UTC",
-    "freshness_state": "current_snapshot",
-    "freshness_note": "Current repository snapshot; live recheck required before present-tense coaching."
+    "freshness_state": "fresh",
+    "freshness_max_age_days": 30,
+    "fresh_until": "2026-09-06T02:57:04Z",
+    "fresh_label": "Source snapshot fresh",
+    "stale_label": "Source snapshot stale",
+    "freshness_note": "Registry freshness allows 30 days from the source fetch; live recheck required before present-tense coaching.",
+    "stale_note": "This source snapshot is older than the registry freshness limit; live recheck required before present-tense coaching."
   },
   "evaluation": {
     "fixture_count": 46,

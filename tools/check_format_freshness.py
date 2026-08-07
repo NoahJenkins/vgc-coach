@@ -49,8 +49,9 @@ def _designation(
     label: str,
     window_path: tuple[str, ...],
     required: bool = False,
+    default_status: str | None = None,
 ) -> tuple[str, datetime] | None:
-    status = payload.get("temporal_status")
+    status = payload.get("temporal_status", default_status)
     if status is None:
         if required:
             raise ValueError(
@@ -72,6 +73,16 @@ def _designation(
     if start > end:
         raise ValueError(f"{label}: active_window.start must not be after end")
     return status, end
+
+
+def _regulation_window_path(payload: dict[str, Any]) -> tuple[str, ...]:
+    format_payload = payload.get("format")
+    if isinstance(format_payload, dict) and format_payload.get("regulation_id"):
+        return ("format", "active_window")
+    provenance = payload.get("format_provenance")
+    if isinstance(provenance, dict) and provenance.get("regulation_id"):
+        return ("format_provenance", "active_window")
+    return ("format", "active_window")
 
 
 def _iter_designations(repo_root: Path) -> Iterable[tuple[str, str, datetime]]:
@@ -104,7 +115,7 @@ def _iter_designations(repo_root: Path) -> Iterable[tuple[str, str, datetime]]:
         result = _designation(
             payload,
             label=relative,
-            window_path=("format", "active_window"),
+            window_path=_regulation_window_path(payload),
             required=_has_regulation_id(payload),
         )
         if result:
@@ -136,8 +147,14 @@ def _iter_designations(repo_root: Path) -> Iterable[tuple[str, str, datetime]]:
         result = _designation(
             payload,
             label=relative,
-            window_path=("format", "active_window"),
+            window_path=_regulation_window_path(payload),
             required=_has_regulation_id(payload),
+            # The canonical battle-state example is intentionally current-facing.
+            # Treat that contract as current by default so it cannot silently age
+            # out when the registry and other examples advance to a new format.
+            default_status=(
+                "current" if payload.get("schema_version") == "battle-state-v1" else None
+            ),
         )
         if result:
             status, end = result
@@ -146,7 +163,12 @@ def _iter_designations(repo_root: Path) -> Iterable[tuple[str, str, datetime]]:
 
 def _has_regulation_id(payload: dict[str, Any]) -> bool:
     format_payload = payload.get("format")
-    return isinstance(format_payload, dict) and bool(format_payload.get("regulation_id"))
+    provenance = payload.get("format_provenance")
+    return (
+        isinstance(format_payload, dict) and bool(format_payload.get("regulation_id"))
+    ) or (
+        isinstance(provenance, dict) and bool(provenance.get("regulation_id"))
+    )
 
 
 def _runtime_reference_issues(repo_root: Path) -> tuple[str, ...]:

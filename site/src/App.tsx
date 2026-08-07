@@ -19,8 +19,16 @@ import {
 
 type Theme = "light" | "dark";
 type CopyStatus = "copied" | "error";
+type FreshnessState = "fresh" | "stale";
 
 const themeStorageKey = "vgc-coach-theme";
+
+export function getPublicFreshnessState(
+  freshUntil: string,
+  now = Date.now(),
+): FreshnessState {
+  return now <= Date.parse(freshUntil) ? "fresh" : "stale";
+}
 
 function getInitialTheme(): Theme {
   if (typeof window === "undefined") {
@@ -40,6 +48,9 @@ function getInitialTheme(): Theme {
 
 function App() {
   const currentYear = new Date().getFullYear();
+  const freshnessState = getPublicFreshnessState(
+    trustData.regulation.fresh_until,
+  );
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
   const [activeExampleId, setActiveExampleId] = useState(
@@ -483,9 +494,11 @@ function App() {
                 <span>Current repository snapshot</span>
                 <strong>v{trustData.version}</strong>
               </div>
-              <div className="ticket-status">
+              <div className={`ticket-status ${freshnessState}`}>
                 <span className="status-dot" aria-hidden="true" />
-                Snapshot marked current
+                {freshnessState === "fresh"
+                  ? trustData.regulation.fresh_label
+                  : trustData.regulation.stale_label}
               </div>
               <h3>{trustData.regulation.name}</h3>
               <dl>
@@ -521,7 +534,11 @@ function App() {
               >
                 Open official regulation source
               </a>
-              <p>{trustData.regulation.freshness_note}</p>
+              <p>
+                {freshnessState === "fresh"
+                  ? trustData.regulation.freshness_note
+                  : trustData.regulation.stale_note}
+              </p>
             </article>
 
             <div className="trust-ledger">

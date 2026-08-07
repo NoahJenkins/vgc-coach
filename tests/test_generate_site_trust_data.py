@@ -5,6 +5,7 @@ import json
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
@@ -153,7 +154,9 @@ class GenerateSiteTrustDataTests(unittest.TestCase):
             root = Path(tmp)
             write_repo_facts(root)
 
-            facts = self.module.collect_trust_facts(root)
+            facts = self.module.collect_trust_facts(
+                root, now=datetime(2026, 8, 7, 12, 34, 56, tzinfo=timezone.utc)
+            )
 
         self.assertEqual(facts["version"], "0.2.0")
         self.assertEqual(facts["evaluation"]["fixture_count"], 3)
@@ -168,7 +171,14 @@ class GenerateSiteTrustDataTests(unittest.TestCase):
             facts["regulation"]["verified_label"],
             "August 6, 2026 at 12:34:56 UTC",
         )
-        self.assertEqual(facts["regulation"]["freshness_state"], "current_snapshot")
+        self.assertEqual(facts["regulation"]["freshness_state"], "fresh")
+        self.assertEqual(facts["regulation"]["freshness_max_age_days"], 7)
+        self.assertEqual(
+            facts["regulation"]["fresh_until"], "2026-08-13T12:34:56Z"
+        )
+        self.assertEqual(
+            facts["regulation"]["fresh_label"], "Source snapshot fresh"
+        )
         self.assertEqual(len(facts["source_stack"]["required_sources"]), 3)
         self.assertEqual(facts["source_stack"]["status"], "configured")
         self.assertEqual(
@@ -178,6 +188,32 @@ class GenerateSiteTrustDataTests(unittest.TestCase):
         self.assertEqual(
             facts["calculation_boundary"]["assumption_framed"], ["speed"]
         )
+
+    def test_freshness_state_is_fresh_through_exact_max_age_boundary(self):
+        verified_at = datetime(2026, 8, 6, 12, 34, 56, tzinfo=timezone.utc)
+        boundary = verified_at + timedelta(days=7)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_repo_facts(root)
+            facts = self.module.collect_trust_facts(root, now=boundary)
+
+        self.assertEqual(facts["regulation"]["freshness_state"], "fresh")
+
+    def test_freshness_state_is_stale_after_max_age_boundary(self):
+        verified_at = datetime(2026, 8, 6, 12, 34, 56, tzinfo=timezone.utc)
+        after_boundary = verified_at + timedelta(days=7, microseconds=1)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_repo_facts(root)
+            facts = self.module.collect_trust_facts(root, now=after_boundary)
+
+        self.assertEqual(facts["regulation"]["freshness_state"], "stale")
+        self.assertEqual(
+            facts["regulation"]["stale_label"], "Source snapshot stale"
+        )
+        self.assertIn("live recheck", facts["regulation"]["freshness_note"])
 
     def test_requires_one_unambiguous_current_regulation_snapshot(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -272,6 +308,26 @@ class GenerateSiteTrustDataTests(unittest.TestCase):
             output.write_text(output.read_text().replace("0.2.0", "stale"))
 
             self.assertEqual(self.module.check_generated_artifact(root, output), 1)
+
+    def test_check_rejects_artifact_after_freshness_boundary(self):
+        verified_at = datetime(2026, 8, 6, 12, 34, 56, tzinfo=timezone.utc)
+        fresh_check = verified_at + timedelta(days=7)
+        stale_check = fresh_check + timedelta(microseconds=1)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_repo_facts(root)
+            output = root / "site/src/generated/trustData.ts"
+            output.parent.mkdir(parents=True)
+
+            self.assertEqual(
+                self.module.write_generated_artifact(root, output, now=fresh_check),
+                0,
+            )
+            self.assertEqual(
+                self.module.check_generated_artifact(root, output, now=stale_check),
+                1,
+            )
 
 
 if __name__ == "__main__":
