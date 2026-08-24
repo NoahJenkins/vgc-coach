@@ -8,5 +8,17 @@ updates:
       time: "08:00"
       timezone: America/Chicago
     open-pull-requests-limit: 10
+    groups:
+      routine-site-dependencies:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      site-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
     commit-message:
       prefix: deps
