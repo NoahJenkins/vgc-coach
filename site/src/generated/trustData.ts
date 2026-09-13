@@ -19,7 +19,7 @@ export const trustData = {
     "verified_on": "2026-08-06",
     "verified_at": "2026-08-07T02:57:04Z",
     "verified_label": "August 7, 2026 at 02:57:04 UTC",
-    "freshness_state": "fresh",
+    "freshness_state": "stale",
     "freshness_max_age_days": 30,
     "fresh_until": "2026-09-06T02:57:04Z",
     "fresh_label": "Source snapshot fresh",
