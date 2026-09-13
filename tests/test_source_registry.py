@@ -35,7 +35,7 @@ class SourceRegistryTests(unittest.TestCase):
         self.assertEqual(
             tuple(by_id),
             (
-                "regulation-set-m-b",
+                "regulation-set-m-c",
                 "play-pokemon-transition-announcement",
                 "championsmeta",
                 "champions-lab",
@@ -45,12 +45,12 @@ class SourceRegistryTests(unittest.TestCase):
         )
         self.assertFalse(by_id["pikalytics-champions"]["required_for_minimum_stack"])
         self.assertIn("set_tendencies", by_id["pikalytics-champions"]["allowed_claim_types"])
-        regulation = by_id["regulation-set-m-b"]
-        self.assertEqual(regulation["regulation_id"], "regulation-m-b")
-        self.assertEqual(regulation["canonical_url"], "https://news.pokemon-home.com/en/page/776.html")
+        regulation = by_id["regulation-set-m-c"]
+        self.assertEqual(regulation["regulation_id"], "regulation-m-c")
+        self.assertEqual(regulation["canonical_url"], "https://www.pokemon.com/uk/news/get-ready-for-regulation-set-m-c-in-pokemon-champions")
         self.assertEqual(regulation["temporal_status"], "current")
-        self.assertEqual(regulation["active_window"]["start"], "2026-06-17T02:00:00Z")
-        self.assertEqual(regulation["active_window"]["end"], "2026-09-09T01:59:00Z")
+        self.assertEqual(regulation["active_window"]["start"], "2026-09-09T02:00:00Z")
+        self.assertEqual(regulation["active_window"]["end"], "2026-12-02T01:59:00Z")
         self.assertIn("legality", regulation["allowed_claim_types"])
 
     def test_minimum_stack_sources_require_canonical_urls(self):
@@ -111,8 +111,8 @@ class SourceRegistryTests(unittest.TestCase):
         self.assertIn("Freshness:", committed)
         self.assertIn("Required evidence fields:", committed)
         self.assertIn("- legality or mechanics claims", committed)
-        self.assertIn("Regulation Set M-B", committed)
-        self.assertIn("2026-09-09T01:59:00Z", committed)
+        self.assertIn("Regulation Set M-C", committed)
+        self.assertIn("2026-12-02T01:59:00Z", committed)
 
     def test_legacy_meta_research_map_is_wrapper_to_shared_doc(self):
         content = LEGACY_MAP_PATH.read_text()

@@ -3,12 +3,12 @@
   "format_provenance": {
     "game": "pokemon-champions",
     "battle_mode": "doubles",
-    "regulation_id": "regulation-m-b",
-    "official_source_url": "https://news.pokemon-home.com/en/page/776.html",
-    "verified_at": "2026-08-06T12:00:00Z",
+    "regulation_id": "regulation-m-c",
+    "official_source_url": "https://www.pokemon.com/uk/news/get-ready-for-regulation-set-m-c-in-pokemon-champions",
+    "verified_at": "2026-09-13T00:00:00Z",
     "active_window": {
-      "start": "2026-06-17T02:00:00Z",
-      "end": "2026-09-09T01:59:00Z"
+      "start": "2026-09-09T02:00:00Z",
+      "end": "2026-12-02T01:59:00Z"
     }
   },
   "battle": {

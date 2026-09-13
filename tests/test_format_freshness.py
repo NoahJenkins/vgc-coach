@@ -307,7 +307,7 @@ class FormatFreshnessTests(unittest.TestCase):
                         root, now=datetime(2026, 8, 6, 12, tzinfo=timezone.utc)
                     )
 
-    def test_checked_in_request_examples_use_current_m_b_provenance(self):
+    def test_checked_in_request_examples_use_current_m_c_provenance(self):
         for filename in (
             "team-build-request-v1.example.json",
             "battle-review-request-v1.example.json",
@@ -315,14 +315,14 @@ class FormatFreshnessTests(unittest.TestCase):
             with self.subTest(filename=filename):
                 payload = json.loads((REPO_ROOT / "data/fixtures" / filename).read_text())
                 self.assertEqual(payload["temporal_status"], "current")
-                self.assertEqual(payload["format"]["regulation_id"], "regulation-m-b")
+                self.assertEqual(payload["format"]["regulation_id"], "regulation-m-c")
                 self.assertEqual(
                     payload["format"]["active_window"]["end"],
-                    "2026-09-09T01:59:00Z",
+                    "2026-12-02T01:59:00Z",
                 )
                 self.assertEqual(
                     payload["format_provenance"]["source_url"],
-                    "https://news.pokemon-home.com/en/page/776.html",
+                    "https://www.pokemon.com/uk/news/get-ready-for-regulation-set-m-c-in-pokemon-champions",
                 )
 
     def test_checked_in_battle_state_example_is_a_current_designation(self):
@@ -335,8 +335,8 @@ class FormatFreshnessTests(unittest.TestCase):
             "data/fixtures/battle-state-v1.example.json"
         ]
         self.assertEqual(status, "current")
-        self.assertEqual(start, datetime(2026, 6, 17, 2, tzinfo=timezone.utc))
-        self.assertEqual(end, datetime(2026, 9, 9, 1, 59, tzinfo=timezone.utc))
+        self.assertEqual(start, datetime(2026, 9, 9, 2, tzinfo=timezone.utc))
+        self.assertEqual(end, datetime(2026, 12, 2, 1, 59, tzinfo=timezone.utc))
 
     def test_battle_state_example_fails_after_its_provenance_window(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -389,7 +389,7 @@ class FormatFreshnessTests(unittest.TestCase):
 
     def test_repository_current_designations_are_fresh_on_verified_date(self):
         expired = self.module.find_expired_current_artifacts(
-            REPO_ROOT, now=datetime(2026, 8, 6, 12, tzinfo=timezone.utc)
+            REPO_ROOT, now=datetime(2026, 9, 13, 12, tzinfo=timezone.utc)
         )
 
         self.assertEqual(expired, ())
