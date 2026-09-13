@@ -112,7 +112,7 @@ class BattleStateIngestionTests(unittest.TestCase):
         self.assertEqual(first.stdout, second.stdout)
         decoded = json.loads(first.stdout)
         self.assertEqual(decoded["schema_version"], "battle-state-v1")
-        self.assertEqual(decoded["format_provenance"]["regulation_id"], "regulation-m-b")
+        self.assertEqual(decoded["format_provenance"]["regulation_id"], "regulation-m-c")
         self.assertEqual(decoded["outcome"]["winner"], "self")
         self.assertEqual(
             decoded["teams"]["self"]["active"],

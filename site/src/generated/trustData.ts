@@ -3,25 +3,25 @@ export const trustData = {
   "version": "0.2.0",
   "generated_from": [
     "docs/skills/shared/references/live-source-registry.yaml",
-    "data/snapshots/champions-reg-m-b-2026-08-06.json",
+    "data/snapshots/champions-reg-m-c-2026-09-13.json",
     "data/fixtures/evals/*/case-*.md",
     "data/rubrics/*-rubric.md",
     "VERSION"
   ],
   "regulation": {
-    "id": "regulation-m-b",
-    "name": "Regulation Set M-B (Updated on August 5)",
-    "source_url": "https://news.pokemon-home.com/en/page/776.html",
-    "starts_at": "2026-06-17T02:00:00Z",
-    "starts_label": "June 17, 2026 at 02:00 UTC",
-    "ends_at": "2026-09-09T01:59:00Z",
-    "ends_label": "September 9, 2026 at 01:59 UTC",
-    "verified_on": "2026-08-06",
-    "verified_at": "2026-08-07T02:57:04Z",
-    "verified_label": "August 7, 2026 at 02:57:04 UTC",
+    "id": "regulation-m-c",
+    "name": "Regulation Set M-C",
+    "source_url": "https://www.pokemon.com/uk/news/get-ready-for-regulation-set-m-c-in-pokemon-champions",
+    "starts_at": "2026-09-09T02:00:00Z",
+    "starts_label": "September 9, 2026 at 02:00 UTC",
+    "ends_at": "2026-12-02T01:59:00Z",
+    "ends_label": "December 2, 2026 at 01:59 UTC",
+    "verified_on": "2026-09-13",
+    "verified_at": "2026-09-13T00:00:00Z",
+    "verified_label": "September 13, 2026 at 00:00:00 UTC",
     "freshness_state": "fresh",
     "freshness_max_age_days": 30,
-    "fresh_until": "2026-09-06T02:57:04Z",
+    "fresh_until": "2026-10-13T00:00:00Z",
     "fresh_label": "Source snapshot fresh",
     "stale_label": "Source snapshot stale",
     "freshness_note": "Registry freshness allows 30 days from the source fetch; live recheck required before present-tense coaching.",
@@ -42,10 +42,10 @@ export const trustData = {
     },
     "required_sources": [
       {
-        "id": "regulation-set-m-b",
-        "name": "Regulation Set M-B",
+        "id": "regulation-set-m-c",
+        "name": "Regulation Set M-C",
         "role": "official_regulation",
-        "url": "https://news.pokemon-home.com/en/page/776.html"
+        "url": "https://www.pokemon.com/uk/news/get-ready-for-regulation-set-m-c-in-pokemon-champions"
       },
       {
         "id": "championsmeta",
