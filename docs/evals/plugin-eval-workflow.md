@@ -20,13 +20,13 @@ Use `plugin-eval` to measure whether skill changes actually improve output quali
 
 1. Complete the isolated virtual-environment setup in [CONTRIBUTING.md](../../CONTRIBUTING.md#local-development-setup).
 2. Pick one skill to change.
-3. Run the fixed eval cases for that skill with `python3 tools/eval_skill.py --skill <skill-name> --provider github-token --model gpt-5.4-mini --profile manual`.
+3. Run the fixed eval cases for that skill with `python3 tools/eval_skill.py --skill <skill-name> --provider github-token --model claude-sonnet-5.5 --profile manual`.
 4. Review failures by category, not just by score.
 5. Update the skill instructions or examples.
 6. Re-run the same eval cases.
 7. Record regressions before merging changes.
 
-For a bounded smoke test, add `--case-limit 1 --session-timeout 180`. Here `--session-timeout` means inactivity timeout, not total wall-clock time. For routine manual testing, prefer `gpt-5.4-mini`; guarded manual workflow dispatches use `gpt-5.4`.
+For a bounded smoke test, add `--case-limit 1 --session-timeout 180`. Here `--session-timeout` means inactivity timeout, not total wall-clock time. Pass a model that the Copilot account currently offers; `gpt-5.4` and `gpt-5.4-mini` are no longer available. Workflow runs default to `claude-sonnet-5.5`.
 
 ## Local Reports
 
@@ -38,9 +38,11 @@ For a bounded smoke test, add `--case-limit 1 --session-timeout 180`. Here `--se
 
 ## Guarded Autoresearch Automation
 
-The repo ships `.github/workflows/nightly-skill-autoresearch.yml`, but its scheduled trigger is disabled. Manual dispatch remains available only against protected `main`; the read-only evaluation job runs before the separately guarded mutation job. Do not describe this workflow as currently nightly.
+The repo ships `.github/workflows/nightly-skill-autoresearch.yml`. It runs daily at 06:17 UTC and on manual dispatch, only against protected `main`; the read-only evaluation job runs before the separately guarded mutation job.
 
-When a future security review explicitly re-enables the schedule, the `daily_sentinel` profile is designed to evaluate one configured sentinel case per priority skill and skip the improve attempt entirely when the baseline is both rubric-clean and evidence-valid.
+The schedule was re-enabled on 2026-10-30 after a security review of the scheduled path: URL fetches are rejected, unmediated SDK web tools are excluded, shell access is limited to read-only git inspection, writes stay inside the skill scope on the runner, and scheduled runs never commit or open a pull request.
+
+The scheduled `daily_sentinel` profile evaluates one configured sentinel case per priority skill and skips the improve attempt entirely when the baseline is both rubric-clean and evidence-valid. Because live web research fails closed, currentness-sensitive sentinel cases report `inconclusive` rather than clean.
 
 - It rotates across the current MVP priority skills one at a time.
 - It evaluates the baseline behavior first.
@@ -48,7 +50,7 @@ When a future security review explicitly re-enables the schedule, the `daily_sen
 - It uses a fixed per-dimension grading scale of `0..2` and rejects mismatched grader totals.
 - If a sentinel candidate looks better, it must pass a follow-up full-skill confirmation run before it can become PR-eligible.
 - Automated runs keep draft-PR opening disabled by default while the loop is still acting as a quality-control system first.
-- Manual workflow dispatch pins the Copilot SDK model to `gpt-5.4` instead of relying on the account default.
+- Workflow runs pin the Copilot SDK model instead of relying on the account default: scheduled runs use the `AUTORESEARCH_SCHEDULE_MODEL` repository variable or `claude-sonnet-5.5`, and manual dispatch defaults to `claude-sonnet-5.5`.
 - It keeps generated plugin outputs out of the agent edit scope and refreshes them only in the workflow validation step.
 
 ## Rule

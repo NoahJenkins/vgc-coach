@@ -167,14 +167,14 @@
     }
   ],
   "release_notes": {
-    "date": "2026-08-07",
+    "date": "2026-10-30",
     "summary": [
-      "Updated current-format coaching to Regulation M-B with dated official-source snapshots, fail-closed freshness checks, and an external-content boundary that treats fetched pages as evidence rather than instructions.",
-      "Integrated the hardened meta-research evidence and evaluation gates plus battle-ready team-builder playbooks from the two retained feature lines.",
-      "Hardened autoresearch authorization and workflow privilege boundaries, plugin packaging paths and symlinks, and calculator subprocess time and output limits.",
-      "Added pinned development dependencies and one repository-native validation command for tests, source rendering, freshness, generated packages, trust data, and the production site build.",
-      "Introduced the versioned `battle-state-v1` replay interchange, bounded local ingestion, and coaching-skill guidance for battle review and practice journaling.",
-      "Added player-facing coaching examples and a generated trust dashboard, self-hosted fonts, responsive light and dark themes, and restrictive production security headers."
+      "Advanced current-format coaching to Regulation M-C (2026-09-09 02:00 UTC through 2026-12-02 01:59 UTC), rechecked the official source on 2026-10-30, and recorded the six named Mega Evolutions, including the Z Mega Evolutions, with their unexplained mechanics marked unverified.",
+      "The format freshness check now warns 30 days before a current regulation window ends, and a regulation transition runbook documents the successor update.",
+      "Added two fixed eval cases each for team audit, lead planning, and battle review, covering unverified mechanics, incomplete team details, best-of-three adaptation, open team sheets, structured battle-state input, and self-diagnosed variance.",
+      "Added a gzip size budget for the production site bundle to repository validation.",
+      "Re-enabled the daily autoresearch sentinel review after a security review of the scheduled path, and moved workflow runs from retired Copilot models to `claude-sonnet-5.5`.",
+      "Dependabot auto-merge now requires every commit to come from Dependabot and revokes auto-merge when a later push leaves scope."
     ]
   }
 }

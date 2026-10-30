@@ -523,16 +523,21 @@ class AutoresearchTests(unittest.TestCase):
             "vgc-lead-planner": "repo_only",
             "vgc-opponent-scout": "live_required",
         }
+        # Current-format cases inside otherwise structural suites opt in explicitly.
+        live_required_exceptions = {
+            ("vgc-team-audit", "case-04"),
+        }
         for skill_name, expected_expectation in expected_expectations.items():
             with self.subTest(skill=skill_name):
                 context = load_skill_context(get_skill_config(skill_name))
                 self.assertTrue(context.cases)
-                self.assertTrue(
-                    all(
-                        case.research_expectation == expected_expectation
-                        for case in context.cases
+                for case in context.cases:
+                    expected = (
+                        "live_required"
+                        if (skill_name, case.name) in live_required_exceptions
+                        else expected_expectation
                     )
-                )
+                    self.assertEqual(case.research_expectation, expected, case.name)
 
     def test_real_multiline_meta_research_request_parses(self):
         case = load_case_file(REPO_ROOT / "data" / "fixtures" / "evals" / "meta-research" / "case-02.md")
@@ -567,8 +572,13 @@ class AutoresearchTests(unittest.TestCase):
     def test_team_builder_has_narrow_team_playbook_fixture(self):
         case = load_case_file(REPO_ROOT / "data" / "fixtures" / "evals" / "team-builder" / "case-10.md")
         self.assertIn("battle-ready", case.request)
-        self.assertIn("only 2 honest playbook packages", case.checks)
-        self.assertEqual(case.checks.count("only 2 honest playbook packages"), 1)
+        two_package_check = (
+            "returns exactly 2 honest playbook packages, each with a distinct lead pair"
+        )
+        self.assertIn(two_package_check, case.checks)
+        self.assertFalse(
+            any("lead pair" in check for check in case.checks if check != two_package_check)
+        )
 
     def test_browsing_skills_share_hostile_external_content_contract(self):
         adversarial_cases = {

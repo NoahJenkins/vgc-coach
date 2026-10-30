@@ -74,6 +74,10 @@ def build_validation_steps(
             (pnpm_executable, "run", "build"),
             working_directory=Path("site"),
         ),
+        ValidationStep(
+            "site bundle budget check",
+            (python_executable, "tools/check_site_bundle.py"),
+        ),
     )
     if scope == "core":
         return core_steps

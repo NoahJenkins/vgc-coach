@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Fail when an artifact designated current is past its official format window."""
+"""Fail when an artifact designated current is past its official format window.
+
+Warn, without failing, when a current window ends soon so the successor
+regulation can be prepared before validation starts to fail.
+"""
 
 from __future__ import annotations
 
 import json
+import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -18,6 +23,8 @@ REFERENCE_ROOT = Path("docs/skills/shared/references")
 SNAPSHOT_ROOT = Path("data/snapshots")
 FIXTURE_ROOT = Path("data/fixtures")
 OPENCODE_SKILL_ROOT = Path(".opencode/skills")
+EXPIRY_WARNING_WINDOW = timedelta(days=30)
+TRANSITION_RUNBOOK = Path("docs/maintenance/regulation-transition.md")
 
 
 def _parse_utc(value: Any, *, label: str) -> datetime:
@@ -243,12 +250,54 @@ def find_expired_current_artifacts(
     return tuple(expired)
 
 
+def find_expiring_current_windows(
+    repo_root: Path = REPO_ROOT,
+    *,
+    now: datetime | None = None,
+    within: timedelta = EXPIRY_WARNING_WINDOW,
+) -> tuple[str, ...]:
+    checked_at = now or datetime.now(timezone.utc)
+    if checked_at.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    checked_at = checked_at.astimezone(timezone.utc)
+
+    ending_soon: dict[datetime, int] = {}
+    for _label, status, start, end in _iter_designations(repo_root):
+        if status != "current" or not start <= checked_at <= end:
+            continue
+        if end - checked_at <= within:
+            ending_soon[end] = ending_soon.get(end, 0) + 1
+
+    warnings = []
+    for end, count in sorted(ending_soon.items()):
+        remaining = end - checked_at
+        days = remaining.days
+        hours = remaining.seconds // 3600
+        warnings.append(
+            f"{count} current-format artifact(s) expire at "
+            f"{end.isoformat().replace('+00:00', 'Z')} "
+            f"(in {days}d {hours}h). Verify the successor regulation and follow "
+            f"{TRANSITION_RUNBOOK.as_posix()} before validation fails."
+        )
+    return tuple(warnings)
+
+
+def _print_warning(message: str) -> None:
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print(f"::warning title=Current format expires soon::{message}")
+    else:
+        print(f"Warning: {message}")
+
+
 def main() -> int:
     try:
         expired = find_expired_current_artifacts()
+        expiring = () if expired else find_expiring_current_windows()
     except (OSError, ValueError, json.JSONDecodeError, yaml.YAMLError) as exc:
         print(f"Format freshness check could not validate artifacts: {exc}")
         return 2
+    for warning in expiring:
+        _print_warning(warning)
     if not expired:
         return 0
     print("Current-format artifacts are stale:")

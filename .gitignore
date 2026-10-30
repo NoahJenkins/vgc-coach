@@ -12,3 +12,4 @@ coverage/
 **/.plugin-eval/
 **/.vercel/
 .artifacts/
+.superpowers/
