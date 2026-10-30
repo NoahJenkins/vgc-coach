@@ -30,7 +30,23 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          mapfile -t changed_files < <(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json files --jq '.files[].path')
+          # Every commit must come from Dependabot; a maintainer commit pushed onto
+          # the branch needs normal review instead of riding the dependency merge.
+          mapfile -t commit_authors < <(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits" --jq '.[] | .author.login // "unknown"')
+          if [ "${#commit_authors[@]}" -eq 0 ]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          for author in "${commit_authors[@]}"; do
+            if [ "$author" != "dependabot[bot]" ]; then
+              echo "Skipping auto-merge because a commit is authored by $author"
+              echo "eligible=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+
+          mapfile -t changed_files < <(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename')
           if [ "${#changed_files[@]}" -eq 0 ]; then
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -56,3 +72,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash
+
+      # Auto-merge enabled on an earlier push stays armed unless it is revoked
+      # when a later push takes the pull request out of scope.
+      - name: Disable auto-merge
+        if: steps.scope.outputs.eligible != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          armed="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json autoMergeRequest --jq '.autoMergeRequest != null')"
+          if [ "$armed" = "true" ]; then
+            gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --disable-auto
+          fi
