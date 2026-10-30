@@ -160,7 +160,7 @@ jobs:
       - name: Draft the transition with Copilot
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-          DRAFT_MODEL: ${{ vars.REGULATION_DRAFT_MODEL || 'claude-haiku-5.5' }}
+          DRAFT_MODEL: ${{ vars.REGULATION_DRAFT_MODEL || 'claude-sonnet-5.5' }}
         run: |
           set -euo pipefail
           python3 tools/draft_regulation_update.py \
@@ -189,7 +189,7 @@ jobs:
         if: steps.validate.outcome == 'failure'
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-          DRAFT_MODEL: ${{ vars.REGULATION_DRAFT_MODEL || 'claude-haiku-5.5' }}
+          DRAFT_MODEL: ${{ vars.REGULATION_DRAFT_MODEL || 'claude-sonnet-5.5' }}
         run: |
           set -euo pipefail
           python3 tools/draft_regulation_update.py \

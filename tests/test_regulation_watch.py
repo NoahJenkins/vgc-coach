@@ -272,7 +272,7 @@ class RegulationWatchWorkflowTests(unittest.TestCase):
             if "DRAFT_MODEL" in step.get("env", {})
         }
 
-        self.assertEqual(default_model, "claude-haiku-5.5")
+        self.assertEqual(default_model, "claude-sonnet-5.5")
         self.assertEqual(
             models, {f"${{{{ vars.REGULATION_DRAFT_MODEL || '{default_model}' }}}}"}
         )
