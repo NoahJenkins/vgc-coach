@@ -70,7 +70,7 @@ If your change affects skill behavior, validate it against the relevant fixed ev
 - local full-suite runner: `python3 tools/full_eval.py --provider github-token --model claude-sonnet-5.5 --profile manual`
 - local autoresearch harness: `python3 tools/autoresearch.py --mode review --skill <skill-name> --provider github-token --model claude-sonnet-5.5 --profile manual`
 
-The GitHub autoresearch workflow runs a daily sentinel review against protected `main` and never commits or opens a pull request on its own. Manual dispatch is guarded to protected `main`.
+There is no hosted or scheduled autoresearch workflow. Eval and autoresearch runs are local and manual, and each run costs model requests.
 
 Both local runners write `run-status.json`, `result.json`, and `summary.md` into their target artifact directories under `.artifacts/autoresearch/`. The full-suite aggregate report lives under `.artifacts/autoresearch/<date>/full-eval/`.
 For local eval commands, `--session-timeout` is an inactivity timeout. Active tool or assistant progress can continue past that window until the runtime hard cap is reached.
