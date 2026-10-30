@@ -263,6 +263,20 @@ class RegulationWatchWorkflowTests(unittest.TestCase):
             ["Draft the transition with Copilot", "Repair a failing draft with Copilot"],
         )
 
+    def test_workflow_and_drafter_share_the_default_model(self):
+        default_model = load_module("draft_regulation_update").DEFAULT_MODEL
+        draft_steps = self.workflow["jobs"]["draft"]["steps"]
+        models = {
+            step["env"]["DRAFT_MODEL"]
+            for step in draft_steps
+            if "DRAFT_MODEL" in step.get("env", {})
+        }
+
+        self.assertEqual(default_model, "claude-haiku-5.5")
+        self.assertEqual(
+            models, {f"${{{{ vars.REGULATION_DRAFT_MODEL || '{default_model}' }}}}"}
+        )
+
     def test_validation_steps_fail_on_validator_errors_and_repair_runs_once(self):
         steps = {step["name"]: step for step in self.workflow["jobs"]["draft"]["steps"]}
 
