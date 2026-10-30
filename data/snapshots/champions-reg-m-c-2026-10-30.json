@@ -1,8 +1,8 @@
 {
-  "snapshot_id": "champions-reg-m-c-2026-09-13",
+  "snapshot_id": "champions-reg-m-c-2026-10-30",
   "temporal_status": "current",
-  "generated_at": "2026-09-13T00:00:00Z",
-  "verified_on": "2026-09-13",
+  "generated_at": "2026-10-30T00:30:00Z",
+  "verified_on": "2026-10-30",
   "format": {
     "game": "pokemon-champions",
     "battle_mode": "doubles",
@@ -29,11 +29,14 @@
       "kind": "official",
       "label": "Regulation Set M-C",
       "url": "https://www.pokemon.com/uk/news/get-ready-for-regulation-set-m-c-in-pokemon-champions",
-      "fetched_at": "2026-09-13T00:00:00Z"
+      "fetched_at": "2026-10-30T00:30:00Z"
     }
   ],
   "notes": [
     "The official M-C announcement confirms the active window and says Pokémon eligible in prior regulation sets remain eligible.",
+    "The announcement names six added Mega Evolutions: Mega Salamence, Mega Golisopod, Mega Baxcalibur, and the Z Mega Evolutions Mega Absol Z, Mega Garchomp Z, and Mega Lucario Z.",
+    "The announcement says 24 Pokémon are newly available for battle and names only Rillaboom; the remaining 23 are not listed on the page.",
+    "The announcement does not explain how Z Mega Evolutions differ mechanically from other Mega Evolutions, and names no item, move, ability, or timer changes.",
     "Recheck the official source live before present-tense coaching or exact species, move, ability, item, or mechanic claims."
   ]
 }

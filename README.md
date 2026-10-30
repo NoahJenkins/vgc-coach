@@ -210,7 +210,7 @@ The repo already includes:
 
 These are still in progress, not yet available:
 
-- A more complete autoresearch workflow beyond the current local harness and disabled scheduled workflow
+- A more complete autoresearch workflow beyond the current local harness and daily sentinel review
 - Broader eval coverage beyond the current fixed-case autoresearch loop
 - Adapters for explicitly supported replay exports beyond the repository-defined JSON contract
 - Broader exact calc support beyond damage, KO, and survival

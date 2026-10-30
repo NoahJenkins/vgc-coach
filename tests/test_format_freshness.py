@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -153,6 +156,58 @@ class FormatFreshnessTests(unittest.TestCase):
 
         self.assertEqual(len(expired), 4)
         self.assertTrue(all("2026-09-09T01:59:00Z" in item for item in expired))
+
+    def test_expiry_warning_starts_inside_warning_window(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_designated_artifacts(root, current_end="2026-09-09T01:59:00Z")
+
+            outside = self.module.find_expiring_current_windows(
+                root, now=datetime(2026, 8, 10, 1, 58, tzinfo=timezone.utc)
+            )
+            inside = self.module.find_expiring_current_windows(
+                root, now=datetime(2026, 8, 10, 1, 59, tzinfo=timezone.utc)
+            )
+            at_end = self.module.find_expiring_current_windows(
+                root, now=datetime(2026, 9, 9, 1, 59, tzinfo=timezone.utc)
+            )
+            after_end = self.module.find_expiring_current_windows(
+                root, now=datetime(2026, 9, 9, 1, 59, 1, tzinfo=timezone.utc)
+            )
+
+        self.assertEqual(outside, ())
+        self.assertEqual(len(inside), 1)
+        self.assertIn("4 current-format artifact(s)", inside[0])
+        self.assertIn("2026-09-09T01:59:00Z", inside[0])
+        self.assertIn("in 30d 0h", inside[0])
+        self.assertIn("regulation-transition.md", inside[0])
+        self.assertEqual(len(at_end), 1)
+        self.assertEqual(after_end, ())
+
+    def test_expiry_warning_does_not_fail_validation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_designated_artifacts(root, current_end="2026-09-09T01:59:00Z")
+            now = datetime(2026, 9, 1, tzinfo=timezone.utc)
+            find_expired = self.module.find_expired_current_artifacts
+            find_expiring = self.module.find_expiring_current_windows
+
+            with mock.patch.object(
+                self.module,
+                "find_expired_current_artifacts",
+                lambda: find_expired(root, now=now),
+            ), mock.patch.object(
+                self.module,
+                "find_expiring_current_windows",
+                lambda: find_expiring(root, now=now),
+            ), mock.patch.dict("os.environ", {"GITHUB_ACTIONS": "true"}):
+                with redirect_stdout(io.StringIO()) as output:
+                    exit_code = self.module.main()
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(
+            output.getvalue().startswith("::warning title=Current format expires soon::")
+        )
 
     def test_current_designations_fail_before_window(self):
         with tempfile.TemporaryDirectory() as tmp:

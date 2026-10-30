@@ -10,7 +10,6 @@ Checks:
 
 - uses battle-ready mode
 - includes `Playbook`
-- only 2 honest playbook packages
-- still uses at least 2 distinct lead pairs if it returns 2 packages
+- returns exactly 2 honest playbook packages, each with a distinct lead pair
 - keeps the team identity coherent instead of inventing fake matchup coverage
 - puts unresolved coverage holes in `Weaknesses and Next Refinements` instead of pretending the playbook solves them

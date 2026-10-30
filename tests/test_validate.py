@@ -107,7 +107,12 @@ class ValidateTests(unittest.TestCase):
                     "production site build",
                     ("controlled-pnpm", "run", "build"),
                     Path("site"),
-                )
+                ),
+                (
+                    "site bundle budget check",
+                    ("/controlled/python", "tools/check_site_bundle.py"),
+                    Path("."),
+                ),
             ],
         )
         self.assertEqual(all_steps, (*core, *site))

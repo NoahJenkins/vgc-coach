@@ -19,13 +19,23 @@ Use this dated note as a supporting reference after rechecking the official anno
 ## Verified Transition
 
 - Pokémon eligible in previous regulation sets remain eligible.
-- The official announcement adds new Pokémon and Mega Evolutions to the roster.
+- The official announcement adds six Mega Evolutions:
+  - Mega Salamence, Mega Golisopod, and Mega Baxcalibur
+  - the Z Mega Evolutions Mega Absol Z, Mega Garchomp Z, and Mega Lucario Z
+- The official announcement says 24 Pokémon are newly available for battle. It names only Rillaboom; the other 23 are not listed on the page.
 
-Do not infer species, move, ability, held-item, or mechanic legality beyond what the current official source explicitly supports.
+## Not Stated By The Official Source
+
+- How Z Mega Evolutions differ mechanically from other Mega Evolutions.
+- The full list of the 24 newly available Pokémon.
+- Any item, move, ability, or timer change.
+
+Treat these as unverified. Do not infer species, move, ability, held-item, or mechanic legality beyond what the current official source explicitly supports.
 
 ## Source Basis
 
 - official regulation announcement: `https://www.pokemon.com/uk/news/get-ready-for-regulation-set-m-c-in-pokemon-champions`
 - page published: September 2, 2026
+- last rechecked: October 30, 2026
 
 This reference expires with the official M-C window. Recheck the replacement regulation before coaching after December 2, 2026 at 01:59 UTC.

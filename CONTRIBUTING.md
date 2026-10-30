@@ -49,6 +49,7 @@ pnpm --dir site install --frozen-lockfile
 - Preserve the output contract in a skill's `SKILL.md` unless the change intentionally updates that contract.
 - Do not invent legality, meta, usage, matchup, or calc facts.
 - When current-format claims are involved, prefer official rules sources first and label inference clearly.
+- When the official regulation set changes, follow [the regulation transition runbook](./docs/maintenance/regulation-transition.md) in a dedicated pull request.
 
 ## Validation Expectations
 
@@ -64,12 +65,12 @@ If your change affects skill behavior, validate it against the relevant fixed ev
 
 - fixtures: `data/fixtures/evals/`
 - rubrics: `data/rubrics/`
-- standalone eval runner: `python3 tools/eval_skill.py --skill <skill-name> --provider github-token --model gpt-5.4-mini --profile manual`
-- bounded smoke test: `python3 tools/eval_skill.py --skill <skill-name> --provider github-token --model gpt-5.4-mini --profile manual --case-limit 1 --session-timeout 180`
-- local full-suite runner: `python3 tools/full_eval.py --provider github-token --model gpt-5.4-mini --profile manual`
-- local autoresearch harness: `python3 tools/autoresearch.py --mode review --skill <skill-name> --provider github-token --model gpt-5.4-mini --profile manual`
+- standalone eval runner: `python3 tools/eval_skill.py --skill <skill-name> --provider github-token --model claude-sonnet-5.5 --profile manual`
+- bounded smoke test: `python3 tools/eval_skill.py --skill <skill-name> --provider github-token --model claude-sonnet-5.5 --profile manual --case-limit 1 --session-timeout 180`
+- local full-suite runner: `python3 tools/full_eval.py --provider github-token --model claude-sonnet-5.5 --profile manual`
+- local autoresearch harness: `python3 tools/autoresearch.py --mode review --skill <skill-name> --provider github-token --model claude-sonnet-5.5 --profile manual`
 
-The GitHub autoresearch workflow's scheduled trigger is disabled. Manual dispatch is guarded to protected `main`; do not rely on unattended nightly execution.
+The GitHub autoresearch workflow runs a daily sentinel review against protected `main` and never commits or opens a pull request on its own. Manual dispatch is guarded to protected `main`.
 
 Both local runners write `run-status.json`, `result.json`, and `summary.md` into their target artifact directories under `.artifacts/autoresearch/`. The full-suite aggregate report lives under `.artifacts/autoresearch/<date>/full-eval/`.
 For local eval commands, `--session-timeout` is an inactivity timeout. Active tool or assistant progress can continue past that window until the runtime hard cap is reached.

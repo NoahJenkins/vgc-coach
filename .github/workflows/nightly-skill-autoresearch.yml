@@ -1,7 +1,8 @@
 name: Nightly Skill Autoresearch
 
 on:
-  # Scheduled runs are temporarily disabled. Re-add the cron block to resume nightly execution.
+  schedule:
+    - cron: "17 06 * * *"
   workflow_dispatch:
     inputs:
       mode:
@@ -36,7 +37,7 @@ on:
       model:
         description: "Optional model override"
         required: false
-        default: "gpt-5.4-mini"
+        default: "claude-sonnet-5.5"
         type: string
       open_pr:
         description: "Open/update a draft PR when the candidate is accepted"
@@ -106,7 +107,8 @@ jobs:
       AUTORESEARCH_PROVIDER: ${{ github.event_name == 'schedule' && 'github-token' || inputs.provider }}
       AUTORESEARCH_PROFILE: ${{ github.event_name == 'schedule' && 'daily_sentinel' || inputs.profile }}
       AUTORESEARCH_OPEN_PR: ${{ github.event_name == 'schedule' && 'false' || (inputs.open_pr && 'true' || 'false') }}
-      AUTORESEARCH_MODEL: ${{ github.event_name == 'schedule' && 'gpt-5.4' || inputs.model }}
+      # Set the AUTORESEARCH_SCHEDULE_MODEL repository variable when Copilot retires the default.
+      AUTORESEARCH_MODEL: ${{ github.event_name == 'schedule' && (vars.AUTORESEARCH_SCHEDULE_MODEL || 'claude-sonnet-5.5') || inputs.model }}
       AUTORESEARCH_CASE_LIMIT: ${{ github.event_name == 'schedule' && '' || inputs.case_limit }}
       AUTORESEARCH_SESSION_TIMEOUT: ${{ github.event_name == 'schedule' && '600' || inputs.session_timeout }}
     steps:
