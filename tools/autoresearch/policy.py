@@ -125,6 +125,17 @@ def is_path_allowed_for_write(
     *,
     run_profile: RunProfile = "manual",
 ) -> bool:
+    return is_path_within_roots(
+        path,
+        get_allowed_write_roots(
+            config,
+            allow_eval_tightening=allow_eval_tightening,
+            run_profile=run_profile,
+        ),
+    )
+
+
+def is_path_within_roots(path: str | None, roots: tuple[Path, ...]) -> bool:
     if not path:
         return False
     candidate = Path(path)
@@ -133,13 +144,7 @@ def is_path_allowed_for_write(
     else:
         candidate = candidate.resolve()
 
-    allowed_roots = get_allowed_write_roots(
-        config,
-        allow_eval_tightening=allow_eval_tightening,
-        run_profile=run_profile,
-    )
-
-    for root in allowed_roots:
+    for root in roots:
         root = root.resolve()
         if candidate == root:
             return True
@@ -170,14 +175,33 @@ def is_path_allowed_for_read(path: str | None, attachment_paths: tuple[str, ...]
 
 def make_permission_handler(
     *,
-    config: SkillConfig,
+    config: SkillConfig | None,
     allow_writes: bool,
     allow_eval_tightening: bool,
     run_profile: RunProfile,
     allow_live_research: bool,
     recorder: Any,
     attachment_paths: tuple[str, ...] = (),
+    write_roots: tuple[Path, ...] | None = None,
 ):
+    """Build the session permission handler.
+
+    `write_roots` replaces the skill-derived write scope for sessions that are
+    not editing a skill, such as the regulation transition drafter.
+    """
+    if write_roots is None and config is None:
+        raise ValueError("A skill config or explicit write_roots is required.")
+
+    def write_allowed(path: str) -> bool:
+        if write_roots is not None:
+            return is_path_within_roots(path, write_roots)
+        return is_path_allowed_for_write(
+            path,
+            config,
+            allow_eval_tightening,
+            run_profile=run_profile,
+        )
+
     def handler(request: "PermissionRequest", invocation: dict[str, str]) -> "PermissionRequestResult":
         from copilot.generated.rpc import PermissionDecisionApproveOnce, PermissionDecisionReject
 
@@ -197,15 +221,7 @@ def make_permission_handler(
                 return PermissionDecisionReject(
                     feedback="This session is read-only.",
                 )
-            if paths and all(
-                is_path_allowed_for_write(
-                    path,
-                    config,
-                    allow_eval_tightening,
-                    run_profile=run_profile,
-                )
-                for path in paths
-            ):
+            if paths and all(write_allowed(path) for path in paths):
                 recorder.write_paths.extend(paths)
                 return PermissionDecisionApproveOnce()
             return PermissionDecisionReject(

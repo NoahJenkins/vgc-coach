@@ -205,6 +205,7 @@ The repo already includes:
 - Exact damage/KO/survival calc support for `vgc-calcs-assistant` via `python3 tools/browser_damage_calc.py`
 - A versioned, runtime-neutral `battle-state-v1` JSON contract and bounded local normalizer at `python3 tools/ingest_battle_state.py`
 - Opt-in `battle-ready` team building that can use live common cores, recent top teams, and calc-backed benchmark notes
+- A `Regulation Watch` workflow that checks the official Pokemon HOME news feed every third day and opens a Copilot-drafted draft pull request when the Champions regulation changes
 
 ## Planned Work
 

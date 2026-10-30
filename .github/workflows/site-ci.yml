@@ -2,6 +2,8 @@ name: Site CI
 
 on:
   pull_request:
+    # ready_for_review lets a maintainer start checks on bot-opened draft PRs.
+    types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
   push:
