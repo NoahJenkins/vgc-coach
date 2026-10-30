@@ -90,6 +90,31 @@ class DependabotWorkflowPolicyTests(unittest.TestCase):
             "steps.scope.outputs.eligible == 'true'",
         )
 
+    def test_auto_merge_requires_every_commit_to_come_from_dependabot(self):
+        workflow = load_yaml(".github/workflows/dependabot-auto-merge.yml")
+        steps = workflow["jobs"]["enable-auto-merge"]["steps"]
+        scope_run = next(
+            step for step in steps if step["name"] == "Check changed files stay under site/"
+        )["run"]
+
+        self.assertIn("pulls/$PR_NUMBER/commits", scope_run)
+        self.assertIn('"$author" != "dependabot[bot]"', scope_run)
+        self.assertIn("--paginate", scope_run)
+        self.assertLess(
+            scope_run.index("pulls/$PR_NUMBER/commits"),
+            scope_run.index("pulls/$PR_NUMBER/files"),
+        )
+
+    def test_auto_merge_is_revoked_when_a_later_push_leaves_scope(self):
+        workflow = load_yaml(".github/workflows/dependabot-auto-merge.yml")
+        steps = workflow["jobs"]["enable-auto-merge"]["steps"]
+        disable_step = next(step for step in steps if step["name"] == "Disable auto-merge")
+
+        self.assertEqual(disable_step["if"], "steps.scope.outputs.eligible != 'true'")
+        self.assertIn("autoMergeRequest", disable_step["run"])
+        self.assertIn("--disable-auto", disable_step["run"])
+        self.assertNotIn("--admin", disable_step["run"])
+
     def test_required_checks_keep_exact_names_and_run_for_every_main_pr(self):
         expected = {
             ".github/workflows/site-ci.yml": ("site-build", 10),
