@@ -6,6 +6,7 @@ import os
 import re
 from collections import Counter, deque
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
@@ -358,9 +359,10 @@ async def run_session(
     allow_eval_tightening: bool,
     run_profile: str,
     allow_live_research: bool,
-    config: SkillConfig,
+    config: SkillConfig | None,
     system_message: str,
     timeout: float = 900.0,
+    write_roots: tuple[Path, ...] | None = None,
 ) -> CopilotRunResult:
     try:
         return await _run_session_once(
@@ -375,6 +377,7 @@ async def run_session(
             config=config,
             system_message=system_message,
             timeout=timeout,
+            write_roots=write_roots,
         )
     except Exception as exc:
         fallback_model = model or os.environ.get("OPENAI_MODEL")
@@ -400,6 +403,7 @@ async def run_session(
                     "GitHub-token Copilot auth was unavailable."
                 ),
                 timeout=timeout,
+                write_roots=write_roots,
             )
         raise
 
@@ -414,9 +418,10 @@ async def _run_session_once(
     allow_eval_tightening: bool,
     run_profile: str,
     allow_live_research: bool,
-    config: SkillConfig,
+    config: SkillConfig | None,
     system_message: str,
     timeout: float,
+    write_roots: tuple[Path, ...] | None = None,
 ) -> CopilotRunResult:
     recorder = SessionRecorder()
     effective_model = model or (os.environ.get("OPENAI_MODEL") if provider_name == "byok-openai" else None)
@@ -464,6 +469,7 @@ async def _run_session_once(
                     if attachment.get("type") in {"file", "directory"}
                     and attachment.get("path")
                 ),
+                write_roots=write_roots,
             ),
             model=effective_model,
             provider=provider,

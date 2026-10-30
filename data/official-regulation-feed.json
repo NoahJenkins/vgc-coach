@@ -1,0 +1,31 @@
+{
+  "feed_url": "https://news.pokemon-home.com/en/json/list.json",
+  "reviewed_on": "2026-10-30",
+  "note": "Pokemon Champions regulation entries from the official Pokemon HOME news feed, as last reviewed. Update this file with `python3 tools/regulation_watch.py update-baseline` only in the pull request that handles the change.",
+  "entries": [
+    {
+      "id": "751",
+      "title": "Regulation Set M-A",
+      "stAt": 1775613600,
+      "endAt": 1781661599,
+      "pubAt": 1775613615,
+      "link": "page/751.html"
+    },
+    {
+      "id": "776",
+      "title": "Regulation Set M-B (Updated on August 5)",
+      "stAt": 1781676000,
+      "endAt": 1788919199,
+      "pubAt": 1785909915,
+      "link": "page/776.html"
+    },
+    {
+      "id": "816",
+      "title": "Regulation Set M-C (Updated on September 9)",
+      "stAt": 1788127200,
+      "endAt": 1796176799,
+      "pubAt": 1788934215,
+      "link": "page/816.html"
+    }
+  ]
+}

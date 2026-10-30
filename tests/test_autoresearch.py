@@ -359,6 +359,43 @@ class AutoresearchTests(unittest.TestCase):
         self.assertIsInstance(web_decision, PermissionDecisionReject)
         self.assertIn("no end-to-end mediated fetch connector", web_decision.feedback or "")
 
+    def test_explicit_write_roots_replace_the_skill_write_scope(self):
+        from copilot.generated.rpc import PermissionDecisionApproveOnce, PermissionDecisionReject
+
+        snapshot_root = REPO_ROOT / "data" / "snapshots"
+        handler = make_permission_handler(
+            config=None,
+            allow_writes=True,
+            allow_eval_tightening=False,
+            run_profile="manual",
+            allow_live_research=False,
+            recorder=SessionRecorder(),
+            write_roots=(snapshot_root,),
+        )
+
+        inside = handler(
+            permission_request("write", path=str(snapshot_root / "champions-reg-m-d.json")),
+            {},
+        )
+        skill_file = handler(
+            permission_request(
+                "write", path=str(REPO_ROOT / "skills" / "vgc-team-builder" / "SKILL.md")
+            ),
+            {},
+        )
+
+        self.assertIsInstance(inside, PermissionDecisionApproveOnce)
+        self.assertIsInstance(skill_file, PermissionDecisionReject)
+        with self.assertRaisesRegex(ValueError, "write_roots"):
+            make_permission_handler(
+                config=None,
+                allow_writes=True,
+                allow_eval_tightening=False,
+                run_profile="manual",
+                allow_live_research=False,
+                recorder=SessionRecorder(),
+            )
+
     def test_priority_rotation_is_deterministic(self):
         first = choose_skill("auto", dt.date(2026, 1, 1))
         sixth = choose_skill("auto", dt.date(2026, 1, 6))

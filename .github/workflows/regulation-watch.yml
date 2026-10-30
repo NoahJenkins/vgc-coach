@@ -1,0 +1,267 @@
+name: Regulation Watch
+
+on:
+  schedule:
+    # Every third day. The check makes no model calls; Copilot runs only when
+    # the official feed changes and no draft exists for that change yet.
+    - cron: "23 9 */3 * *"
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: "Draft a transition PR with Copilot when a change is found"
+        required: true
+        default: true
+        type: boolean
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: regulation-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: watch
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+      signature: ${{ steps.check.outputs.signature }}
+      draft_exists: ${{ steps.draft_branch.outputs.exists }}
+      issue_number: ${{ steps.issue.outputs.number }}
+    steps:
+      - name: Check out protected main
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: refs/heads/main
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install watch dependencies
+        run: python3 -m pip install -r tools/requirements-autoresearch.txt
+
+      - name: Check the official regulation feed
+        id: check
+        run: |
+          set -euo pipefail
+          python3 tools/regulation_watch.py check \
+            --report .artifacts/regulation-watch/report.json \
+            --issue-body .artifacts/regulation-watch/issue.md \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Check for an existing draft branch
+        id: draft_branch
+        if: steps.check.outputs.changed == 'true'
+        env:
+          SIGNATURE: ${{ steps.check.outputs.signature }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads "https://github.com/$GITHUB_REPOSITORY.git" "automation/regulation-watch/$SIGNATURE" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open or reuse the change issue
+        id: issue
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNATURE: ${{ steps.check.outputs.signature }}
+          SUMMARY: ${{ steps.check.outputs.summary }}
+        run: |
+          set -euo pipefail
+          gh label create regulation-watch --repo "$GITHUB_REPOSITORY" --color B60205 \
+            --description "Official Pokemon Champions regulation changes" 2>/dev/null || true
+          number="$(gh issue list --repo "$GITHUB_REPOSITORY" --label regulation-watch --state open \
+            --search "$SIGNATURE in:title" --json number --jq '.[0].number // empty')"
+          if [ -z "$number" ]; then
+            url="$(gh issue create --repo "$GITHUB_REPOSITORY" --label regulation-watch \
+              --title "Regulation watch: $SUMMARY [$SIGNATURE]" \
+              --body-file .artifacts/regulation-watch/issue.md)"
+            number="${url##*/}"
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: Open or reuse the source refresh issue
+        if: steps.check.outputs.refresh_due == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DUE_AT: ${{ steps.check.outputs.refresh_due_at }}
+        run: |
+          set -euo pipefail
+          gh label create regulation-watch --repo "$GITHUB_REPOSITORY" --color B60205 \
+            --description "Official Pokemon Champions regulation changes" 2>/dev/null || true
+          title="Regulation watch: official source refresh due $DUE_AT"
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --label regulation-watch --state open \
+            --search "\"refresh due $DUE_AT\" in:title" --json number --jq '.[0].number // empty')"
+          if [ -z "$existing" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --label regulation-watch --title "$title" \
+              --body "The current official regulation source must be rechecked before $DUE_AT. Follow section 5 of \`docs/maintenance/regulation-transition.md\`."
+          fi
+
+      - name: Upload watch report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: regulation-watch-${{ github.run_id }}
+          path: .artifacts/regulation-watch
+          if-no-files-found: ignore
+
+  draft:
+    name: draft
+    needs: watch
+    if: >-
+      github.ref == 'refs/heads/main'
+      && needs.watch.outputs.changed == 'true'
+      && needs.watch.outputs.draft_exists != 'true'
+      && (github.event_name == 'schedule' || inputs.draft)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out protected main
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: refs/heads/main
+          # The Copilot session can read repository files, so no token is stored in .git/config.
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install drafter dependencies
+        run: python3 -m pip install -r tools/requirements-autoresearch.txt
+
+      - name: Recheck the feed and collect official evidence
+        run: |
+          set -euo pipefail
+          python3 tools/regulation_watch.py check --report .artifacts/regulation-watch/report.json
+          python3 tools/regulation_watch.py evidence \
+            --report .artifacts/regulation-watch/report.json \
+            --out .artifacts/regulation-watch/evidence
+
+      - name: Draft the transition with Copilot
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          DRAFT_MODEL: ${{ vars.REGULATION_DRAFT_MODEL || 'claude-sonnet-5.5' }}
+        run: |
+          set -euo pipefail
+          python3 tools/draft_regulation_update.py \
+            --report .artifacts/regulation-watch/report.json \
+            --evidence-dir .artifacts/regulation-watch/evidence \
+            --summary .artifacts/regulation-watch/draft-summary.md \
+            --model "$DRAFT_MODEL"
+
+      - name: Record the reviewed feed and regenerate derived files
+        run: |
+          set -euo pipefail
+          python3 tools/regulation_watch.py update-baseline --report .artifacts/regulation-watch/report.json
+          python3 tools/render_source_registry_docs.py build
+          python3 tools/build_plugins.py build
+          python3 tools/generate_site_trust_data.py build
+
+      - name: Validate the draft
+        id: validate
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          python3 tools/validate.py --scope core 2>&1 | tee .artifacts/regulation-watch/validate.log
+
+      # One repair pass at most, so a failing draft costs one extra session.
+      - name: Repair a failing draft with Copilot
+        if: steps.validate.outcome == 'failure'
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          DRAFT_MODEL: ${{ vars.REGULATION_DRAFT_MODEL || 'claude-sonnet-5.5' }}
+        run: |
+          set -euo pipefail
+          python3 tools/draft_regulation_update.py \
+            --report .artifacts/regulation-watch/report.json \
+            --evidence-dir .artifacts/regulation-watch/evidence \
+            --summary .artifacts/regulation-watch/repair-summary.md \
+            --validation-log .artifacts/regulation-watch/validate.log \
+            --model "$DRAFT_MODEL"
+
+      - name: Regenerate and revalidate the repaired draft
+        id: revalidate
+        if: steps.validate.outcome == 'failure'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          python3 tools/render_source_registry_docs.py build
+          python3 tools/build_plugins.py build
+          python3 tools/generate_site_trust_data.py build
+          python3 tools/validate.py --scope core 2>&1 | tee .artifacts/regulation-watch/revalidate.log
+
+      - name: Push the draft branch and open a draft pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNATURE: ${{ needs.watch.outputs.signature }}
+          ISSUE_NUMBER: ${{ needs.watch.outputs.issue_number }}
+          VALIDATION: ${{ steps.validate.outcome == 'failure' && steps.revalidate.outcome || steps.validate.outcome }}
+        run: |
+          set -euo pipefail
+          branch="automation/regulation-watch/$SIGNATURE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add -A
+          git reset -q -- .artifacts
+          if git diff --cached --quiet; then
+            echo "The drafter produced no changes." >&2
+            exit 1
+          fi
+          if git diff --cached | grep -qE '(gh[opsu]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AUTHORIZATION: basic)'; then
+            echo "The draft contains credential-like content; not publishing." >&2
+            exit 1
+          fi
+          git commit -q -m "chore: draft official regulation update ($SIGNATURE)"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$branch"
+
+          {
+            echo "Copilot drafted this from the official Pokemon HOME regulation page. Review every fact against the evidence before merge."
+            echo
+            echo "- Watch issue: #$ISSUE_NUMBER"
+            echo "- Repository validation (core): \`$VALIDATION\`"
+            echo
+            echo "Required checks do not start on bot-opened pull requests. Click **Ready for review** to start them."
+            echo
+            echo "## Drafter Summary"
+            echo
+            cat .artifacts/regulation-watch/draft-summary.md
+            if [ -f .artifacts/regulation-watch/repair-summary.md ]; then
+              echo
+              echo "## Repair Pass"
+              echo
+              cat .artifacts/regulation-watch/repair-summary.md
+            fi
+          } > .artifacts/regulation-watch/pr-body.md
+
+          gh pr create --repo "$GITHUB_REPOSITORY" --draft --base main --head "$branch" \
+            --title "Draft: official regulation update ($SIGNATURE)" \
+            --body-file .artifacts/regulation-watch/pr-body.md
+
+      - name: Upload draft artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: regulation-draft-${{ github.run_id }}
+          path: .artifacts/regulation-watch
+          if-no-files-found: ignore
