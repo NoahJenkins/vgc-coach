@@ -29,7 +29,7 @@ from autoresearch.policy import is_path_within_roots  # noqa: E402
 
 
 RUNBOOK_PATH = Path("docs/maintenance/regulation-transition.md")
-DEFAULT_MODEL = "claude-sonnet-5.5"
+DEFAULT_MODEL = "claude-haiku-5.5"
 SYSTEM_MESSAGE = """You maintain the Pokemon Champions format artifacts in the vgc-coach repository.
 
 Rules:
