@@ -113,7 +113,7 @@ Support skills and calc tooling should reinforce those core skills rather than p
 Mode: auto-merge
 
 Finished work in this repository is a merged pull request. Use the `ship`
-skill in `.agents/skills/ship/` for every change. This rule replaces any
+skill in `docs/maintenance/ship/` for every change. This rule replaces any
 general instruction to stop at a local change.
 
 A merge to `main` deploys the site to production on Vercel. This mode permits
