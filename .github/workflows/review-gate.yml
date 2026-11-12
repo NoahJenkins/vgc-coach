@@ -1,0 +1,63 @@
+name: review-gate
+
+# Posts the required `review-gate` status. pull_request_target runs this file
+# from the default branch, so a pull request cannot change its own review.
+# The action never executes pull request code.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number. Leave empty to run the sweep.
+        required: false
+        default: ""
+
+permissions: {}
+
+jobs:
+  gate:
+    if: >-
+      (github.event_name == 'pull_request_target' &&
+        ((github.event.action != 'labeled' && github.event.action != 'unlabeled') ||
+          github.event.label.name == 'needs-review')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.pr != '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    concurrency:
+      group: review-gate-${{ github.event.pull_request.number || inputs.pr }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      statuses: write
+    steps:
+      - uses: NoahJenkins/.github@28ad1db216261fccf299ae3ad10f0a3b4c5f1f0e # review-gate
+        with:
+          mode: gate
+          pr-number: ${{ github.event.pull_request.number || inputs.pr }}
+          github-token: ${{ github.token }}
+          codex-trigger-token: ${{ secrets.CODEX_TRIGGER_TOKEN }}
+          ai-gateway-api-key: ${{ secrets.AI_GATEWAY_API_KEY }}
+
+  sweep:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.pr == '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: review-gate-sweep
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      statuses: write
+      actions: write
+    steps:
+      - uses: NoahJenkins/.github@28ad1db216261fccf299ae3ad10f0a3b4c5f1f0e # review-gate
+        with:
+          mode: sweep
+          github-token: ${{ github.token }}
