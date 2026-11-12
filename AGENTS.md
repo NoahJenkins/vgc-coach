@@ -107,3 +107,14 @@ Support skills and calc tooling should reinforce those core skills rather than p
 - Keep repo docs factual and aligned with the live tree.
 - Treat `README.md` as the stable repo overview, not the full operating manual for each skill.
 - When documenting current capability, describe what the repo actually supports today and keep future work clearly framed as future work.
+
+## Agent pull requests
+
+Mode: auto-merge
+
+Finished work in this repository is a merged pull request. Use the `ship`
+skill in `docs/maintenance/ship/` for every change. This rule replaces any
+general instruction to stop at a local change.
+
+A merge to `main` deploys the site to production on Vercel. This mode permits
+that deploy. It does not release the plugin. Plugin releases start by hand.
