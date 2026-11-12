@@ -35,7 +35,7 @@ jobs:
       issues: write
       statuses: write
     steps:
-      - uses: NoahJenkins/.github@28ad1db216261fccf299ae3ad10f0a3b4c5f1f0e # review-gate
+      - uses: NoahJenkins/.github@4a19c9be9659a8f9516339d663e688d3099f1db6 # review-gate
         with:
           mode: gate
           pr-number: ${{ github.event.pull_request.number || inputs.pr }}
@@ -57,7 +57,7 @@ jobs:
       statuses: write
       actions: write
     steps:
-      - uses: NoahJenkins/.github@28ad1db216261fccf299ae3ad10f0a3b4c5f1f0e # review-gate
+      - uses: NoahJenkins/.github@4a19c9be9659a8f9516339d663e688d3099f1db6 # review-gate
         with:
           mode: sweep
           github-token: ${{ github.token }}
