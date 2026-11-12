@@ -58,7 +58,8 @@ reproduction, or a screenshot.
 
 ## Findings
 
-Act only on checks and comments that are newer than the latest push.
+Act on check results for the latest push only. Act on every unresolved review
+thread and every comment without a reply, whatever its age.
 
 - Examine each review finding against the code before you change anything.
 - Fix real bugs in the intended case with the smallest change. Prefer a fix
