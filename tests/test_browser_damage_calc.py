@@ -350,6 +350,35 @@ class BrowserDamageCalcTests(unittest.TestCase):
         self.assertEqual(result.status, "fallback")
         self.assertIn("extracted calc text exceeded", result.failure_reason.lower())
 
+    def _fallback_for_extracted(self, extracted):
+        request = self.module.parse_request(self.sample_request())
+        responses = iter(["", "", "", "", extracted, ""])
+
+        with mock.patch.object(
+            self.module,
+            "_run_agent_browser_command",
+            side_effect=lambda *_args, **_kwargs: next(responses),
+        ):
+            return self.module.execute_exact_calc(
+                request, runner=self.module.run_agent_browser_backend
+            )
+
+    def test_unparseable_summary_downgrades_to_fallback_not_empty_exact(self):
+        result = self._fallback_for_extracted(
+            json.dumps({"summary": "Pikalytics redesigned layout 42%"})
+        )
+
+        self.assertEqual(result.status, "fallback")
+        self.assertIn("could not read damage", result.failure_reason.lower())
+
+    def test_non_object_extracted_json_downgrades_to_fallback(self):
+        for payload in ("null", "[1]", "42", '"just text"'):
+            with self.subTest(payload=payload):
+                result = self._fallback_for_extracted(payload)
+
+                self.assertEqual(result.status, "fallback")
+                self.assertIsNotNone(result.failure_reason)
+
     def test_bounded_browser_backend_preserves_exact_damage_contract(self):
         request = self.module.parse_request(self.sample_request())
         extracted = json.dumps(

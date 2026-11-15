@@ -614,6 +614,9 @@ def run_agent_browser_backend(request: CalcRequest) -> CalcResult:
     except json.JSONDecodeError as exc:
         raise BrowserCalcError(f"Could not parse extracted calc result: {exc}") from exc
 
+    if not isinstance(parsed, dict):
+        raise BrowserCalcError("Extracted calc result was not an object")
+
     if parsed.get("error"):
         raise BrowserCalcError(parsed["error"])
 
@@ -629,8 +632,8 @@ def run_agent_browser_backend(request: CalcRequest) -> CalcResult:
         parsed["damage"] = match.group(1).strip()
         parsed["ko_chance"] = match.group(2).strip()
     else:
-        parsed["damage"] = None
-        parsed["ko_chance"] = None
+        # An exact result without figures is worse than an honest fallback.
+        raise BrowserCalcError("Could not read damage from calc summary")
 
     assumptions = request_summary(request)
     assumptions["calc_url"] = url
