@@ -60,7 +60,7 @@ Do not hand-edit `plugins/`, `docs/skills/shared/references/live-source-map.md`,
 ## 4. Ship The Transition
 
 - Open a dedicated pull request. Do not push format changes onto a Dependabot branch.
-- After merge, bump `VERSION`, run `python3 tools/build_plugins.py build` and `python3 tools/build_plugins.py update-release-notes`, and merge that. The `Plugin Release` workflow runs on the push to `main` that changes `VERSION` (or run it by hand from `main` if the merge was made by a bot token). Installed plugins update only when the version changes.
+- After merge, bump `VERSION`, run `python3 tools/build_plugins.py build` and `python3 tools/build_plugins.py update-release-notes`, and merge that. Then run the `Plugin Release` workflow by hand from `main`; plugin releases never start on their own. Installed plugins update only when the version changes.
 
 ## 5. Between Transitions
 

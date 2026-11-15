@@ -157,7 +157,8 @@ class DependabotWorkflowPolicyTests(unittest.TestCase):
         self.assertIn("gh release view", commands)
         self.assertEqual(workflow["jobs"]["release"]["timeout-minutes"], 10)
         self.assertIn("concurrency", workflow)
-        self.assertEqual(workflow_triggers(workflow)["push"]["paths"], ["VERSION"])
+        # Plugin releases start by hand (AGENTS.md), never on a push.
+        self.assertEqual(set(workflow_triggers(workflow)), {"workflow_dispatch"})
 
     def test_required_checks_keep_exact_names_and_run_for_every_main_pr(self):
         expected = {

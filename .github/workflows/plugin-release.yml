@@ -1,12 +1,8 @@
 name: Plugin Release
 
 on:
-  # A VERSION bump arrives through a human-merged pull request, so the push
-  # event fires (unlike merges done by auto-merge with GITHUB_TOKEN). Manual
-  # dispatch stays as a fallback.
-  push:
-    branches: [main]
-    paths: [VERSION]
+  # Plugin releases start by hand (AGENTS.md); agents auto-merge in this repo,
+  # so a push trigger would let any merged VERSION bump publish a release.
   workflow_dispatch:
 
 env:
