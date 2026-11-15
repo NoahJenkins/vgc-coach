@@ -5,8 +5,9 @@ import json
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 import yaml
 
@@ -154,9 +155,7 @@ class GenerateSiteTrustDataTests(unittest.TestCase):
             root = Path(tmp)
             write_repo_facts(root)
 
-            facts = self.module.collect_trust_facts(
-                root, now=datetime(2026, 8, 7, 12, 34, 56, tzinfo=timezone.utc)
-            )
+            facts = self.module.collect_trust_facts(root)
 
         self.assertEqual(facts["version"], "0.2.0")
         self.assertEqual(facts["evaluation"]["fixture_count"], 3)
@@ -171,7 +170,7 @@ class GenerateSiteTrustDataTests(unittest.TestCase):
             facts["regulation"]["verified_label"],
             "August 6, 2026 at 12:34:56 UTC",
         )
-        self.assertEqual(facts["regulation"]["freshness_state"], "fresh")
+        self.assertNotIn("freshness_state", facts["regulation"])
         self.assertEqual(facts["regulation"]["freshness_max_age_days"], 7)
         self.assertEqual(
             facts["regulation"]["fresh_until"], "2026-08-13T12:34:56Z"
@@ -188,32 +187,6 @@ class GenerateSiteTrustDataTests(unittest.TestCase):
         self.assertEqual(
             facts["calculation_boundary"]["assumption_framed"], ["speed"]
         )
-
-    def test_freshness_state_is_fresh_through_exact_max_age_boundary(self):
-        verified_at = datetime(2026, 8, 6, 12, 34, 56, tzinfo=timezone.utc)
-        boundary = verified_at + timedelta(days=7)
-
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            write_repo_facts(root)
-            facts = self.module.collect_trust_facts(root, now=boundary)
-
-        self.assertEqual(facts["regulation"]["freshness_state"], "fresh")
-
-    def test_freshness_state_is_stale_after_max_age_boundary(self):
-        verified_at = datetime(2026, 8, 6, 12, 34, 56, tzinfo=timezone.utc)
-        after_boundary = verified_at + timedelta(days=7, microseconds=1)
-
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            write_repo_facts(root)
-            facts = self.module.collect_trust_facts(root, now=after_boundary)
-
-        self.assertEqual(facts["regulation"]["freshness_state"], "stale")
-        self.assertEqual(
-            facts["regulation"]["stale_label"], "Source snapshot stale"
-        )
-        self.assertIn("live recheck", facts["regulation"]["freshness_note"])
 
     def test_requires_one_unambiguous_current_regulation_snapshot(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -309,25 +282,37 @@ class GenerateSiteTrustDataTests(unittest.TestCase):
 
             self.assertEqual(self.module.check_generated_artifact(root, output), 1)
 
-    def test_check_rejects_artifact_after_freshness_boundary(self):
-        verified_at = datetime(2026, 8, 6, 12, 34, 56, tzinfo=timezone.utc)
-        fresh_check = verified_at + timedelta(days=7)
-        stale_check = fresh_check + timedelta(microseconds=1)
+    def _fake_clock(self, instant: datetime):
+        class FakeDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return instant if tz is None else instant.astimezone(tz)
+
+        return mock.patch.object(self.module, "datetime", FakeDatetime)
+
+    def test_check_does_not_depend_on_the_wall_clock(self):
+        far_future = datetime(2031, 1, 1, tzinfo=timezone.utc)
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             write_repo_facts(root)
             output = root / "site/src/generated/trustData.ts"
             output.parent.mkdir(parents=True)
+            self.assertEqual(self.module.write_generated_artifact(root, output), 0)
 
-            self.assertEqual(
-                self.module.write_generated_artifact(root, output, now=fresh_check),
-                0,
-            )
-            self.assertEqual(
-                self.module.check_generated_artifact(root, output, now=stale_check),
-                1,
-            )
+            with self._fake_clock(far_future):
+                self.assertEqual(self.module.check_generated_artifact(root, output), 0)
+
+    def test_committed_artifact_passes_check_long_after_it_goes_stale(self):
+        # Regression: the committed file once embedded a date-derived
+        # freshness_state, so the required site-build check began failing on
+        # every PR the moment the source snapshot aged out.
+        for instant in (
+            datetime(2026, 11, 29, 0, 31, tzinfo=timezone.utc),
+            datetime(2027, 6, 1, tzinfo=timezone.utc),
+        ):
+            with self._fake_clock(instant):
+                self.assertEqual(self.module.check_generated_artifact(), 0)
 
 
 if __name__ == "__main__":
