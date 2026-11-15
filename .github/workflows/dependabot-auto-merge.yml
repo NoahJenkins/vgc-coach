@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check changed files stay under site/
+      - name: Check changed files stay within dependency manifests
         id: scope
         env:
           GH_TOKEN: ${{ github.token }}
@@ -54,10 +54,10 @@ jobs:
 
           for path in "${changed_files[@]}"; do
             case "$path" in
-              site/*)
+              site/*|.github/workflows/*|tools/requirements-autoresearch.txt)
                 ;;
               *)
-                echo "Skipping auto-merge because $path is outside site/"
+                echo "Skipping auto-merge because $path is not a dependency manifest or workflow"
                 echo "eligible=false" >> "$GITHUB_OUTPUT"
                 exit 0
                 ;;
@@ -66,8 +66,38 @@ jobs:
 
           echo "eligible=true" >> "$GITHUB_OUTPUT"
 
-      - name: Enable auto-merge
+      # Majors are never armed: required review-gate fails them, so an armed
+      # major would sit open forever. Grouped majors are recognised by their
+      # group name in the branch (see dependabot.yml); a single-dependency PR by
+      # the "from X to Y" title.
+      - name: Skip major updates
+        id: update_type
         if: steps.scope.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          major=false
+          case "$HEAD_REF" in
+            *major-updates*) major=true ;;
+          esac
+          if [[ "$PR_TITLE" =~ from\ v?([0-9]+)\.[^\ ]*\ to\ v?([0-9]+)\. ]] \
+            && [ "${BASH_REMATCH[1]}" != "${BASH_REMATCH[2]}" ]; then
+            major=true
+          fi
+          echo "major=$major" >> "$GITHUB_OUTPUT"
+          if [ "$major" = "true" ]; then
+            echo "Not arming auto-merge: major version update."
+            gh label create dependency-major --repo "$GITHUB_REPOSITORY" --color FBCA04 \
+              --description "Major dependency update; needs a human" 2>/dev/null || true
+            gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --add-label dependency-major
+          fi
+
+      - name: Enable auto-merge
+        if: steps.scope.outputs.eligible == 'true' && steps.update_type.outputs.major != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -76,7 +106,7 @@ jobs:
       # Auto-merge enabled on an earlier push stays armed unless it is revoked
       # when a later push takes the pull request out of scope.
       - name: Disable auto-merge
-        if: steps.scope.outputs.eligible != 'true'
+        if: steps.scope.outputs.eligible != 'true' || steps.update_type.outputs.major == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

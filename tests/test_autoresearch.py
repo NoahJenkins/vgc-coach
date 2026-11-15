@@ -6,6 +6,7 @@ import importlib.metadata
 import importlib.util
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -270,7 +271,11 @@ class AutoresearchTests(unittest.TestCase):
                     on_response_inline(response)
                 return response
 
-        self.assertEqual(importlib.metadata.version("github-copilot-sdk"), "1.0.9")
+        # Compare with the pinned requirement so Dependabot bumps stay green.
+        requirements = (REPO_ROOT / "tools/requirements-autoresearch.txt").read_text()
+        pinned = re.search(r"^github-copilot-sdk==(\S+)$", requirements, re.MULTILINE)
+        self.assertIsNotNone(pinned)
+        self.assertEqual(importlib.metadata.version("github-copilot-sdk"), pinned.group(1))
         def permission_handler(request, invocation):
             return None
 

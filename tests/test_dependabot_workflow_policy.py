@@ -22,12 +22,12 @@ def workflow_triggers(workflow: dict) -> dict:
 class DependabotWorkflowPolicyTests(unittest.TestCase):
     def test_routine_and_security_updates_use_separate_catch_all_groups(self):
         config = load_yaml(".github/dependabot.yml")
-        update = config["updates"][0]
+        update = next(
+            item for item in config["updates"] if item["package-ecosystem"] == "npm"
+        )
 
-        self.assertEqual(update["package-ecosystem"], "npm")
         self.assertEqual(update["directory"], "/site")
         self.assertNotIn("allow", update)
-        self.assertNotIn("ignore", update)
         self.assertEqual(
             update["groups"]["routine-site-dependencies"],
             {
@@ -43,6 +43,27 @@ class DependabotWorkflowPolicyTests(unittest.TestCase):
                 "patterns": ["*"],
             },
         )
+
+    def test_actions_and_pip_ecosystems_are_grouped_and_weekly(self):
+        config = load_yaml(".github/dependabot.yml")
+        by_ecosystem = {item["package-ecosystem"]: item for item in config["updates"]}
+
+        self.assertEqual(
+            set(by_ecosystem), {"npm", "github-actions", "pip"}
+        )
+        self.assertEqual(by_ecosystem["github-actions"]["directory"], "/")
+        self.assertEqual(by_ecosystem["pip"]["directory"], "/tools")
+        for ecosystem, update in by_ecosystem.items():
+            with self.subTest(ecosystem=ecosystem):
+                self.assertEqual(update["schedule"]["interval"], "weekly")
+                # Majors must land in a group the auto-merge workflow recognises.
+                majors = [
+                    name
+                    for name, group in update["groups"].items()
+                    if group.get("update-types") == ["major"]
+                ]
+                self.assertEqual(len(majors), 1)
+                self.assertIn("major-updates", majors[0])
 
     def test_auto_merge_runner_is_restricted_before_runner_allocation(self):
         workflow = load_yaml(".github/workflows/dependabot-auto-merge.yml")
@@ -74,27 +95,37 @@ class DependabotWorkflowPolicyTests(unittest.TestCase):
         self.assertIn("--squash", merge_command)
         self.assertNotIn("--admin", merge_command)
         self.assertNotIn("gh pr close", commands)
-        self.assertNotIn("update-type", commands)
 
-    def test_auto_merge_retains_site_only_changed_file_scope(self):
+    def test_auto_merge_is_not_armed_for_major_updates(self):
+        workflow = load_yaml(".github/workflows/dependabot-auto-merge.yml")
+        steps = workflow["jobs"]["enable-auto-merge"]["steps"]
+        by_name = {step["name"]: step for step in steps}
+
+        self.assertIn("major-updates", by_name["Skip major updates"]["run"])
+        self.assertIn("steps.update_type.outputs.major != 'true'", by_name["Enable auto-merge"]["if"])
+        self.assertIn("steps.update_type.outputs.major == 'true'", by_name["Disable auto-merge"]["if"])
+
+    def test_auto_merge_limits_changed_files_to_dependency_manifests(self):
         workflow = load_yaml(".github/workflows/dependabot-auto-merge.yml")
         steps = workflow["jobs"]["enable-auto-merge"]["steps"]
         scope_step = next(
-            step for step in steps if step["name"] == "Check changed files stay under site/"
+            step for step in steps if step["name"].startswith("Check changed files")
         )
 
-        self.assertIn("site/*)", scope_step["run"])
+        self.assertIn("site/*", scope_step["run"])
+        self.assertIn(".github/workflows/*", scope_step["run"])
+        self.assertIn("tools/requirements-autoresearch.txt", scope_step["run"])
         self.assertIn("eligible=false", scope_step["run"])
         self.assertEqual(
             next(step for step in steps if step["name"] == "Enable auto-merge")["if"],
-            "steps.scope.outputs.eligible == 'true'",
+            "steps.scope.outputs.eligible == 'true' && steps.update_type.outputs.major != 'true'",
         )
 
     def test_auto_merge_requires_every_commit_to_come_from_dependabot(self):
         workflow = load_yaml(".github/workflows/dependabot-auto-merge.yml")
         steps = workflow["jobs"]["enable-auto-merge"]["steps"]
         scope_run = next(
-            step for step in steps if step["name"] == "Check changed files stay under site/"
+            step for step in steps if step["name"].startswith("Check changed files")
         )["run"]
 
         self.assertIn("pulls/$PR_NUMBER/commits", scope_run)
@@ -110,10 +141,21 @@ class DependabotWorkflowPolicyTests(unittest.TestCase):
         steps = workflow["jobs"]["enable-auto-merge"]["steps"]
         disable_step = next(step for step in steps if step["name"] == "Disable auto-merge")
 
-        self.assertEqual(disable_step["if"], "steps.scope.outputs.eligible != 'true'")
+        self.assertIn("steps.scope.outputs.eligible != 'true'", disable_step["if"])
         self.assertIn("autoMergeRequest", disable_step["run"])
         self.assertIn("--disable-auto", disable_step["run"])
         self.assertNotIn("--admin", disable_step["run"])
+
+    def test_release_workflow_never_pushes_to_main_and_is_bounded(self):
+        workflow = load_yaml(".github/workflows/plugin-release.yml")
+        commands = "\n".join(
+            step.get("run", "") for step in workflow["jobs"]["release"]["steps"]
+        )
+
+        self.assertNotIn("HEAD:main", commands)
+        self.assertEqual(workflow["jobs"]["release"]["timeout-minutes"], 10)
+        self.assertIn("concurrency", workflow)
+        self.assertEqual(workflow_triggers(workflow)["push"]["paths"], ["VERSION"])
 
     def test_required_checks_keep_exact_names_and_run_for_every_main_pr(self):
         expected = {

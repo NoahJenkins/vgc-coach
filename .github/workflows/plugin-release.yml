@@ -1,6 +1,12 @@
 name: Plugin Release
 
 on:
+  # A VERSION bump arrives through a human-merged pull request, so the push
+  # event fires (unlike merges done by auto-merge with GITHUB_TOKEN). Manual
+  # dispatch stays as a fallback.
+  push:
+    branches: [main]
+    paths: [VERSION]
   workflow_dispatch:
 
 env:
@@ -9,10 +15,15 @@ env:
 permissions:
   contents: write
 
+concurrency:
+  group: plugin-release
+  cancel-in-progress: false
+
 jobs:
   release:
     name: release
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -36,22 +47,13 @@ jobs:
         run: python3 -m pip install -r tools/requirements-autoresearch.txt
 
       - name: Run packaging checks
+        # Generated plugin files are already enforced by plugin-package-check
+        # before merge, so this job only validates and tags. (It used to
+        # regenerate and `git push origin HEAD:main`; that step never had
+        # anything to commit and branch protection would have rejected it.)
         run: |
           set -euo pipefail
-          python3 tools/build_plugins.py build
-          python3 tools/build_plugins.py update-release-notes
           python3 tools/validate.py --scope core
-
-      - name: Commit generated release artifacts
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if ! git diff --quiet; then
-            git add VERSION RELEASE_NOTES.md package.json site/package.json .agents/plugins/marketplace.json .claude-plugin/marketplace.json plugins
-            git commit -m "release: refresh generated plugin artifacts"
-            git push origin HEAD:main
-          fi
 
       - name: Create tag and GitHub release
         env:
@@ -62,8 +64,8 @@ jobs:
           TAG="v${VERSION}"
           git fetch --tags
           if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists" >&2
-            exit 1
+            echo "Tag $TAG already exists; nothing to release."
+            exit 0
           fi
           git tag "$TAG"
           git push origin "$TAG"

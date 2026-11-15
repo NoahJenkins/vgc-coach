@@ -7,9 +7,11 @@ regulation can be prepared before validation starts to fail.
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -24,6 +26,7 @@ SNAPSHOT_ROOT = Path("data/snapshots")
 FIXTURE_ROOT = Path("data/fixtures")
 OPENCODE_SKILL_ROOT = Path(".opencode/skills")
 EXPIRY_WARNING_WINDOW = timedelta(days=30)
+WINDOW_ISSUE_LEAD = timedelta(days=14)
 TRANSITION_RUNBOOK = Path("docs/maintenance/regulation-transition.md")
 
 
@@ -282,6 +285,61 @@ def find_expiring_current_windows(
     return tuple(warnings)
 
 
+def current_window_status(
+    repo_root: Path = REPO_ROOT,
+    *,
+    now: datetime | None = None,
+    lead: timedelta = WINDOW_ISSUE_LEAD,
+) -> dict[str, Any]:
+    """Summarise the soonest current-window end for the watch workflow.
+
+    `due` is true once a current window ends within `lead`, or already ended, so
+    a person hears about it before the required freshness check starts failing.
+    """
+    checked_at = now or datetime.now(timezone.utc)
+    if checked_at.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    checked_at = checked_at.astimezone(timezone.utc)
+    ends = sorted(
+        end for _label, status, _start, end in _iter_designations(repo_root)
+        if status == "current"
+    )
+    if not ends:
+        return {"due": False, "ends_at": "", "ended": False, "remaining": ""}
+    end = ends[0]
+    remaining = end - checked_at
+    ended = remaining < timedelta(0)
+    return {
+        "due": ended or remaining <= lead,
+        "ends_at": end.isoformat().replace("+00:00", "Z"),
+        "ended": ended,
+        "remaining": (
+            "already ended"
+            if ended
+            else f"{remaining.days}d {remaining.seconds // 3600}h from now"
+        ),
+    }
+
+
+def write_window_report(
+    status: dict[str, Any], *, github_output: Path | None, issue_body: Path | None
+) -> None:
+    if github_output is not None:
+        with github_output.open("a") as handle:
+            handle.write(f"window_due={'true' if status['due'] else 'false'}\n")
+            handle.write(f"window_ends_at={status['ends_at']}\n")
+    if issue_body is not None and status["due"]:
+        issue_body.parent.mkdir(parents=True, exist_ok=True)
+        issue_body.write_text(
+            f"The current regulation window ends at {status['ends_at']} "
+            f"({status['remaining']}).\n\n"
+            "Once it ends, `plugin-package-check` fails on every pull request until "
+            f"the successor regulation is recorded. Follow `{TRANSITION_RUNBOOK.as_posix()}`. "
+            "When the successor appears in the official feed, regulation-watch drafts "
+            "the transition pull request; review it and click **Ready for review**.\n"
+        )
+
+
 def _print_warning(message: str) -> None:
     if os.environ.get("GITHUB_ACTIONS") == "true":
         print(f"::warning title=Current format expires soon::{message}")
@@ -289,7 +347,27 @@ def _print_warning(message: str) -> None:
         print(f"Warning: {message}")
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--window-report",
+        action="store_true",
+        help="Report whether the current window ends within 14 days (never fails).",
+    )
+    parser.add_argument("--github-output", type=Path)
+    parser.add_argument("--issue-body", type=Path)
+    args = parser.parse_args([] if argv is None else argv)
+    if args.window_report:
+        try:
+            status = current_window_status()
+        except (OSError, ValueError, json.JSONDecodeError, yaml.YAMLError) as exc:
+            print(f"Window report could not read artifacts: {exc}")
+            return 2
+        write_window_report(
+            status, github_output=args.github_output, issue_body=args.issue_body
+        )
+        print(f"Current window: {status}")
+        return 0
     try:
         expired = find_expired_current_artifacts()
         expiring = () if expired else find_expiring_current_windows()
@@ -308,4 +386,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))
