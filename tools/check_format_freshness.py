@@ -8,9 +8,11 @@ regulation can be prepared before validation starts to fail.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -28,6 +30,25 @@ OPENCODE_SKILL_ROOT = Path(".opencode/skills")
 EXPIRY_WARNING_WINDOW = timedelta(days=30)
 WINDOW_ISSUE_LEAD = timedelta(days=14)
 TRANSITION_RUNBOOK = Path("docs/maintenance/regulation-transition.md")
+BASE_REF_ENV = "FORMAT_FRESHNESS_BASE_REF"
+
+# The single list of format artifacts: the paths step 2 of the transition runbook
+# edits, plus this tool and its tests. A time-based expiry fails a change that
+# touches any of them. Patterns use fnmatch semantics, where `*` also matches `/`.
+FORMAT_ARTIFACT_PATTERNS = (
+    "data/snapshots/*",
+    "docs/skills/shared/references/champions-reg-*-legality.md",
+    REGISTRY_PATH.as_posix(),
+    "data/official-regulation-feed.json",
+    "data/fixtures/*",
+    "skills/*",
+    ".opencode/skills/*",
+    "docs/evals/*",
+    "tools/check_format_freshness.py",
+    "tests/test_format_freshness.py",
+    "tests/test_source_registry.py",
+    "tests/test_ingest_battle_state.py",
+)
 
 
 def _parse_utc(value: Any, *, label: str) -> datetime:
@@ -225,11 +246,12 @@ def _runtime_reference_issues(repo_root: Path) -> tuple[str, ...]:
     return tuple(issues)
 
 
-def find_expired_current_artifacts(
+def find_time_expired_artifacts(
     repo_root: Path = REPO_ROOT,
     *,
     now: datetime | None = None,
 ) -> tuple[str, ...]:
+    """Current designations whose window has ended or has not started yet."""
     checked_at = now or datetime.now(timezone.utc)
     if checked_at.tzinfo is None:
         raise ValueError("now must be timezone-aware")
@@ -249,8 +271,46 @@ def find_expired_current_artifacts(
                 f"{label} is designated current but its active window ended "
                 f"{end.isoformat().replace('+00:00', 'Z')}"
             )
-    expired.extend(_runtime_reference_issues(repo_root))
     return tuple(expired)
+
+
+def find_expired_current_artifacts(
+    repo_root: Path = REPO_ROOT,
+    *,
+    now: datetime | None = None,
+) -> tuple[str, ...]:
+    """Time-based expiries plus runtime reference problems (strict view)."""
+    return (
+        *find_time_expired_artifacts(repo_root, now=now),
+        *_runtime_reference_issues(repo_root),
+    )
+
+
+def touched_format_artifacts(paths: Iterable[str]) -> tuple[str, ...]:
+    return tuple(
+        path
+        for path in (p.strip().removeprefix("./") for p in paths)
+        if any(fnmatch.fnmatchcase(path, pattern) for pattern in FORMAT_ARTIFACT_PATTERNS)
+    )
+
+
+def changed_paths(base_ref: str, repo_root: Path = REPO_ROOT) -> tuple[str, ...] | None:
+    """Paths changed in `<base_ref>...HEAD`, or None when the diff is unavailable."""
+    if not base_ref or set(base_ref) == {"0"}:
+        return None
+    try:
+        completed = subprocess.run(
+            ("git", "diff", "--name-only", "--no-renames", f"{base_ref}...HEAD"),
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return None
+    if completed.returncode != 0:
+        return None
+    return tuple(line for line in completed.stdout.splitlines() if line)
 
 
 def find_expiring_current_windows(
@@ -333,8 +393,11 @@ def write_window_report(
         issue_body.write_text(
             f"The current regulation window ends at {status['ends_at']} "
             f"({status['remaining']}).\n\n"
-            "Once it ends, `plugin-package-check` fails on every pull request until "
-            f"the successor regulation is recorded. Follow `{TRANSITION_RUNBOOK.as_posix()}`. "
+            "Once it ends, `plugin-package-check` fails only for pull requests that "
+            "touch format artifacts (the paths in step 2 of the runbook) until the "
+            "successor regulation is recorded; other pull requests, including "
+            "dependency updates, pass with a warning. "
+            f"Follow `{TRANSITION_RUNBOOK.as_posix()}`. "
             "When the successor appears in the official feed, regulation-watch drafts "
             "the transition pull request; review it and click **Ready for review**.\n"
         )
@@ -347,19 +410,41 @@ def _print_warning(message: str) -> None:
         print(f"Warning: {message}")
 
 
-def main(argv: list[str] | None = None) -> int:
+def _print_stale_warning(message: str) -> None:
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print(f"::warning title=Current format is stale::{message}")
+    else:
+        print(f"Warning: {message}")
+
+
+def main(
+    argv: list[str] | None = None,
+    *,
+    repo_root: Path = REPO_ROOT,
+    now: datetime | None = None,
+) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--window-report",
         action="store_true",
         help="Report whether the current window ends within 14 days (never fails).",
     )
+    parser.add_argument(
+        "--base-ref",
+        default=os.environ.get(BASE_REF_ENV, ""),
+        help=(
+            "Git ref to diff against (`<ref>...HEAD`). When given, a time-based "
+            "expiry only fails if the change touches format artifacts. Defaults "
+            f"to ${BASE_REF_ENV}. Without it, or if the diff cannot be computed, "
+            "any expiry fails."
+        ),
+    )
     parser.add_argument("--github-output", type=Path)
     parser.add_argument("--issue-body", type=Path)
     args = parser.parse_args([] if argv is None else argv)
     if args.window_report:
         try:
-            status = current_window_status()
+            status = current_window_status(repo_root, now=now)
         except (OSError, ValueError, json.JSONDecodeError, yaml.YAMLError) as exc:
             print(f"Window report could not read artifacts: {exc}")
             return 2
@@ -369,17 +454,43 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Current window: {status}")
         return 0
     try:
-        expired = find_expired_current_artifacts()
-        expiring = () if expired else find_expiring_current_windows()
+        time_expired = find_time_expired_artifacts(repo_root, now=now)
+        runtime_issues = _runtime_reference_issues(repo_root)
+        expiring = (
+            ()
+            if time_expired or runtime_issues
+            else find_expiring_current_windows(repo_root, now=now)
+        )
     except (OSError, ValueError, json.JSONDecodeError, yaml.YAMLError) as exc:
         print(f"Format freshness check could not validate artifacts: {exc}")
         return 2
     for warning in expiring:
         _print_warning(warning)
-    if not expired:
+
+    blocking = list(runtime_issues)
+    if time_expired:
+        paths = changed_paths(args.base_ref, repo_root) if args.base_ref else None
+        touched = touched_format_artifacts(paths) if paths is not None else None
+        if touched == ():
+            for item in time_expired:
+                _print_stale_warning(
+                    f"{item}. This change touches no format artifacts, so the check "
+                    f"passes; follow {TRANSITION_RUNBOOK.as_posix()}."
+                )
+        else:
+            blocking = [*time_expired, *blocking]
+            if touched:
+                print(
+                    "This change touches format artifacts: "
+                    + ", ".join(touched[:10])
+                    + (" ..." if len(touched) > 10 else "")
+                )
+            elif args.base_ref:
+                print("Could not compute the changed paths; failing safe.")
+    if not blocking:
         return 0
     print("Current-format artifacts are stale:")
-    for item in expired:
+    for item in blocking:
         print(f"- {item}")
     print("Verify the active regulation live, replace current designations, and retain expired material only as historical.")
     return 1

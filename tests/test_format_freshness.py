@@ -3,6 +3,8 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -227,25 +229,185 @@ class FormatFreshnessTests(unittest.TestCase):
             root = Path(tmp)
             write_designated_artifacts(root, current_end="2026-09-09T01:59:00Z")
             now = datetime(2026, 9, 1, tzinfo=timezone.utc)
-            find_expired = self.module.find_expired_current_artifacts
-            find_expiring = self.module.find_expiring_current_windows
 
-            with mock.patch.object(
-                self.module,
-                "find_expired_current_artifacts",
-                lambda: find_expired(root, now=now),
-            ), mock.patch.object(
-                self.module,
-                "find_expiring_current_windows",
-                lambda: find_expiring(root, now=now),
-            ), mock.patch.dict("os.environ", {"GITHUB_ACTIONS": "true"}):
-                with redirect_stdout(io.StringIO()) as output:
-                    exit_code = self.module.main()
+            with mock.patch.dict(
+                "os.environ", {"GITHUB_ACTIONS": "true"}
+            ), redirect_stdout(io.StringIO()) as output:
+                exit_code = self.module.main(repo_root=root, now=now)
 
         self.assertEqual(exit_code, 0)
         self.assertTrue(
             output.getvalue().startswith("::warning title=Current format expires soon::")
         )
+
+    def _git_repo_with_change(self, root: Path, changed: str) -> str:
+        """Commit the fixture tree, then a change to `changed`; return the base sha."""
+
+        def git(*args: str) -> str:
+            return subprocess.run(
+                ("git", "-c", "user.name=t", "-c", "user.email=t@example.com", *args),
+                cwd=root,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+
+        git("init", "-q")
+        git("add", "-A")
+        git("commit", "-q", "-m", "base")
+        base = git("rev-parse", "HEAD")
+        target = root / changed
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(target.read_text() + "x\n" if target.exists() else "x\n")
+        git("add", "-A")
+        git("commit", "-q", "-m", "change")
+        return base
+
+    def _run_main(self, root: Path, argv: list[str], *, env: dict[str, str] | None = None):
+        now = datetime(2026, 9, 10, tzinfo=timezone.utc)  # after the window end
+        environ = {"GITHUB_ACTIONS": "true", **(env or {})}
+        with mock.patch.dict("os.environ", environ), redirect_stdout(
+            io.StringIO()
+        ) as output:
+            if env is None:
+                os.environ.pop(self.module.BASE_REF_ENV, None)
+            code = self.module.main(argv, repo_root=root, now=now)
+        return code, output.getvalue()
+
+    def test_expired_window_with_unrelated_change_warns_and_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_designated_artifacts(root, current_end="2026-09-09T01:59:00Z")
+            base = self._git_repo_with_change(root, "site/package.json")
+
+            code, output = self._run_main(root, ["--base-ref", base])
+
+        self.assertEqual(code, 0)
+        self.assertIn("::warning title=Current format is stale::", output)
+        self.assertNotIn("are stale:", output)
+
+    def test_base_ref_can_come_from_the_environment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_designated_artifacts(root, current_end="2026-09-09T01:59:00Z")
+            base = self._git_repo_with_change(root, ".github/workflows/ci.yml")
+
+            code, _ = self._run_main(
+                root, [], env={self.module.BASE_REF_ENV: base}
+            )
+
+        self.assertEqual(code, 0)
+
+    def test_expired_window_with_format_change_fails(self):
+        for changed in (
+            "data/snapshots/README.md",
+            "skills/vgc-team-builder/SKILL.md",
+            "docs/skills/shared/references/champions-reg-m-d-legality.md",
+            "tools/check_format_freshness.py",
+        ):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                write_designated_artifacts(root, current_end="2026-09-09T01:59:00Z")
+                base = self._git_repo_with_change(root, changed)
+
+                code, output = self._run_main(root, ["--base-ref", base])
+
+                self.assertEqual(code, 1)
+                self.assertIn("Current-format artifacts are stale:", output)
+                self.assertIn(changed, output)
+
+    def test_expired_window_without_context_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_designated_artifacts(root, current_end="2026-09-09T01:59:00Z")
+            self._git_repo_with_change(root, "site/package.json")
+
+            code, output = self._run_main(root, [])
+
+        self.assertEqual(code, 1)
+        self.assertIn("Current-format artifacts are stale:", output)
+
+    def test_expired_window_fails_safe_when_the_diff_cannot_be_computed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_designated_artifacts(root, current_end="2026-09-09T01:59:00Z")
+            self._git_repo_with_change(root, "site/package.json")
+
+            for base in ("no-such-ref", "0" * 40):
+                with self.subTest(base=base):
+                    code, output = self._run_main(root, ["--base-ref", base])
+                    self.assertEqual(code, 1)
+                    self.assertIn("failing safe", output)
+
+    def test_runtime_reference_issue_fails_even_for_unrelated_change(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_designated_artifacts(root, current_end="2026-09-09T01:59:00Z")
+            wrapper = root / ".opencode/skills/opencode-vgc-team-builder/SKILL.md"
+            wrapper.parent.mkdir(parents=True)
+            wrapper.write_text(
+                "Read `docs/skills/shared/references/champions-reg-m-a-legality.md`.\n"
+            )
+            base = self._git_repo_with_change(root, "site/package.json")
+
+            code, output = self._run_main(root, ["--base-ref", base])
+
+        self.assertEqual(code, 1)
+        self.assertIn("historical regulation reference", output)
+
+    def test_runtime_reference_issue_fails_inside_the_window_too(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_designated_artifacts(root, current_end="2026-09-09T01:59:00Z")
+            wrapper = root / ".opencode/skills/opencode-vgc-team-builder/SKILL.md"
+            wrapper.parent.mkdir(parents=True)
+            wrapper.write_text(
+                "Read `docs/skills/shared/references/champions-reg-m-a-legality.md`.\n"
+            )
+            base = self._git_repo_with_change(root, "site/package.json")
+            with mock.patch.dict("os.environ", {}), redirect_stdout(io.StringIO()):
+                code = self.module.main(
+                    ["--base-ref", base],
+                    repo_root=root,
+                    now=datetime(2026, 8, 6, tzinfo=timezone.utc),
+                )
+
+        self.assertEqual(code, 1)
+
+    def test_format_artifact_patterns_cover_the_runbook_step_two_paths(self):
+        runbook = (REPO_ROOT / "docs/maintenance/regulation-transition.md").read_text()
+        step_two = runbook.split("## 2.")[1].split("Find the remaining")[0]
+        self.assertTrue(
+            self.module.touched_format_artifacts(
+                [
+                    "data/snapshots/champions-reg-m-d-2027-01-01.json",
+                    "docs/skills/shared/references/champions-reg-m-d-legality.md",
+                    "docs/skills/shared/references/live-source-registry.yaml",
+                    "data/official-regulation-feed.json",
+                    "data/fixtures/battle-state-v1.example.json",
+                    "skills/vgc-meta-research/SKILL.md",
+                    ".opencode/skills/opencode-vgc-meta-research/SKILL.md",
+                    "docs/evals/meta-live-checklist.md",
+                    "tools/check_format_freshness.py",
+                    "tests/test_format_freshness.py",
+                    "tests/test_source_registry.py",
+                    "tests/test_ingest_battle_state.py",
+                ]
+            ),
+        )
+        self.assertEqual(
+            self.module.touched_format_artifacts(
+                [
+                    "site/package.json",
+                    ".github/workflows/plugin-package-ci.yml",
+                    "plugins/vgc-coach/README.md",
+                    "docs/runtime/codex.md",
+                    "tests/test_validate.py",
+                ]
+            ),
+            (),
+        )
+        self.assertIn("data/snapshots/", step_two)
 
     def test_current_designations_fail_before_window(self):
         with tempfile.TemporaryDirectory() as tmp:

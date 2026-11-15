@@ -13,7 +13,9 @@ Use this runbook when the official Pokemon Champions regulation set changes, or 
 
 When you handle a change by hand, also run `python3 tools/regulation_watch.py check --report <path>` and `python3 tools/regulation_watch.py update-baseline --report <path>` so the watcher stops reporting it.
 
-The freshness check fails closed after the current window ends. Every pull request then fails `plugin-package-check`, including Dependabot updates. Finish the transition before the end timestamp.
+After the current window ends, the freshness check keeps failing for any change that touches a format artifact (the paths in step 2, listed once in `FORMAT_ARTIFACT_PATTERNS` in `tools/check_format_freshness.py`). Other pull requests, such as Dependabot updates, workflow edits, and site changes, pass `plugin-package-check` with a `::warning`, so automation keeps running until the transition lands. Problems that are not time-based, such as a wrapper routing to a historical legality note, fail every change.
+
+CI opts into this scoping through `FORMAT_FRESHNESS_BASE_REF` (the pull request base sha, or the pushed range's `before` sha). The check diffs `<base>...HEAD` and fails closed when the diff cannot be computed. Running `python3 tools/check_format_freshness.py` locally with no base ref stays strict; pass `--base-ref <ref>` to reproduce the CI scoping. The transition pull request touches format artifacts, so it must be complete before it can pass.
 
 ## 1. Confirm The Successor Live
 
