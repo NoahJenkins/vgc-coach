@@ -391,6 +391,10 @@ class FormatFreshnessTests(unittest.TestCase):
                     "tests/test_source_registry.py",
                     "tests/test_ingest_battle_state.py",
                     "data/fixtures/team-build-request-v1.example.json",
+                    # Scanned by _iter_designations() though not named in step 2.
+                    "data/fixtures/replay.example.json",
+                    "data/fixtures/nested/opponent.example.json",
+                    "docs/skills/shared/references/vgc-damage-calcs.md",
         ]
         for path in format_paths:
             with self.subTest(path=path):

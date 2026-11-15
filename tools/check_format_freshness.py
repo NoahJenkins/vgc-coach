@@ -32,16 +32,17 @@ WINDOW_ISSUE_LEAD = timedelta(days=14)
 TRANSITION_RUNBOOK = Path("docs/maintenance/regulation-transition.md")
 BASE_REF_ENV = "FORMAT_FRESHNESS_BASE_REF"
 
-# The single list of format artifacts: the paths step 2 of the transition runbook
-# edits, plus this tool and its tests. A time-based expiry fails a change that
-# touches any of them. Patterns use fnmatch semantics, where `*` also matches `/`.
+# The single list of format artifacts: every file _iter_designations() scans
+# (registry, snapshots, shared references, example fixtures), the other files
+# step 2 of the transition runbook edits, and this tool and its tests. A
+# time-based expiry fails a change that touches any of them. Patterns use
+# fnmatch semantics, where `*` also matches `/`.
 FORMAT_ARTIFACT_PATTERNS = (
-    "data/snapshots/*",
-    "docs/skills/shared/references/champions-reg-*-legality.md",
+    f"{SNAPSHOT_ROOT.as_posix()}/*",
+    f"{REFERENCE_ROOT.as_posix()}/*.md",
     REGISTRY_PATH.as_posix(),
     "data/official-regulation-feed.json",
-    "data/fixtures/*-request-v1.example.json",
-    "data/fixtures/battle-state-v1.example.json",
+    f"{FIXTURE_ROOT.as_posix()}/*.example.json",
     "skills/*/SKILL.md",
     ".opencode/skills/*/SKILL.md",
     "docs/evals/*-live-checklist.md",
