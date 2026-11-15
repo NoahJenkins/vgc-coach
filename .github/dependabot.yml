@@ -7,7 +7,13 @@ updates:
       day: monday
       time: "08:00"
       timezone: America/Chicago
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    ignore:
+      # Follows the Node runtime line instead of the latest published types.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       routine-site-dependencies:
         applies-to: version-updates
@@ -16,9 +22,67 @@ updates:
         update-types:
           - minor
           - patch
+      # Majors arrive as one PR per week. The auto-merge workflow does not arm
+      # any group whose name contains "major-updates".
+      site-major-updates:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - major
       site-security-updates:
         applies-to: security-updates
         patterns:
           - "*"
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: America/Chicago
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    groups:
+      routine-actions:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      actions-major-updates:
+        patterns:
+          - "*"
+        update-types:
+          - major
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: pip
+    directory: /tools
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: America/Chicago
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    groups:
+      routine-python-tools:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      python-major-updates:
+        patterns:
+          - "*"
+        update-types:
+          - major
     commit-message:
       prefix: deps

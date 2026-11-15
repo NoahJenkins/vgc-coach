@@ -184,6 +184,44 @@ class FormatFreshnessTests(unittest.TestCase):
         self.assertEqual(len(at_end), 1)
         self.assertEqual(after_end, ())
 
+    def test_window_status_is_due_within_14_days_and_after_the_end(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_designated_artifacts(root, current_end="2026-09-09T01:59:00Z")
+
+            def status(*args):
+                return self.module.current_window_status(
+                    root, now=datetime(*args, tzinfo=timezone.utc)
+                )
+
+            far = status(2026, 8, 25, 1, 58)
+            edge = status(2026, 8, 26, 1, 59)
+            ended = status(2026, 9, 10)
+
+        self.assertFalse(far["due"])
+        self.assertTrue(edge["due"])
+        self.assertFalse(edge["ended"])
+        self.assertEqual(edge["ends_at"], "2026-09-09T01:59:00Z")
+        self.assertTrue(ended["due"])
+        self.assertTrue(ended["ended"])
+
+    def test_window_report_cli_writes_outputs_and_never_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_designated_artifacts(root, current_end="2026-09-09T01:59:00Z")
+            status = self.module.current_window_status(
+                root, now=datetime(2026, 9, 1, tzinfo=timezone.utc)
+            )
+            output = root / "gh-output"
+            body = root / "out/issue.md"
+            self.module.write_window_report(
+                status, github_output=output, issue_body=body
+            )
+
+            self.assertIn("window_due=true", output.read_text())
+            self.assertIn("window_ends_at=2026-09-09T01:59:00Z", output.read_text())
+            self.assertIn("2026-09-09T01:59:00Z", body.read_text())
+
     def test_expiry_warning_does_not_fail_validation(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

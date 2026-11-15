@@ -23,10 +23,8 @@ class SiteDeliveryContractTests(unittest.TestCase):
         step_names = [step["name"] for step in steps]
 
         self.assertEqual(job["name"], "site-build")
-        self.assertIn(
-            "actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405",
-            uses,
-        )
+        # The exact SHA is deliberately not asserted: Dependabot bumps it.
+        self.assertTrue(any(use.startswith("actions/setup-python@") for use in uses))
         self.assertTrue(all(re.fullmatch(r"[^@]+@[0-9a-f]{40}", use) for use in uses))
         install_index = step_names.index("Install validation dependencies")
         build_index = step_names.index("Build site")

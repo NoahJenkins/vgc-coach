@@ -4,10 +4,10 @@ Use this runbook when the official Pokemon Champions regulation set changes, or 
 
 ## Automation
 
-`.github/workflows/regulation-watch.yml` runs every third day and on manual dispatch.
+`.github/workflows/regulation-watch.yml` runs Monday and Thursday and on manual dispatch.
 
-- The `watch` job runs `python3 tools/regulation_watch.py check`. It reads the official Pokemon HOME news feed (`https://news.pokemon-home.com/en/json/list.json`), keeps the Pokemon Champions `Regulations` entries, and compares them with `data/official-regulation-feed.json`. It makes no model calls. A new or changed entry opens a `regulation-watch` issue. It also opens an issue 3 days before the official source refresh in section 5 is due.
-- The `draft` job runs only for a change that has no draft branch yet. It fetches the official page and its eligible Pokemon list, runs `tools/draft_regulation_update.py` with Copilot (`COPILOT_GITHUB_TOKEN`; model from the `REGULATION_DRAFT_MODEL` variable, default `claude-sonnet-5.5`), records the feed baseline, regenerates derived files, and opens a draft pull request. The drafter runs only a few times a year, so it uses the model that passed the M-B to M-C test transition on the first pass. In that test, `claude-haiku-5.5` and `gpt-6-luna` cost far less per draft but always or sometimes needed the repair pass; set the variable to one of them to lower cost.
+- The `watch` job runs `python3 tools/regulation_watch.py check`. It reads the official Pokemon HOME news feed (`https://news.pokemon-home.com/en/json/list.json`), keeps the Pokemon Champions `Regulations` entries, and compares them with `data/official-regulation-feed.json`. It makes no model calls. A new or changed entry opens a `regulation-watch` issue. It also opens an issue 3 days before the official source refresh in section 5 is due, and another once the current regulation window ends within 14 days (or has ended).
+- The `draft` job runs only for a change that has no draft branch yet and whose issue is not labelled `draft-failed`. If the drafter fails, the job comments on the issue and adds that label so scheduled runs stop paying for new Copilot sessions; fix the cause and run the workflow manually to retry. It fetches the official page and its eligible Pokemon list, runs `tools/draft_regulation_update.py` with Copilot (`COPILOT_GITHUB_TOKEN`; model from the `REGULATION_DRAFT_MODEL` variable, default `claude-sonnet-5.5`), records the feed baseline, regenerates derived files, and opens a draft pull request. The drafter runs only a few times a year, so it uses the model that passed the M-B to M-C test transition on the first pass. In that test, `claude-haiku-5.5` and `gpt-6-luna` cost far less per draft but always or sometimes needed the repair pass; set the variable to one of them to lower cost.
 - The drafter cannot fetch URLs and can write only the format artifacts in step 2. Review every fact in the draft against the official page, then click **Ready for review** to start the required checks.
 - The watcher reads only `news.pokemon-home.com` and `web-view.app.pokemonchampions.jp`. `pokemon.com` serves a bot challenge to scripts, so it is not used.
 
@@ -60,7 +60,7 @@ Do not hand-edit `plugins/`, `docs/skills/shared/references/live-source-map.md`,
 ## 4. Ship The Transition
 
 - Open a dedicated pull request. Do not push format changes onto a Dependabot branch.
-- After merge, bump `VERSION`, run `python3 tools/build_plugins.py build` and `python3 tools/build_plugins.py update-release-notes`, merge that, and run the `Plugin Release` workflow from `main`. Installed plugins update only when the version changes.
+- After merge, bump `VERSION`, run `python3 tools/build_plugins.py build` and `python3 tools/build_plugins.py update-release-notes`, and merge that. Then run the `Plugin Release` workflow by hand from `main`; plugin releases never start on their own. Installed plugins update only when the version changes.
 
 ## 5. Between Transitions
 

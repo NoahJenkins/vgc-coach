@@ -2,9 +2,10 @@ name: Regulation Watch
 
 on:
   schedule:
-    # Every third day. The check makes no model calls; Copilot runs only when
-    # the official feed changes and no draft exists for that change yet.
-    - cron: "23 9 */3 * *"
+    # Monday and Thursday. (`*/3` on day-of-month is uneven at month end and
+    # fires on consecutive days.) The check makes no model calls; Copilot runs
+    # only when the official feed changes and no draft exists for that change yet.
+    - cron: "23 9 * * 1,4"
   workflow_dispatch:
     inputs:
       draft:
@@ -37,6 +38,7 @@ jobs:
       signature: ${{ steps.check.outputs.signature }}
       draft_exists: ${{ steps.draft_branch.outputs.exists }}
       issue_number: ${{ steps.issue.outputs.number }}
+      draft_failed: ${{ steps.issue.outputs.draft_failed }}
     steps:
       - name: Check out protected main
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -94,6 +96,11 @@ jobs:
             number="${url##*/}"
           fi
           echo "number=$number" >> "$GITHUB_OUTPUT"
+          # A drafter run that failed labels the issue; later scheduled runs then
+          # skip the paid Copilot session until a person retries by hand.
+          failed="$(gh issue view "$number" --repo "$GITHUB_REPOSITORY" --json labels \
+            --jq '[.labels[].name] | index("draft-failed") != null')"
+          echo "draft_failed=$failed" >> "$GITHUB_OUTPUT"
 
       - name: Open or reuse the source refresh issue
         if: steps.check.outputs.refresh_due == 'true'
@@ -112,6 +119,38 @@ jobs:
               --body "The current official regulation source must be rechecked before $DUE_AT. Follow section 5 of \`docs/maintenance/regulation-transition.md\`."
           fi
 
+      # The freshness check fails every pull request once the active window
+      # ends. That policy is the owner's; this step only makes sure someone is
+      # told ahead of time, which the CI log warning never achieved.
+      - name: Open or update the window-end issue
+        # Independent of the feed check: a broken or unreachable feed must not
+        # also silence the expiry warning.
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 tools/check_format_freshness.py --window-report \
+            --github-output "$GITHUB_OUTPUT" \
+            --issue-body .artifacts/regulation-watch/window-issue.md
+          ends_at="$(grep '^window_ends_at=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2-)"
+          due="$(grep '^window_due=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2-)"
+          if [ "$due" != "true" ]; then
+            exit 0
+          fi
+          gh label create regulation-watch --repo "$GITHUB_REPOSITORY" --color B60205 \
+            --description "Official Pokemon Champions regulation changes" 2>/dev/null || true
+          title="Regulation watch: current regulation window ends $ends_at"
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --label regulation-watch --state open \
+            --search "\"window ends $ends_at\" in:title" --json number --jq '.[0].number // empty')"
+          if [ -z "$existing" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --label regulation-watch --title "$title" \
+              --body-file .artifacts/regulation-watch/window-issue.md
+          else
+            gh issue edit "$existing" --repo "$GITHUB_REPOSITORY" \
+              --body-file .artifacts/regulation-watch/window-issue.md
+          fi
+
       - name: Upload watch report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -126,13 +165,16 @@ jobs:
     if: >-
       github.ref == 'refs/heads/main'
       && needs.watch.outputs.changed == 'true'
-      && needs.watch.outputs.draft_exists != 'true'
+      && (needs.watch.outputs.draft_failed != 'true' || github.event_name == 'workflow_dispatch')
+      && (needs.watch.outputs.draft_exists != 'true'
+        || (github.event_name == 'workflow_dispatch' && needs.watch.outputs.draft_failed == 'true'))
       && (github.event_name == 'schedule' || inputs.draft)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: write
       pull-requests: write
+      issues: write
     steps:
       - name: Check out protected main
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -150,14 +192,24 @@ jobs:
         run: python3 -m pip install -r tools/requirements-autoresearch.txt
 
       - name: Recheck the feed and collect official evidence
+        env:
+          SIGNATURE: ${{ needs.watch.outputs.signature }}
         run: |
           set -euo pipefail
           python3 tools/regulation_watch.py check --report .artifacts/regulation-watch/report.json
+          # The branch is named for the watch job's signature. If the feed moved
+          # between the jobs, stop; the next run drafts the newer change.
+          current="$(python3 -c 'import json; print(json.load(open(".artifacts/regulation-watch/report.json"))["signature"] or "")')"
+          if [ "$current" != "$SIGNATURE" ]; then
+            echo "Feed changed between jobs ($SIGNATURE -> $current); not drafting a mismatched branch." >&2
+            exit 1
+          fi
           python3 tools/regulation_watch.py evidence \
             --report .artifacts/regulation-watch/report.json \
             --out .artifacts/regulation-watch/evidence
 
       - name: Draft the transition with Copilot
+        id: drafter
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           DRAFT_MODEL: ${{ vars.REGULATION_DRAFT_MODEL || 'claude-sonnet-5.5' }}
@@ -233,7 +285,9 @@ jobs:
             exit 1
           fi
           git commit -q -m "chore: draft official regulation update ($SIGNATURE)"
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$branch"
+          # Forced: only a manual draft-failed retry reaches here with the branch
+          # present (see the job condition); it replaces the failed run's branch.
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$branch"
 
           {
             echo "Copilot drafted this from the official Pokemon HOME regulation page. Review every fact against the evidence before merge."
@@ -254,9 +308,40 @@ jobs:
             fi
           } > .artifacts/regulation-watch/pr-body.md
 
-          gh pr create --repo "$GITHUB_REPOSITORY" --draft --base main --head "$branch" \
-            --title "Draft: official regulation update ($SIGNATURE)" \
-            --body-file .artifacts/regulation-watch/pr-body.md
+          existing="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --repo "$GITHUB_REPOSITORY" --body-file .artifacts/regulation-watch/pr-body.md
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --draft --base main --head "$branch" \
+              --title "Draft: official regulation update ($SIGNATURE)" \
+              --body-file .artifacts/regulation-watch/pr-body.md
+          fi
+
+      - name: Clear the draft-failed label after a successful draft
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ needs.watch.outputs.issue_number }}
+        run: |
+          gh issue edit "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --remove-label draft-failed || true
+
+      # Without this, a persistently failing drafter would start a new paid
+      # Copilot session on every scheduled run. Failures before the Copilot step
+      # (pip, feed or evidence fetch, feed moved between jobs) cost nothing and
+      # are often transient, so they do not block the next scheduled run.
+      - name: Record the drafter failure on the watch issue
+        if: failure() && (steps.drafter.outcome == 'success' || steps.drafter.outcome == 'failure')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ needs.watch.outputs.issue_number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh label create draft-failed --repo "$GITHUB_REPOSITORY" --color D93F0B \
+            --description "Regulation drafter failed; scheduled runs skip drafting until retried" 2>/dev/null || true
+          gh issue edit "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --add-label draft-failed
+          gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body \
+            "The regulation drafter failed: $RUN_URL. Scheduled runs will not draft this change again. Fix the cause, then run the Regulation Watch workflow manually with draft enabled (a successful draft clears this label), or do the transition by hand per docs/maintenance/regulation-transition.md."
 
       - name: Upload draft artifacts
         if: always()

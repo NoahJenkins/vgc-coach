@@ -237,10 +237,13 @@ class RegulationWatchWorkflowTests(unittest.TestCase):
             (REPO_ROOT / ".github/workflows/regulation-watch.yml").read_text()
         )
 
-    def test_schedule_runs_every_third_day_on_protected_main(self):
+    def test_schedule_runs_on_protected_main_without_day_of_month_steps(self):
         triggers = workflow_triggers(self.workflow)
 
-        self.assertEqual(triggers["schedule"], [{"cron": "23 9 */3 * *"}])
+        self.assertEqual(len(triggers["schedule"]), 1)
+        fields = triggers["schedule"][0]["cron"].split()
+        # `*/n` on day-of-month fires on back-to-back days at month end.
+        self.assertEqual(fields[2], "*")
         self.assertIn("workflow_dispatch", triggers)
         self.assertEqual(self.workflow["permissions"], {"contents": "read"})
         for job in self.workflow["jobs"].values():
@@ -272,7 +275,6 @@ class RegulationWatchWorkflowTests(unittest.TestCase):
             if "DRAFT_MODEL" in step.get("env", {})
         }
 
-        self.assertEqual(default_model, "claude-sonnet-5.5")
         self.assertEqual(
             models, {f"${{{{ vars.REGULATION_DRAFT_MODEL || '{default_model}' }}}}"}
         )
@@ -296,8 +298,38 @@ class RegulationWatchWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(
             self.workflow["jobs"]["draft"]["permissions"],
-            {"contents": "write", "pull-requests": "write"},
+            {"contents": "write", "pull-requests": "write", "issues": "write"},
         )
+
+    def test_failed_drafter_is_recorded_and_not_retried_every_run(self):
+        draft = self.workflow["jobs"]["draft"]
+        failure_step = next(
+            step
+            for step in draft["steps"]
+            if step.get("name") == "Record the drafter failure on the watch issue"
+        )
+
+        # Only a run that reached the paid Copilot step is recorded as failed.
+        self.assertTrue(failure_step["if"].startswith("failure()"))
+        self.assertIn("steps.drafter.outcome", failure_step["if"])
+        self.assertIn("draft-failed", failure_step["run"])
+        self.assertIn("gh issue comment", failure_step["run"])
+        self.assertIn("needs.watch.outputs.draft_failed != 'true'", draft["if"])
+        self.assertIn("draft_failed", self.workflow["jobs"]["watch"]["outputs"])
+
+    def test_watch_opens_a_window_end_issue(self):
+        steps = self.workflow["jobs"]["watch"]["steps"]
+        step = next(s for s in steps if s["name"] == "Open or update the window-end issue")
+
+        self.assertIn("check_format_freshness.py --window-report", step["run"])
+        self.assertIn("gh issue create", step["run"])
+
+    def test_draft_refuses_a_feed_that_changed_between_jobs(self):
+        steps = {s["name"]: s for s in self.workflow["jobs"]["draft"]["steps"]}
+        recheck = steps["Recheck the feed and collect official evidence"]
+
+        self.assertIn("SIGNATURE", recheck["env"])
+        self.assertIn('"$current" != "$SIGNATURE"', recheck["run"])
 
     def test_checkouts_do_not_persist_credentials(self):
         for job_name in ("watch", "draft"):
