@@ -119,9 +119,10 @@ jobs:
               --body "The current official regulation source must be rechecked before $DUE_AT. Follow section 5 of \`docs/maintenance/regulation-transition.md\`."
           fi
 
-      # The freshness check fails every pull request once the active window
-      # ends. That policy is the owner's; this step only makes sure someone is
-      # told ahead of time, which the CI log warning never achieved.
+      # Once the active window ends, the freshness check fails pull requests
+      # that touch format artifacts and only warns on the rest. That policy is
+      # the owner's; this step only makes sure someone is told ahead of time,
+      # which the CI log warning never achieved.
       - name: Open or update the window-end issue
         # Independent of the feed check: a broken or unreachable feed must not
         # also silence the expiry warning.

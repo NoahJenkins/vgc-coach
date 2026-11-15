@@ -28,6 +28,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Full history so the freshness check can diff against the base commit.
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -39,3 +42,9 @@ jobs:
 
       - name: Run core validation
         run: python3 tools/validate.py --scope core
+        env:
+          # Scopes the time-based freshness failure to changes that touch format
+          # artifacts. An empty or unreachable base falls back to strict. A
+          # pull_request checkout is the test merge commit, so its first parent is
+          # exactly the base the PR is tested against.
+          FORMAT_FRESHNESS_BASE_REF: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}
