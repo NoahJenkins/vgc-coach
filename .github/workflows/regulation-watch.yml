@@ -123,6 +123,9 @@ jobs:
       # ends. That policy is the owner's; this step only makes sure someone is
       # told ahead of time, which the CI log warning never achieved.
       - name: Open or update the window-end issue
+        # Independent of the feed check: a broken or unreachable feed must not
+        # also silence the expiry warning.
+        if: ${{ !cancelled() }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -205,6 +208,7 @@ jobs:
             --out .artifacts/regulation-watch/evidence
 
       - name: Draft the transition with Copilot
+        id: drafter
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           DRAFT_MODEL: ${{ vars.REGULATION_DRAFT_MODEL || 'claude-sonnet-5.5' }}
@@ -314,9 +318,11 @@ jobs:
           gh issue edit "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --remove-label draft-failed || true
 
       # Without this, a persistently failing drafter would start a new paid
-      # Copilot session on every scheduled run.
+      # Copilot session on every scheduled run. Failures before the Copilot step
+      # (pip, feed or evidence fetch, feed moved between jobs) cost nothing and
+      # are often transient, so they do not block the next scheduled run.
       - name: Record the drafter failure on the watch issue
-        if: failure()
+        if: failure() && (steps.drafter.outcome == 'success' || steps.drafter.outcome == 'failure')
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ needs.watch.outputs.issue_number }}

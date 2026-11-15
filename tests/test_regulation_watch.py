@@ -304,9 +304,14 @@ class RegulationWatchWorkflowTests(unittest.TestCase):
     def test_failed_drafter_is_recorded_and_not_retried_every_run(self):
         draft = self.workflow["jobs"]["draft"]
         failure_step = next(
-            step for step in draft["steps"] if step.get("if") == "failure()"
+            step
+            for step in draft["steps"]
+            if step.get("name") == "Record the drafter failure on the watch issue"
         )
 
+        # Only a run that reached the paid Copilot step is recorded as failed.
+        self.assertTrue(failure_step["if"].startswith("failure()"))
+        self.assertIn("steps.drafter.outcome", failure_step["if"])
         self.assertIn("draft-failed", failure_step["run"])
         self.assertIn("gh issue comment", failure_step["run"])
         self.assertIn("needs.watch.outputs.draft_failed != 'true'", draft["if"])

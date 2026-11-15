@@ -153,6 +153,8 @@ class DependabotWorkflowPolicyTests(unittest.TestCase):
         )
 
         self.assertNotIn("HEAD:main", commands)
+        # An existing tag alone does not prove the release was created.
+        self.assertIn("gh release view", commands)
         self.assertEqual(workflow["jobs"]["release"]["timeout-minutes"], 10)
         self.assertIn("concurrency", workflow)
         self.assertEqual(workflow_triggers(workflow)["push"]["paths"], ["VERSION"])
