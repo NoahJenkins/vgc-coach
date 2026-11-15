@@ -165,8 +165,8 @@ jobs:
     if: >-
       github.ref == 'refs/heads/main'
       && needs.watch.outputs.changed == 'true'
-      && needs.watch.outputs.draft_exists != 'true'
-      && (needs.watch.outputs.draft_failed != 'true' || github.event_name == 'workflow_dispatch')
+      && ((needs.watch.outputs.draft_exists != 'true' && needs.watch.outputs.draft_failed != 'true')
+        || github.event_name == 'workflow_dispatch')
       && (github.event_name == 'schedule' || inputs.draft)
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -284,7 +284,8 @@ jobs:
             exit 1
           fi
           git commit -q -m "chore: draft official regulation update ($SIGNATURE)"
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$branch"
+          # Forced: a manual retry replaces a branch left by a run whose PR step failed.
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$branch"
 
           {
             echo "Copilot drafted this from the official Pokemon HOME regulation page. Review every fact against the evidence before merge."
@@ -305,9 +306,14 @@ jobs:
             fi
           } > .artifacts/regulation-watch/pr-body.md
 
-          gh pr create --repo "$GITHUB_REPOSITORY" --draft --base main --head "$branch" \
-            --title "Draft: official regulation update ($SIGNATURE)" \
-            --body-file .artifacts/regulation-watch/pr-body.md
+          existing="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --repo "$GITHUB_REPOSITORY" --body-file .artifacts/regulation-watch/pr-body.md
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --draft --base main --head "$branch" \
+              --title "Draft: official regulation update ($SIGNATURE)" \
+              --body-file .artifacts/regulation-watch/pr-body.md
+          fi
 
       - name: Clear the draft-failed label after a successful draft
         if: success()

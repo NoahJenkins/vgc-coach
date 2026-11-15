@@ -68,8 +68,9 @@ jobs:
 
       # Majors are never armed: required review-gate fails them, so an armed
       # major would sit open forever. Grouped majors are recognised by their
-      # group name in the branch (see dependabot.yml); a single-dependency PR by
-      # the "from X to Y" title.
+      # group name in the branch (see dependabot.yml); any other PR by a
+      # "from X to Y" with a different major in its title or body (grouped
+      # security PRs list each member as "Updates `pkg` from X to Y" or a table row).
       - name: Skip major updates
         id: update_type
         if: steps.scope.outputs.eligible == 'true'
@@ -78,16 +79,23 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           set -euo pipefail
           major=false
           case "$HEAD_REF" in
             *major-updates*) major=true ;;
           esac
-          if [[ "$PR_TITLE" =~ from\ v?([0-9]+)\.[^\ ]*\ to\ v?([0-9]+)\. ]] \
-            && [ "${BASH_REMATCH[1]}" != "${BASH_REMATCH[2]}" ]; then
-            major=true
-          fi
+          # "from 1.2.3 to 2.0.0" in prose, "| `1.2.3` | `2.0.0` |" in group tables.
+          pairs="$(printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" \
+            | grep -oE 'from `?v?[0-9]+\.[^ `]*`? to `?v?[0-9]+\.|\| `v?[0-9]+\.[^`]*` \| `v?[0-9]+\.' || true)"
+          while IFS= read -r pair; do
+            [ -n "$pair" ] || continue
+            if [[ "$pair" =~ ^(from|\|)\ \`?v?([0-9]+)\..*(to|\|)\ \`?v?([0-9]+)\.$ ]] \
+              && [ "${BASH_REMATCH[2]}" != "${BASH_REMATCH[4]}" ]; then
+              major=true
+            fi
+          done <<<"$pairs"
           echo "major=$major" >> "$GITHUB_OUTPUT"
           if [ "$major" = "true" ]; then
             echo "Not arming auto-merge: major version update."
