@@ -40,10 +40,11 @@ FORMAT_ARTIFACT_PATTERNS = (
     "docs/skills/shared/references/champions-reg-*-legality.md",
     REGISTRY_PATH.as_posix(),
     "data/official-regulation-feed.json",
-    "data/fixtures/*",
-    "skills/*",
-    ".opencode/skills/*",
-    "docs/evals/*",
+    "data/fixtures/*-request-v1.example.json",
+    "data/fixtures/battle-state-v1.example.json",
+    "skills/*/SKILL.md",
+    ".opencode/skills/*/SKILL.md",
+    "docs/evals/*-live-checklist.md",
     "tools/check_format_freshness.py",
     "tests/test_format_freshness.py",
     "tests/test_source_registry.py",
@@ -300,7 +301,7 @@ def changed_paths(base_ref: str, repo_root: Path = REPO_ROOT) -> tuple[str, ...]
         return None
     try:
         completed = subprocess.run(
-            ("git", "diff", "--name-only", "--no-renames", f"{base_ref}...HEAD"),
+            ("git", "diff", "--name-only", "-z", "--no-renames", f"{base_ref}...HEAD"),
             cwd=repo_root,
             check=False,
             capture_output=True,
@@ -310,7 +311,8 @@ def changed_paths(base_ref: str, repo_root: Path = REPO_ROOT) -> tuple[str, ...]
         return None
     if completed.returncode != 0:
         return None
-    return tuple(line for line in completed.stdout.splitlines() if line)
+    # -z keeps paths unquoted, so non-ASCII names still match the patterns.
+    return tuple(path for path in completed.stdout.split("\0") if path)
 
 
 def find_expiring_current_windows(

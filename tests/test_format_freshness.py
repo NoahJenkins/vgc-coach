@@ -377,9 +377,7 @@ class FormatFreshnessTests(unittest.TestCase):
     def test_format_artifact_patterns_cover_the_runbook_step_two_paths(self):
         runbook = (REPO_ROOT / "docs/maintenance/regulation-transition.md").read_text()
         step_two = runbook.split("## 2.")[1].split("Find the remaining")[0]
-        self.assertTrue(
-            self.module.touched_format_artifacts(
-                [
+        format_paths = [
                     "data/snapshots/champions-reg-m-d-2027-01-01.json",
                     "docs/skills/shared/references/champions-reg-m-d-legality.md",
                     "docs/skills/shared/references/live-source-registry.yaml",
@@ -387,14 +385,16 @@ class FormatFreshnessTests(unittest.TestCase):
                     "data/fixtures/battle-state-v1.example.json",
                     "skills/vgc-meta-research/SKILL.md",
                     ".opencode/skills/opencode-vgc-meta-research/SKILL.md",
-                    "docs/evals/meta-live-checklist.md",
+                    "docs/evals/meta-research-live-checklist.md",
                     "tools/check_format_freshness.py",
                     "tests/test_format_freshness.py",
                     "tests/test_source_registry.py",
                     "tests/test_ingest_battle_state.py",
-                ]
-            ),
-        )
+                    "data/fixtures/team-build-request-v1.example.json",
+        ]
+        for path in format_paths:
+            with self.subTest(path=path):
+                self.assertEqual(self.module.touched_format_artifacts([path]), (path,))
         self.assertEqual(
             self.module.touched_format_artifacts(
                 [
@@ -403,6 +403,9 @@ class FormatFreshnessTests(unittest.TestCase):
                     "plugins/vgc-coach/README.md",
                     "docs/runtime/codex.md",
                     "tests/test_validate.py",
+                    "data/fixtures/evals/team-builder/case-11.md",
+                    "skills/vgc-team-builder/agents/openai.yaml",
+                    "docs/evals/plugin-eval-workflow.md",
                 ]
             ),
             (),

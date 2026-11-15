@@ -44,5 +44,7 @@ jobs:
         run: python3 tools/validate.py --scope core
         env:
           # Scopes the time-based freshness failure to changes that touch format
-          # artifacts. An empty or unreachable base falls back to strict.
-          FORMAT_FRESHNESS_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+          # artifacts. An empty or unreachable base falls back to strict. A
+          # pull_request checkout is the test merge commit, so its first parent is
+          # exactly the base the PR is tested against.
+          FORMAT_FRESHNESS_BASE_REF: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}
