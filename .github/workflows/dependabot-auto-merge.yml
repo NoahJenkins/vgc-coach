@@ -86,12 +86,13 @@ jobs:
           case "$HEAD_REF" in
             *major-updates*) major=true ;;
           esac
-          # "from 1.2.3 to 2.0.0" in prose, "| `1.2.3` | `2.0.0` |" in group tables.
+          # "from 1.2.3 to 2.0.0" (or "from 4 to 5" for action tags) in prose,
+          # "| `1.2.3` | `2.0.0` |" in group tables; only the majors are compared.
           pairs="$(printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" \
-            | grep -oE 'from `?v?[0-9]+\.[^ `]*`? to `?v?[0-9]+\.|\| `v?[0-9]+\.[^`]*` \| `v?[0-9]+\.' || true)"
+            | grep -oE 'from `?v?[0-9]+[^ `]*`? to `?v?[0-9]+|\| `v?[0-9]+[^`]*` \| `v?[0-9]+' || true)"
           while IFS= read -r pair; do
             [ -n "$pair" ] || continue
-            if [[ "$pair" =~ ^(from|\|)\ \`?v?([0-9]+)\..*(to|\|)\ \`?v?([0-9]+)\.$ ]] \
+            if [[ "$pair" =~ ^(from|\|)\ \`?v?([0-9]+)[^\ ]*\ (to|\|)\ \`?v?([0-9]+)$ ]] \
               && [ "${BASH_REMATCH[2]}" != "${BASH_REMATCH[4]}" ]; then
               major=true
             fi
