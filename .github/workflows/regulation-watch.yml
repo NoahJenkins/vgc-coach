@@ -165,8 +165,9 @@ jobs:
     if: >-
       github.ref == 'refs/heads/main'
       && needs.watch.outputs.changed == 'true'
-      && ((needs.watch.outputs.draft_exists != 'true' && needs.watch.outputs.draft_failed != 'true')
-        || github.event_name == 'workflow_dispatch')
+      && (needs.watch.outputs.draft_failed != 'true' || github.event_name == 'workflow_dispatch')
+      && (needs.watch.outputs.draft_exists != 'true'
+        || (github.event_name == 'workflow_dispatch' && needs.watch.outputs.draft_failed == 'true'))
       && (github.event_name == 'schedule' || inputs.draft)
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -284,7 +285,8 @@ jobs:
             exit 1
           fi
           git commit -q -m "chore: draft official regulation update ($SIGNATURE)"
-          # Forced: a manual retry replaces a branch left by a run whose PR step failed.
+          # Forced: only a manual draft-failed retry reaches here with the branch
+          # present (see the job condition); it replaces the failed run's branch.
           git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$branch"
 
           {
