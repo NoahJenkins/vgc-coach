@@ -35,7 +35,13 @@ function getInitialTheme(): Theme {
     return "light";
   }
 
-  const storedTheme = window.localStorage.getItem(themeStorageKey);
+  let storedTheme: string | null = null;
+
+  try {
+    storedTheme = window.localStorage.getItem(themeStorageKey);
+  } catch {
+    // Storage can be blocked (privacy modes, embedded contexts); use the system theme.
+  }
 
   if (storedTheme === "dark" || storedTheme === "light") {
     return storedTheme;
@@ -73,7 +79,11 @@ function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    window.localStorage.setItem(themeStorageKey, theme);
+    try {
+      window.localStorage.setItem(themeStorageKey, theme);
+    } catch {
+      // Not persisting the theme is fine when storage is blocked.
+    }
   }, [theme]);
 
   const selectExample = (exampleId: (typeof coachingExamples)[number]["id"]) => {
