@@ -10,6 +10,7 @@ import re
 import sys
 import tempfile
 import unittest
+from contextlib import ExitStack
 from unittest import mock
 from pathlib import Path
 from types import SimpleNamespace
@@ -250,8 +251,33 @@ def run_sdk_session_with_assertion(
     return asyncio.run(run())
 
 
+# Client startup calls one of these, depending on the installed SDK.
+# 1.0.9: get_or_download_cli, via copilot.client._get_or_download_cli.
+# 1.0.33: ensure_runtime_wrapper, inlined in CopilotClient. download_cli remains
+# the shared lower-level hook on both.
+_CLI_DOWNLOAD_HOOKS = (
+    "get_or_download_cli",
+    "ensure_runtime_wrapper",
+    "download_cli",
+)
+
+
+def _installed_cli_download_hooks() -> list[str]:
+    """Return CLI download hooks the installed github-copilot-sdk still defines."""
+    import copilot._cli_download as cli_download
+
+    hooks = [
+        f"copilot._cli_download.{name}"
+        for name in _CLI_DOWNLOAD_HOOKS
+        if hasattr(cli_download, name)
+    ]
+    if not hooks:
+        raise AssertionError("github-copilot-sdk exposes no known CLI download hook to guard")
+    return hooks
+
+
 class AutoresearchTests(unittest.TestCase):
-    def test_sdk_1_0_9_import_and_session_construction_needs_no_credentials_or_download(self):
+    def test_sdk_import_and_session_construction_needs_no_credentials_or_download(self):
         from copilot import CopilotClient, CopilotSession, RuntimeConnection
 
         class ControlledJsonRpcClient:
@@ -287,13 +313,26 @@ class AutoresearchTests(unittest.TestCase):
 
         rpc_client = ControlledJsonRpcClient()
 
-        with mock.patch(
-            "copilot.client._get_or_download_cli",
-            side_effect=AssertionError("SDK downloader must not run during the smoke test"),
-        ) as download_runtime, mock.patch(
-            "copilot.client.subprocess.Popen",
-            side_effect=AssertionError("SDK subprocess spawning must not run during the smoke test"),
-        ) as spawn_runtime:
+        with ExitStack() as stack:
+            download_hooks = [
+                stack.enter_context(
+                    mock.patch(
+                        target,
+                        side_effect=AssertionError(
+                            "SDK downloader must not run during the smoke test"
+                        ),
+                    )
+                )
+                for target in _installed_cli_download_hooks()
+            ]
+            spawn_runtime = stack.enter_context(
+                mock.patch(
+                    "copilot.client.subprocess.Popen",
+                    side_effect=AssertionError(
+                        "SDK subprocess spawning must not run during the smoke test"
+                    ),
+                )
+            )
             connection = RuntimeConnection.for_stdio(path="/controlled/no-io/copilot-runtime")
             client = copilot_sdk_module.create_copilot_client(
                 env={"PATH": os.environ.get("PATH", "")},
@@ -317,7 +356,8 @@ class AutoresearchTests(unittest.TestCase):
                 )
 
             session = asyncio.run(create_session())
-            download_runtime.assert_not_called()
+            for download_hook in download_hooks:
+                download_hook.assert_not_called()
             spawn_runtime.assert_not_called()
 
         self.assertIsInstance(client, CopilotClient)
@@ -329,9 +369,36 @@ class AutoresearchTests(unittest.TestCase):
         method, payload = rpc_client.requests[0]
         self.assertEqual(method, "session.create")
         self.assertEqual(payload["excludedTools"], ["web_fetch"])
-        self.assertEqual(payload["toolFilterPrecedence"], "excluded")
+        # 1.0.9 always sends this. 1.0.33 omits it; the SDK documents "excluded"
+        # as the default for new sessions when toolFilterPrecedence is absent.
+        self.assertEqual(payload.get("toolFilterPrecedence", "excluded"), "excluded")
         self.assertIs(payload["requestPermission"], True)
         self.assertIs(payload["hooks"], True)
+
+    def test_unspecified_runtime_path_enters_the_installed_cli_download_hook(self):
+        from copilot import CopilotClient, RuntimeConnection
+
+        with ExitStack() as stack:
+            download_hooks = [
+                stack.enter_context(
+                    mock.patch(
+                        target,
+                        side_effect=AssertionError(
+                            "SDK downloader must not run during the smoke test"
+                        ),
+                    )
+                )
+                for target in _installed_cli_download_hooks()
+            ]
+            with self.assertRaises(AssertionError):
+                CopilotClient(
+                    connection=RuntimeConnection.for_stdio(),
+                    env={"PATH": os.environ.get("PATH", "")},
+                    github_token=None,
+                    use_logged_in_user=False,
+                )
+
+        self.assertTrue(any(hook.called for hook in download_hooks))
 
     def test_permission_handler_returns_sdk_1_0_9_decisions_and_rejects_web(self):
         from copilot.generated.rpc import PermissionDecisionApproveOnce, PermissionDecisionReject
