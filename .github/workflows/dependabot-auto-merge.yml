@@ -69,10 +69,11 @@ jobs:
       # Grouped majors are recognised by their group name in the branch (see
       # dependabot.yml); any other PR by a "from X to Y" with a different major
       # in its title or body (grouped security PRs list each member as
-      # "Updates `pkg` from X to Y" or a table row). Non-Actions majors are
-      # never armed: required review-gate fails them, so an armed major would
-      # sit open. GitHub Actions majors are the exception, decided below from
-      # dependabot/fetch-metadata.
+      # "Updates `pkg` from X to Y" or a table row). The ecosystem is that
+      # same head ref's Dependabot segment (github_actions, not the
+      # dependabot.yml key github-actions). No third-party action: the Actions
+      # allowlist does not permit dependabot/*, and a disallowed uses: fails
+      # job setup for every Dependabot pull request.
       - name: Detect major updates
         id: major
         if: steps.scope.outputs.eligible == 'true'
@@ -82,50 +83,60 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           set -euo pipefail
-          major=false
-          case "$HEAD_REF" in
-            *major-updates*) major=true ;;
-          esac
-          # "from 1.2.3 to 2.0.0" (or "from 4 to 5" for action tags) in prose,
-          # "| `1.2.3` | `2.0.0` |" in group tables; only the majors are compared.
-          pairs="$(printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" \
-            | grep -oE 'from `?v?[0-9]+[^ `]*`? to `?v?[0-9]+|\| `v?[0-9]+[^`]*` \| `v?[0-9]+' || true)"
-          while IFS= read -r pair; do
-            [ -n "$pair" ] || continue
-            if [[ "$pair" =~ ^(from|\|)\ \`?v?([0-9]+)[^\ ]*\ (to|\|)\ \`?v?([0-9]+)$ ]] \
-              && [ "${BASH_REMATCH[2]}" != "${BASH_REMATCH[4]}" ]; then
-              major=true
+          # BEGIN dependabot-update-signals
+          # Prints major, ecosystem, and update_type. update_type is
+          # version-update:semver-major when a from-X-to-Y pair changes the
+          # major, and empty when that evidence is missing. A major-updates
+          # branch with no such pair stays major with an empty update type.
+          dependabot_update_signals() {
+            local head_ref="$1"
+            local title="$2"
+            local body="$3"
+            local major=false
+            local ecosystem=""
+            local update_type=""
+            local pairs pair
+            case "$head_ref" in
+              *major-updates*) major=true ;;
+            esac
+            if [[ "$head_ref" =~ ^dependabot/([A-Za-z0-9_-]+)/[^/].* ]]; then
+              ecosystem="${BASH_REMATCH[1]}"
             fi
-          done <<<"$pairs"
-          echo "major=$major" >> "$GITHUB_OUTPUT"
-
-      # Only majors need metadata. Routine updates stay on the heuristic above,
-      # so a metadata failure cannot block a patch or minor that already qualifies.
-      # package-ecosystem is the branch segment (github_actions, not the
-      # dependabot.yml key github-actions). update-type is the highest semver
-      # change in the pull request. Default commit verification stays on.
-      - name: Fetch Dependabot metadata
-        id: meta
-        if: steps.scope.outputs.eligible == 'true' && steps.major.outputs.major == 'true'
-        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
-        with:
-          github-token: ${{ github.token }}
+            # "from 1.2.3 to 2.0.0" (or "from 4 to 5" for action tags) in prose,
+            # "| `1.2.3` | `2.0.0` |" in group tables; only the majors are compared.
+            pairs="$(printf '%s\n%s\n' "$title" "$body" \
+              | grep -oE 'from `?v?[0-9]+[^ `]*`? to `?v?[0-9]+|\| `v?[0-9]+[^`]*` \| `v?[0-9]+' || true)"
+            while IFS= read -r pair; do
+              [ -n "$pair" ] || continue
+              if [[ "$pair" =~ ^(from|\|)\ \`?v?([0-9]+)[^\ ]*\ (to|\|)\ \`?v?([0-9]+)$ ]] \
+                && [ "${BASH_REMATCH[2]}" != "${BASH_REMATCH[4]}" ]; then
+                major=true
+                update_type="version-update:semver-major"
+              fi
+            done <<<"$pairs"
+            printf '%s\n' "$major" "$ecosystem" "$update_type"
+          }
+          # END dependabot-update-signals
+          mapfile -t signals < <(dependabot_update_signals "$HEAD_REF" "$PR_TITLE" "$PR_BODY")
+          echo "major=${signals[0]}" >> "$GITHUB_OUTPUT"
+          echo "ecosystem=${signals[1]}" >> "$GITHUB_OUTPUT"
+          echo "update_type=${signals[2]}" >> "$GITHUB_OUTPUT"
 
       - name: Decide whether to arm auto-merge
         id: update_type
-        if: always() && steps.scope.outcome == 'success' && steps.scope.outputs.eligible == 'true' && steps.major.outcome == 'success' && (steps.major.outputs.major != 'true' || steps.meta.outcome == 'success' || steps.meta.outcome == 'failure')
+        if: steps.scope.outputs.eligible == 'true' && steps.major.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           MAJOR: ${{ steps.major.outputs.major }}
-          META_OUTCOME: ${{ steps.meta.outcome }}
-          PACKAGE_ECOSYSTEM: ${{ steps.meta.outputs.package-ecosystem }}
-          UPDATE_TYPE: ${{ steps.meta.outputs.update-type }}
+          PACKAGE_ECOSYSTEM: ${{ steps.major.outputs.ecosystem }}
+          UPDATE_TYPE: ${{ steps.major.outputs.update_type }}
         run: |
           set -euo pipefail
           # BEGIN dependabot-merge-decision
-          # major is the branch/title/body heuristic. ecosystem and update_type
-          # are dependabot/fetch-metadata outputs. Prints "merge" or "hold".
+          # major is the branch/title/body heuristic. ecosystem is the
+          # Dependabot head-ref segment. update_type is the from-X-to-Y major
+          # result, or empty when that evidence is missing. Prints "merge" or "hold".
           dependabot_merge_decision() {
             local major="$1"
             local ecosystem="$2"
@@ -145,17 +156,10 @@ jobs:
             printf '%s\n' hold
           }
           # END dependabot-merge-decision
-          # A detected major with no successful metadata read is not an Actions
-          # exemption. Hold it instead of trusting an empty ecosystem.
-          if [ "$MAJOR" = "true" ] && [ "$META_OUTCOME" != "success" ]; then
-            decision=hold
-            echo "Not arming auto-merge: major update and Dependabot metadata was ${META_OUTCOME}."
-          else
-            decision="$(dependabot_merge_decision "$MAJOR" "$PACKAGE_ECOSYSTEM" "$UPDATE_TYPE")"
-          fi
+          decision="$(dependabot_merge_decision "$MAJOR" "$PACKAGE_ECOSYSTEM" "$UPDATE_TYPE")"
           echo "decision=$decision" >> "$GITHUB_OUTPUT"
           if [ "$decision" = "hold" ]; then
-            echo "Not arming auto-merge: major version update outside GitHub Actions (ecosystem=${PACKAGE_ECOSYSTEM:-unset}, update-type=${UPDATE_TYPE:-unset})."
+            echo "Not arming auto-merge: major update held (ecosystem=${PACKAGE_ECOSYSTEM:-unset}, update-type=${UPDATE_TYPE:-unset})."
             gh label create dependency-major --repo "$GITHUB_REPOSITORY" --color FBCA04 \
               --description "Major dependency update; needs a human" 2>/dev/null || true
             gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --add-label dependency-major
@@ -168,7 +172,7 @@ jobs:
           fi
 
       - name: Enable auto-merge
-        if: steps.scope.outputs.eligible == 'true' && steps.update_type.outputs.decision == 'merge' && steps.meta.outcome != 'failure'
+        if: steps.scope.outputs.eligible == 'true' && steps.update_type.outputs.decision == 'merge'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -176,8 +180,7 @@ jobs:
 
       # Auto-merge enabled on an earlier push stays armed unless it is revoked
       # when a later push takes the pull request out of scope or turns it into
-      # a held major. always() still runs this after a metadata failure, which
-      # holds a detected major instead of leaving an earlier arm in place.
+      # a held major.
       - name: Disable auto-merge
         if: always() && steps.scope.outcome == 'success' && (steps.scope.outputs.eligible != 'true' || steps.update_type.outputs.decision == 'hold')
         env:

@@ -23,8 +23,8 @@ updates:
           - minor
           - patch
       # Majors arrive as one PR per week and stay held for review. The
-      # auto-merge exception is only fetch-metadata package-ecosystem
-      # github_actions, so this group is never armed.
+      # auto-merge exception is only a head ref segment of github_actions,
+      # so this group is never armed.
       site-major-updates:
         applies-to: version-updates
         patterns:
@@ -55,9 +55,9 @@ updates:
         update-types:
           - minor
           - patch
-      # Armed, including semver-major, when fetch-metadata reports
-      # package-ecosystem github_actions and a semver update-type. Required
-      # checks still have to pass; nothing here bypasses branch protection.
+      # Armed when the head ref segment is github_actions and the title or
+      # body shows a major version pair. Required checks still have to pass;
+      # nothing here bypasses branch protection.
       actions-major-updates:
         patterns:
           - "*"

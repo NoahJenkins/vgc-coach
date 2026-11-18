@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shlex
 import subprocess
 import unittest
@@ -18,6 +19,45 @@ def load_yaml(path: str) -> dict:
 def workflow_triggers(workflow: dict) -> dict:
     # PyYAML 1.1 treats the unquoted GitHub Actions key `on` as a boolean.
     return workflow.get("on", workflow.get(True, {}))
+
+
+def marked_region(run: str, begin: str, end: str) -> str:
+    start = run.index(begin)
+    stop = run.index(end)
+    return run[start:stop]
+
+
+def iter_uses(node):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "uses" and isinstance(value, str):
+                yield value.strip()
+            else:
+                yield from iter_uses(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from iter_uses(item)
+
+
+# actions/* and github/* are the GitHub-owned orgs. The only other allowed
+# action is the pinned shared review workflow. A 40-char sha is required there
+# because a tag would not match the repo's NoahJenkins/.github@* pattern.
+ALLOWED_WORKFLOW_USES = re.compile(
+    r"^(?:actions/\S+|github/\S+|NoahJenkins/\.github@[0-9a-f]{40})$"
+)
+REVIEW_GATE_PIN = (
+    "NoahJenkins/.github@ae1d7fb9e465587524db10332f390d6abe1c7d37 # v1.1.0"
+)
+
+
+def run_bash(script: str, *args: str) -> str:
+    completed = subprocess.run(
+        ["bash", "-c", script, "decision", *args],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return completed.stdout
 
 
 class DependabotWorkflowPolicyTests(unittest.TestCase):
@@ -102,50 +142,37 @@ class DependabotWorkflowPolicyTests(unittest.TestCase):
         steps = workflow["jobs"]["enable-auto-merge"]["steps"]
         by_name = {step["name"]: step for step in steps}
         detect = by_name["Detect major updates"]
-        meta = by_name["Fetch Dependabot metadata"]
         decide = by_name["Decide whether to arm auto-merge"]
         enable = by_name["Enable auto-merge"]
         disable = by_name["Disable auto-merge"]
 
         self.assertIn("major-updates", detect["run"])
         self.assertNotIn("dependency-major", detect["run"])
-        self.assertEqual(
-            meta["uses"],
-            "dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98",
-        )
+        self.assertNotIn("Fetch Dependabot metadata", by_name)
         workflow_text = (REPO_ROOT / ".github/workflows/dependabot-auto-merge.yml").read_text()
+        self.assertNotIn("fetch-metadata", workflow_text)
+        self.assertNotIn("steps.meta", workflow_text)
+        for step in steps:
+            self.assertNotIn("uses", step)
         self.assertIn(
-            "dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0",
-            workflow_text,
+            'dependabot_update_signals "$HEAD_REF" "$PR_TITLE" "$PR_BODY"',
+            detect["run"],
         )
-        self.assertEqual(
-            meta["if"],
-            "steps.scope.outputs.eligible == 'true' && steps.major.outputs.major == 'true'",
-        )
-        self.assertEqual(meta["with"]["github-token"], "${{ github.token }}")
-        self.assertNotIn("skip-verification", meta["with"])
-        self.assertNotIn("skip-commit-verification", meta["with"])
-        self.assertNotIn("alert-lookup", meta["with"])
+        self.assertIn('echo "ecosystem=${signals[1]}"', detect["run"])
+        self.assertIn('echo "update_type=${signals[2]}"', detect["run"])
         self.assertEqual(
             decide["env"]["PACKAGE_ECOSYSTEM"],
-            "${{ steps.meta.outputs.package-ecosystem }}",
+            "${{ steps.major.outputs.ecosystem }}",
         )
         self.assertEqual(
             decide["env"]["UPDATE_TYPE"],
-            "${{ steps.meta.outputs.update-type }}",
+            "${{ steps.major.outputs.update_type }}",
         )
         self.assertEqual(
             decide["if"],
-            "always() && steps.scope.outcome == 'success' && steps.scope.outputs.eligible == 'true' && steps.major.outcome == 'success' && (steps.major.outputs.major != 'true' || steps.meta.outcome == 'success' || steps.meta.outcome == 'failure')",
+            "steps.scope.outputs.eligible == 'true' && steps.major.outcome == 'success'",
         )
-        self.assertIn(
-            '[ "$MAJOR" = "true" ] && [ "$META_OUTCOME" != "success" ]',
-            decide["run"],
-        )
-        self.assertLess(
-            decide["run"].index('"$META_OUTCOME" != "success"'),
-            decide["run"].index('dependabot_merge_decision "$MAJOR"'),
-        )
+        self.assertNotIn("META_OUTCOME", decide["run"])
         self.assertIn(
             'dependabot_merge_decision "$MAJOR" "$PACKAGE_ECOSYSTEM" "$UPDATE_TYPE"',
             decide["run"],
@@ -160,7 +187,7 @@ class DependabotWorkflowPolicyTests(unittest.TestCase):
         )
         self.assertEqual(
             enable["if"],
-            "steps.scope.outputs.eligible == 'true' && steps.update_type.outputs.decision == 'merge' && steps.meta.outcome != 'failure'",
+            "steps.scope.outputs.eligible == 'true' && steps.update_type.outputs.decision == 'merge'",
         )
         self.assertIn("always()", disable["if"])
         self.assertIn("steps.scope.outcome == 'success'", disable["if"])
@@ -178,10 +205,12 @@ class DependabotWorkflowPolicyTests(unittest.TestCase):
             for step in steps
             if step["name"] == "Decide whether to arm auto-merge"
         )
-        start = run.index("# BEGIN dependabot-merge-decision")
-        end = run.index("# END dependabot-merge-decision")
         script = (
-            run[start:end]
+            marked_region(
+                run,
+                "# BEGIN dependabot-merge-decision",
+                "# END dependabot-merge-decision",
+            )
             + '\ndependabot_merge_decision "$1" "$2" "$3"\n'
         )
         cases = (
@@ -205,13 +234,10 @@ class DependabotWorkflowPolicyTests(unittest.TestCase):
         )
         for major, ecosystem, update_type, expected in cases:
             with self.subTest(major=major, ecosystem=ecosystem, update_type=update_type):
-                completed = subprocess.run(
-                    ["bash", "-c", script, "decision", major, ecosystem, update_type],
-                    check=True,
-                    capture_output=True,
-                    text=True,
+                self.assertEqual(
+                    run_bash(script, major, ecosystem, update_type).strip(),
+                    expected,
                 )
-                self.assertEqual(completed.stdout.strip(), expected)
 
     def test_auto_merge_limits_changed_files_to_dependency_manifests(self):
         workflow = load_yaml(".github/workflows/dependabot-auto-merge.yml")
@@ -226,7 +252,7 @@ class DependabotWorkflowPolicyTests(unittest.TestCase):
         self.assertIn("eligible=false", scope_step["run"])
         self.assertEqual(
             next(step for step in steps if step["name"] == "Enable auto-merge")["if"],
-            "steps.scope.outputs.eligible == 'true' && steps.update_type.outputs.decision == 'merge' && steps.meta.outcome != 'failure'",
+            "steps.scope.outputs.eligible == 'true' && steps.update_type.outputs.decision == 'merge'",
         )
 
     def test_auto_merge_requires_every_commit_to_come_from_dependabot(self):
@@ -289,6 +315,180 @@ class DependabotWorkflowPolicyTests(unittest.TestCase):
                 self.assertNotIn("paths", pull_request)
                 self.assertNotIn("paths-ignore", pull_request)
                 self.assertTrue(workflow["concurrency"]["cancel-in-progress"])
+
+    def test_update_signals_use_head_ref_and_major_version_pairs(self):
+        workflow = load_yaml(".github/workflows/dependabot-auto-merge.yml")
+        steps = workflow["jobs"]["enable-auto-merge"]["steps"]
+        by_name = {step["name"]: step for step in steps}
+        signals_script = (
+            marked_region(
+                by_name["Detect major updates"]["run"],
+                "# BEGIN dependabot-update-signals",
+                "# END dependabot-update-signals",
+            )
+            + '\ndependabot_update_signals "$1" "$2" "$3"\n'
+        )
+        decision_script = (
+            marked_region(
+                by_name["Decide whether to arm auto-merge"]["run"],
+                "# BEGIN dependabot-merge-decision",
+                "# END dependabot-merge-decision",
+            )
+            + '\ndependabot_merge_decision "$1" "$2" "$3"\n'
+        )
+        # Release-note noise includes other majors; the PR's own pair still wins.
+        actions_group_body = "\n".join(
+            (
+                "Updates `actions/checkout` from 6.0.2 to 7.0.1",
+                "Updates `actions/setup-python` from 6.2.0 to 7.1.0",
+                "Bump flatted from 3.3.1 to 3.4.2",
+                "Bump docker/login-action from 3.3.0 to 4.2.0",
+            )
+        )
+        cases = (
+            (
+                "dependabot/github_actions/actions-major-updates-7f603b356f",
+                "ci: bump the actions-major-updates group",
+                actions_group_body,
+                "merge",
+            ),
+            (
+                "dependabot/github_actions/actions/checkout-7.0.1",
+                "ci: bump actions/checkout from 6.0.2 to 7.0.1",
+                "",
+                "merge",
+            ),
+            (
+                "dependabot/github_actions/actions/checkout-5",
+                "ci: bump actions/checkout from v4 to v5",
+                "",
+                "merge",
+            ),
+            (
+                "dependabot/github_actions/actions/checkout-5",
+                "Bump `actions/checkout` from `4` to `5`",
+                "",
+                "merge",
+            ),
+            (
+                "dependabot/github_actions/actions/checkout-6.0.3",
+                "ci: bump actions/checkout from 6.0.2 to 6.0.3",
+                "",
+                "merge",
+            ),
+            (
+                "dependabot/npm_and_yarn/site/next-15.1.0",
+                "deps: bump next from 15.0.0 to 15.1.0",
+                "",
+                "merge",
+            ),
+            (
+                "dependabot/npm_and_yarn/site/site-major-updates-abc",
+                "deps: bump the site-major-updates group",
+                "Updates `next` from 14.2.5 to 15.0.0",
+                "hold",
+            ),
+            (
+                "dependabot/pip/tools/python-major-updates-abc",
+                "deps: bump PyYAML from 6.0.3 to 7.0.0",
+                "",
+                "hold",
+            ),
+            (
+                "dependabot/docker/Dockerfile/nginx-2",
+                "build: bump nginx from 1.27 to 2.0",
+                "",
+                "hold",
+            ),
+            (
+                "dependabot/npm_and_yarn/site/site-major-updates-abc",
+                "deps",
+                "| `1.2.3` | `2.0.0` |",
+                "hold",
+            ),
+            (
+                "dependabot/github-actions/actions/checkout-5",
+                "ci: bump",
+                "from 4 to 5",
+                "hold",
+            ),
+            (
+                "dependabot/GITHUB_ACTIONS/actions/checkout-5",
+                "ci: bump",
+                "from 4 to 5",
+                "hold",
+            ),
+            (
+                "dependabot/github_actions",
+                "ci: bump",
+                "from 4 to 5",
+                "hold",
+            ),
+            (
+                "feature/github_actions-major-updates",
+                "ci: bump",
+                "from 4 to 5",
+                "hold",
+            ),
+            (
+                "dependabot/github_actions/actions-major-updates-abc",
+                "ci: bump the actions-major-updates group",
+                "No version pair in this body",
+                "hold",
+            ),
+            (
+                "dependabot/github_actions/actions-major-updates-abc",
+                "ci: bump",
+                "Updates `actions/checkout` from 6.0.2 to 6.0.3",
+                "hold",
+            ),
+            (
+                "",
+                "",
+                "",
+                "merge",
+            ),
+        )
+        for head_ref, title, body, expected in cases:
+            with self.subTest(head_ref=head_ref, title=title):
+                lines = run_bash(signals_script, head_ref, title, body).splitlines()
+                self.assertEqual(len(lines), 3, lines)
+                decision = run_bash(decision_script, *lines).strip()
+                self.assertEqual(decision, expected)
+
+    def test_workflow_uses_stay_on_the_actions_allowlist(self):
+        workflows = sorted((REPO_ROOT / ".github/workflows").glob("*.yml"))
+        self.assertGreaterEqual(len(workflows), 1)
+        seen = []
+        for path in workflows:
+            workflow = load_yaml(path.relative_to(REPO_ROOT).as_posix())
+            for uses in iter_uses(workflow):
+                seen.append((path.name, uses))
+                self.assertRegex(uses, ALLOWED_WORKFLOW_USES)
+        self.assertGreaterEqual(len(seen), 1)
+        self.assertRegex("actions/checkout@v6", ALLOWED_WORKFLOW_USES)
+        self.assertRegex(
+            "github/codeql-action/init@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            ALLOWED_WORKFLOW_USES,
+        )
+        self.assertRegex(
+            "NoahJenkins/.github@" + "a" * 40,
+            ALLOWED_WORKFLOW_USES,
+        )
+        for rejected in (
+            "dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98",
+            "NoahJenkins/.github@v1.1.0",
+            "NoahJenkins/.github@" + "a" * 39,
+            "NoahJenkins/.github@" + "a" * 41,
+            "NoahJenkins/.github/review@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "NoahJenkins/other@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "./.github/actions/local",
+            "docker://alpine:3.20",
+        ):
+            with self.subTest(rejected=rejected):
+                self.assertNotRegex(rejected, ALLOWED_WORKFLOW_USES)
+        review_gate = (REPO_ROOT / ".github/workflows/review-gate.yml").read_text()
+        self.assertEqual(review_gate.count(REVIEW_GATE_PIN), 2)
 
 
 if __name__ == "__main__":
