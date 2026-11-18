@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shlex
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -96,14 +97,121 @@ class DependabotWorkflowPolicyTests(unittest.TestCase):
         self.assertNotIn("--admin", merge_command)
         self.assertNotIn("gh pr close", commands)
 
-    def test_auto_merge_is_not_armed_for_major_updates(self):
+    def test_auto_merge_holds_non_actions_majors_and_arms_actions_majors(self):
         workflow = load_yaml(".github/workflows/dependabot-auto-merge.yml")
         steps = workflow["jobs"]["enable-auto-merge"]["steps"]
         by_name = {step["name"]: step for step in steps}
+        detect = by_name["Detect major updates"]
+        meta = by_name["Fetch Dependabot metadata"]
+        decide = by_name["Decide whether to arm auto-merge"]
+        enable = by_name["Enable auto-merge"]
+        disable = by_name["Disable auto-merge"]
 
-        self.assertIn("major-updates", by_name["Skip major updates"]["run"])
-        self.assertIn("steps.update_type.outputs.major != 'true'", by_name["Enable auto-merge"]["if"])
-        self.assertIn("steps.update_type.outputs.major == 'true'", by_name["Disable auto-merge"]["if"])
+        self.assertIn("major-updates", detect["run"])
+        self.assertNotIn("dependency-major", detect["run"])
+        self.assertEqual(
+            meta["uses"],
+            "dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98",
+        )
+        workflow_text = (REPO_ROOT / ".github/workflows/dependabot-auto-merge.yml").read_text()
+        self.assertIn(
+            "dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0",
+            workflow_text,
+        )
+        self.assertEqual(
+            meta["if"],
+            "steps.scope.outputs.eligible == 'true' && steps.major.outputs.major == 'true'",
+        )
+        self.assertEqual(meta["with"]["github-token"], "${{ github.token }}")
+        self.assertNotIn("skip-verification", meta["with"])
+        self.assertNotIn("skip-commit-verification", meta["with"])
+        self.assertNotIn("alert-lookup", meta["with"])
+        self.assertEqual(
+            decide["env"]["PACKAGE_ECOSYSTEM"],
+            "${{ steps.meta.outputs.package-ecosystem }}",
+        )
+        self.assertEqual(
+            decide["env"]["UPDATE_TYPE"],
+            "${{ steps.meta.outputs.update-type }}",
+        )
+        self.assertEqual(
+            decide["if"],
+            "always() && steps.scope.outcome == 'success' && steps.scope.outputs.eligible == 'true' && steps.major.outcome == 'success' && (steps.major.outputs.major != 'true' || steps.meta.outcome == 'success' || steps.meta.outcome == 'failure')",
+        )
+        self.assertIn(
+            '[ "$MAJOR" = "true" ] && [ "$META_OUTCOME" != "success" ]',
+            decide["run"],
+        )
+        self.assertLess(
+            decide["run"].index('"$META_OUTCOME" != "success"'),
+            decide["run"].index('dependabot_merge_decision "$MAJOR"'),
+        )
+        self.assertIn(
+            'dependabot_merge_decision "$MAJOR" "$PACKAGE_ECOSYSTEM" "$UPDATE_TYPE"',
+            decide["run"],
+        )
+        self.assertLess(
+            decide["run"].index('"$decision" = "hold"'),
+            decide["run"].index("--add-label dependency-major"),
+        )
+        self.assertLess(
+            decide["run"].index("--add-label dependency-major"),
+            decide["run"].index("--remove-label dependency-major"),
+        )
+        self.assertEqual(
+            enable["if"],
+            "steps.scope.outputs.eligible == 'true' && steps.update_type.outputs.decision == 'merge' && steps.meta.outcome != 'failure'",
+        )
+        self.assertIn("always()", disable["if"])
+        self.assertIn("steps.scope.outcome == 'success'", disable["if"])
+        self.assertIn("steps.scope.outputs.eligible != 'true'", disable["if"])
+        self.assertIn("steps.update_type.outputs.decision == 'hold'", disable["if"])
+        self.assertNotIn("outputs.major", enable["if"])
+        self.assertNotIn("--admin", enable["run"])
+        self.assertNotIn("--admin", disable["run"])
+
+    def test_merge_decision_arms_actions_majors_and_holds_every_other_major(self):
+        workflow = load_yaml(".github/workflows/dependabot-auto-merge.yml")
+        steps = workflow["jobs"]["enable-auto-merge"]["steps"]
+        run = next(
+            step["run"]
+            for step in steps
+            if step["name"] == "Decide whether to arm auto-merge"
+        )
+        start = run.index("# BEGIN dependabot-merge-decision")
+        end = run.index("# END dependabot-merge-decision")
+        script = (
+            run[start:end]
+            + '\ndependabot_merge_decision "$1" "$2" "$3"\n'
+        )
+        cases = (
+            ("true", "github_actions", "version-update:semver-major", "merge"),
+            ("true", "github_actions", "version-update:semver-minor", "merge"),
+            ("true", "github_actions", "version-update:semver-patch", "merge"),
+            ("false", "github_actions", "version-update:semver-major", "merge"),
+            ("false", "github_actions", "", "merge"),
+            ("true", "github_actions", "", "hold"),
+            ("true", "github_actions", "security-update", "hold"),
+            ("true", "github-actions", "version-update:semver-major", "hold"),
+            ("true", "GITHUB_ACTIONS", "version-update:semver-major", "hold"),
+            ("true", "npm", "version-update:semver-major", "hold"),
+            ("true", "pip", "version-update:semver-major", "hold"),
+            ("true", "docker", "version-update:semver-major", "hold"),
+            ("true", "npm_and_yarn", "version-update:semver-major", "hold"),
+            ("true", "", "version-update:semver-major", "hold"),
+            ("false", "npm", "version-update:semver-major", "merge"),
+            ("false", "pip", "", "merge"),
+            ("false", "docker", "version-update:semver-major", "merge"),
+        )
+        for major, ecosystem, update_type, expected in cases:
+            with self.subTest(major=major, ecosystem=ecosystem, update_type=update_type):
+                completed = subprocess.run(
+                    ["bash", "-c", script, "decision", major, ecosystem, update_type],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(completed.stdout.strip(), expected)
 
     def test_auto_merge_limits_changed_files_to_dependency_manifests(self):
         workflow = load_yaml(".github/workflows/dependabot-auto-merge.yml")
@@ -118,7 +226,7 @@ class DependabotWorkflowPolicyTests(unittest.TestCase):
         self.assertIn("eligible=false", scope_step["run"])
         self.assertEqual(
             next(step for step in steps if step["name"] == "Enable auto-merge")["if"],
-            "steps.scope.outputs.eligible == 'true' && steps.update_type.outputs.major != 'true'",
+            "steps.scope.outputs.eligible == 'true' && steps.update_type.outputs.decision == 'merge' && steps.meta.outcome != 'failure'",
         )
 
     def test_auto_merge_requires_every_commit_to_come_from_dependabot(self):

@@ -66,17 +66,17 @@ jobs:
 
           echo "eligible=true" >> "$GITHUB_OUTPUT"
 
-      # Majors are never armed: required review-gate fails them, so an armed
-      # major would sit open forever. Grouped majors are recognised by their
-      # group name in the branch (see dependabot.yml); any other PR by a
-      # "from X to Y" with a different major in its title or body (grouped
-      # security PRs list each member as "Updates `pkg` from X to Y" or a table row).
-      - name: Skip major updates
-        id: update_type
+      # Grouped majors are recognised by their group name in the branch (see
+      # dependabot.yml); any other PR by a "from X to Y" with a different major
+      # in its title or body (grouped security PRs list each member as
+      # "Updates `pkg` from X to Y" or a table row). Non-Actions majors are
+      # never armed: required review-gate fails them, so an armed major would
+      # sit open. GitHub Actions majors are the exception, decided below from
+      # dependabot/fetch-metadata.
+      - name: Detect major updates
+        id: major
         if: steps.scope.outputs.eligible == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
@@ -98,24 +98,88 @@ jobs:
             fi
           done <<<"$pairs"
           echo "major=$major" >> "$GITHUB_OUTPUT"
-          if [ "$major" = "true" ]; then
-            echo "Not arming auto-merge: major version update."
+
+      # Only majors need metadata. Routine updates stay on the heuristic above,
+      # so a metadata failure cannot block a patch or minor that already qualifies.
+      # package-ecosystem is the branch segment (github_actions, not the
+      # dependabot.yml key github-actions). update-type is the highest semver
+      # change in the pull request. Default commit verification stays on.
+      - name: Fetch Dependabot metadata
+        id: meta
+        if: steps.scope.outputs.eligible == 'true' && steps.major.outputs.major == 'true'
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ github.token }}
+
+      - name: Decide whether to arm auto-merge
+        id: update_type
+        if: always() && steps.scope.outcome == 'success' && steps.scope.outputs.eligible == 'true' && steps.major.outcome == 'success' && (steps.major.outputs.major != 'true' || steps.meta.outcome == 'success' || steps.meta.outcome == 'failure')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          MAJOR: ${{ steps.major.outputs.major }}
+          META_OUTCOME: ${{ steps.meta.outcome }}
+          PACKAGE_ECOSYSTEM: ${{ steps.meta.outputs.package-ecosystem }}
+          UPDATE_TYPE: ${{ steps.meta.outputs.update-type }}
+        run: |
+          set -euo pipefail
+          # BEGIN dependabot-merge-decision
+          # major is the branch/title/body heuristic. ecosystem and update_type
+          # are dependabot/fetch-metadata outputs. Prints "merge" or "hold".
+          dependabot_merge_decision() {
+            local major="$1"
+            local ecosystem="$2"
+            local update_type="$3"
+            if [ "$major" != "true" ]; then
+              printf '%s\n' merge
+              return 0
+            fi
+            if [ "$ecosystem" = "github_actions" ]; then
+              case "$update_type" in
+                version-update:semver-major|version-update:semver-minor|version-update:semver-patch)
+                  printf '%s\n' merge
+                  return 0
+                  ;;
+              esac
+            fi
+            printf '%s\n' hold
+          }
+          # END dependabot-merge-decision
+          # A detected major with no successful metadata read is not an Actions
+          # exemption. Hold it instead of trusting an empty ecosystem.
+          if [ "$MAJOR" = "true" ] && [ "$META_OUTCOME" != "success" ]; then
+            decision=hold
+            echo "Not arming auto-merge: major update and Dependabot metadata was ${META_OUTCOME}."
+          else
+            decision="$(dependabot_merge_decision "$MAJOR" "$PACKAGE_ECOSYSTEM" "$UPDATE_TYPE")"
+          fi
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+          if [ "$decision" = "hold" ]; then
+            echo "Not arming auto-merge: major version update outside GitHub Actions (ecosystem=${PACKAGE_ECOSYSTEM:-unset}, update-type=${UPDATE_TYPE:-unset})."
             gh label create dependency-major --repo "$GITHUB_REPOSITORY" --color FBCA04 \
               --description "Major dependency update; needs a human" 2>/dev/null || true
             gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --add-label dependency-major
+          elif [ "$MAJOR" = "true" ]; then
+            echo "Arming auto-merge for GitHub Actions ${UPDATE_TYPE}. Required checks still gate the merge."
+            has_label="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json labels --jq 'any(.labels[]; .name == "dependency-major")')"
+            if [ "$has_label" = "true" ]; then
+              gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --remove-label dependency-major
+            fi
           fi
 
       - name: Enable auto-merge
-        if: steps.scope.outputs.eligible == 'true' && steps.update_type.outputs.major != 'true'
+        if: steps.scope.outputs.eligible == 'true' && steps.update_type.outputs.decision == 'merge' && steps.meta.outcome != 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash
 
       # Auto-merge enabled on an earlier push stays armed unless it is revoked
-      # when a later push takes the pull request out of scope.
+      # when a later push takes the pull request out of scope or turns it into
+      # a held major. always() still runs this after a metadata failure, which
+      # holds a detected major instead of leaving an earlier arm in place.
       - name: Disable auto-merge
-        if: steps.scope.outputs.eligible != 'true' || steps.update_type.outputs.major == 'true'
+        if: always() && steps.scope.outcome == 'success' && (steps.scope.outputs.eligible != 'true' || steps.update_type.outputs.decision == 'hold')
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
