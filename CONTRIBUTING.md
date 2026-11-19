@@ -50,6 +50,7 @@ pnpm --dir site install --frozen-lockfile
 - Do not invent legality, meta, usage, matchup, or calc facts.
 - When current-format claims are involved, prefer official rules sources first and label inference clearly.
 - When the official regulation set changes, follow [the regulation transition runbook](./docs/maintenance/regulation-transition.md) in a dedicated pull request. The `Regulation Watch` workflow detects changes every third day and opens a Copilot-drafted draft pull request for review.
+- Armed Dependabot pull requests that fall behind `main` are refreshed by the `Dependabot Rebase` workflow. Create and rotate its token with the [Dependabot rebase runbook](./docs/maintenance/dependabot-rebase.md).
 
 ## Validation Expectations
 
