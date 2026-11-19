@@ -1,0 +1,221 @@
+name: Dependabot Rebase
+
+# Branch protection requires the head to be up to date with main. An armed
+# Dependabot pull request whose checks are already green becomes BEHIND when
+# main moves, and nothing else refreshes it.
+#
+# @dependabot rebase posted with GITHUB_TOKEN is ignored: github-actions[bot]
+# comments have author_association NONE (dependabot/dependabot-core#9147).
+# A push made with GITHUB_TOKEN also leaves the required checks waiting for
+# approval. DEPENDABOT_REBASE_TOKEN is a fine-grained PAT for a write user,
+# so the comment is from an account Dependabot will accept, and Dependabot
+# itself force-pushes the rebase.
+#
+# This file does not change branch protection. Until the secret exists the
+# job emits a notice and exits successfully.
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    # Weekdays at 15:17 UTC (09:17 CST / 10:17 CDT), after Dependabot's
+    # Monday 08:00 America/Chicago window. Push is the primary trigger.
+    # This run covers a BEHIND state that was not computed yet, and a
+    # secret added after the push that fell behind.
+    - cron: "17 15 * * 1-5"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: dependabot-rebase
+  cancel-in-progress: false
+
+jobs:
+  request-rebases:
+    name: request-rebases
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Request rebases for armed Dependabot pull requests that are behind
+        env:
+          DEPENDABOT_REBASE_TOKEN: ${{ secrets.DEPENDABOT_REBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          body_file=""
+          trap 'if [ -n "$body_file" ]; then rm -f "$body_file"; fi' EXIT
+          if [ -z "${DEPENDABOT_REBASE_TOKEN}" ]; then
+            echo "::notice::DEPENDABOT_REBASE_TOKEN is unset; skipping Dependabot rebases."
+            exit 0
+          fi
+          # Every later gh call uses the PAT. GITHUB_TOKEN is not granted
+          # pull-requests permission, and Dependabot would ignore it anyway.
+          export GH_TOKEN="$DEPENDABOT_REBASE_TOKEN"
+          unset DEPENDABOT_REBASE_TOKEN
+
+          # BEGIN dependabot-update-signals
+          # Prints major, ecosystem, and update_type. update_type is
+          # version-update:semver-major when a from-X-to-Y pair changes the
+          # major, and empty when that evidence is missing. A major-updates
+          # branch with no such pair stays major with an empty update type.
+          dependabot_update_signals() {
+            local head_ref="$1"
+            local title="$2"
+            local body="$3"
+            local major=false
+            local ecosystem=""
+            local update_type=""
+            local pairs pair
+            case "$head_ref" in
+              *major-updates*) major=true ;;
+            esac
+            if [[ "$head_ref" =~ ^dependabot/([A-Za-z0-9_-]+)/[^/].* ]]; then
+              ecosystem="${BASH_REMATCH[1]}"
+            fi
+            # "from 1.2.3 to 2.0.0" (or "from 4 to 5" for action tags) in prose,
+            # "| `1.2.3` | `2.0.0` |" in group tables; only the majors are compared.
+            pairs="$(printf '%s\n%s\n' "$title" "$body" \
+              | grep -oE 'from `?v?[0-9]+[^ `]*`? to `?v?[0-9]+|\| `v?[0-9]+[^`]*` \| `v?[0-9]+' || true)"
+            while IFS= read -r pair; do
+              [ -n "$pair" ] || continue
+              if [[ "$pair" =~ ^(from|\|)\ \`?v?([0-9]+)[^\ ]*\ (to|\|)\ \`?v?([0-9]+)$ ]] \
+                && [ "${BASH_REMATCH[2]}" != "${BASH_REMATCH[4]}" ]; then
+                major=true
+                update_type="version-update:semver-major"
+              fi
+            done <<<"$pairs"
+            printf '%s\n' "$major" "$ecosystem" "$update_type"
+          }
+          # END dependabot-update-signals
+
+          # BEGIN dependabot-merge-decision
+          # major is the branch/title/body heuristic. ecosystem is the
+          # Dependabot head-ref segment. update_type is the from-X-to-Y major
+          # result, or empty when that evidence is missing. Prints "merge" or "hold".
+          dependabot_merge_decision() {
+            local major="$1"
+            local ecosystem="$2"
+            local update_type="$3"
+            if [ "$major" != "true" ]; then
+              printf '%s\n' merge
+              return 0
+            fi
+            if [ "$ecosystem" = "github_actions" ]; then
+              case "$update_type" in
+                version-update:semver-major|version-update:semver-minor|version-update:semver-patch)
+                  printf '%s\n' merge
+                  return 0
+                  ;;
+              esac
+            fi
+            printf '%s\n' hold
+          }
+          # END dependabot-merge-decision
+
+          # BEGIN dependabot-rebase-request
+          # Comment line 1 is the command Dependabot parses. The marker makes
+          # a later run post at most once for this head SHA. decision is the
+          # auto-merge result ("merge" or "hold"). Prints "rebase" or "skip".
+          dependabot_rebase_comment() {
+            local head_sha="$1"
+            printf '@dependabot rebase\n\n<!-- dependabot-rebase-sha: %s -->\n' "$head_sha"
+          }
+
+          dependabot_rebase_already_requested() {
+            local head_sha="$1"
+            local comments="$2"
+            local marker="dependabot-rebase-sha: ${head_sha} -->"
+            if [[ "$comments" == *"$marker"* ]]; then
+              printf '%s\n' yes
+              return 0
+            fi
+            printf '%s\n' no
+          }
+
+          dependabot_rebase_eligibility() {
+            local author="$1"
+            local base_ref="$2"
+            local auto_merge="$3"
+            local merge_state="$4"
+            local decision="$5"
+            if [ "$author" != "dependabot[bot]" ] \
+              || [ "$base_ref" != "main" ] \
+              || [ "$auto_merge" != "true" ] \
+              || [ "$merge_state" != "BEHIND" ] \
+              || [ "$decision" != "merge" ]; then
+              printf '%s\n' skip
+              return 0
+            fi
+            printf '%s\n' rebase
+          }
+          # END dependabot-rebase-request
+
+          # Search can report mergeStateStatus UNKNOWN. Read each pull request
+          # with gh pr view, which resolves the live GraphQL state. A failed
+          # list must fail the job; an empty list is a clean no-op.
+          if ! pr_numbers_text="$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --state open \
+            --app dependabot \
+            --limit 100 \
+            --json number \
+            --jq '.[].number')"; then
+            echo "Could not list Dependabot pull requests."
+            exit 1
+          fi
+          pr_numbers=()
+          if [ -n "$pr_numbers_text" ]; then
+            mapfile -t pr_numbers <<<"$pr_numbers_text"
+          fi
+          if [ "${#pr_numbers[@]}" -eq 100 ]; then
+            echo "::warning::Dependabot pull request list hit the 100-item cap; some pull requests were not considered."
+          fi
+          if [ "${#pr_numbers[@]}" -eq 0 ]; then
+            echo "No open Dependabot pull requests against main."
+            exit 0
+          fi
+
+          for pr in "${pr_numbers[@]}"; do
+            if [[ ! "$pr" =~ ^[0-9]+$ ]]; then
+              echo "Skipping an unexpected pull request id."
+              continue
+            fi
+            json="$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json author,autoMergeRequest,mergeStateStatus,headRefOid,title,body,headRefName,baseRefName)"
+            author="$(jq -r '.author.login // ""' <<<"$json")"
+            base_ref="$(jq -r '.baseRefName // ""' <<<"$json")"
+            armed="$(jq -r 'if .autoMergeRequest == null then "false" else "true" end' <<<"$json")"
+            merge_state="$(jq -r '.mergeStateStatus // ""' <<<"$json")"
+            head_sha="$(jq -r '.headRefOid // ""' <<<"$json")"
+            head_ref="$(jq -r '.headRefName // ""' <<<"$json")"
+            pr_title="$(jq -r '.title // ""' <<<"$json")"
+            pr_body="$(jq -r '.body // ""' <<<"$json")"
+
+            mapfile -t signals < <(dependabot_update_signals "$head_ref" "$pr_title" "$pr_body")
+            decision="$(dependabot_merge_decision "${signals[0]}" "${signals[1]}" "${signals[2]}")"
+            action="$(dependabot_rebase_eligibility "$author" "$base_ref" "$armed" "$merge_state" "$decision")"
+            if [ "$action" != "rebase" ]; then
+              echo "PR #${pr}: skip (author=${author}, base=${base_ref}, auto-merge=${armed}, state=${merge_state}, decision=${decision})."
+              continue
+            fi
+            if [[ ! "$head_sha" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "PR #${pr}: head is not a full SHA; skipping."
+              continue
+            fi
+
+            comments="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${pr}/comments" --jq '.[].body // empty')"
+            already="$(dependabot_rebase_already_requested "$head_sha" "$comments")"
+            if [ "$already" = "yes" ]; then
+              echo "PR #${pr}: rebase already requested for ${head_sha}."
+              continue
+            fi
+
+            body_file="$(mktemp)"
+            dependabot_rebase_comment "$head_sha" > "$body_file"
+            gh pr comment "$pr" --repo "$GITHUB_REPOSITORY" --body-file "$body_file"
+            rm -f "$body_file"
+            echo "PR #${pr}: requested a rebase for ${head_sha}."
+          done
+

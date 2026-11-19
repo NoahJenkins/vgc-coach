@@ -50,6 +50,17 @@ REVIEW_GATE_PIN = (
 )
 
 
+def rebase_workflow() -> dict:
+    return load_yaml(".github/workflows/dependabot-rebase.yml")
+
+
+def rebase_run() -> str:
+    steps = rebase_workflow()["jobs"]["request-rebases"]["steps"]
+    if len(steps) != 1:
+        raise AssertionError(f"expected one rebase step, found {len(steps)}")
+    return steps[0]["run"]
+
+
 def run_bash(script: str, *args: str) -> str:
     completed = subprocess.run(
         ["bash", "-c", script, "decision", *args],
@@ -489,6 +500,263 @@ class DependabotWorkflowPolicyTests(unittest.TestCase):
                 self.assertNotRegex(rejected, ALLOWED_WORKFLOW_USES)
         review_gate = (REPO_ROOT / ".github/workflows/review-gate.yml").read_text()
         self.assertEqual(review_gate.count(REVIEW_GATE_PIN), 2)
+
+    def test_rebase_workflow_triggers_on_main_push_weekdays_and_dispatch(self):
+        workflow = rebase_workflow()
+        triggers = workflow_triggers(workflow)
+        cron = triggers["schedule"][0]["cron"]
+        minute, hour, day_of_month, month, day_of_week = cron.split()
+
+        self.assertEqual(set(triggers), {"push", "schedule", "workflow_dispatch"})
+        self.assertEqual(triggers["push"]["branches"], ["main"])
+        self.assertEqual(day_of_week, "1-5")
+        self.assertNotEqual(day_of_month, "1-5")
+        self.assertNotIn("pull_request", triggers)
+        self.assertNotIn("pull_request_target", triggers)
+        self.assertEqual(workflow["permissions"], {})
+        self.assertNotIn("permissions", workflow["jobs"]["request-rebases"])
+        self.assertEqual(
+            workflow["jobs"]["request-rebases"]["if"],
+            "github.ref == 'refs/heads/main'",
+        )
+        self.assertEqual(workflow["jobs"]["request-rebases"]["timeout-minutes"], 5)
+        self.assertFalse(workflow["concurrency"]["cancel-in-progress"])
+        self.assertEqual(workflow["concurrency"]["group"], "dependabot-rebase")
+        self.assertEqual(list(iter_uses(workflow)), [])
+        self.assertEqual(minute, "17")
+        self.assertEqual(hour, "15")
+
+    def test_rebase_workflow_uses_the_pat_and_skips_when_the_secret_is_missing(self):
+        workflow_text = (REPO_ROOT / ".github/workflows/dependabot-rebase.yml").read_text()
+        run = rebase_run()
+        notice = run.index(
+            'echo "::notice::DEPENDABOT_REBASE_TOKEN is unset; skipping Dependabot rebases."'
+        )
+        missing_exit = run.index("exit 0")
+        export = run.index('export GH_TOKEN="$DEPENDABOT_REBASE_TOKEN"')
+        first_gh = run.index("gh pr list")
+
+        self.assertLess(run.index('if [ -z "${DEPENDABOT_REBASE_TOKEN}" ]'), notice)
+        self.assertLess(notice, missing_exit)
+        self.assertLess(missing_exit, export)
+        self.assertLess(export, run.index("unset DEPENDABOT_REBASE_TOKEN"))
+        self.assertLess(run.index("unset DEPENDABOT_REBASE_TOKEN"), first_gh)
+        self.assertEqual(workflow_text.count("secrets.DEPENDABOT_REBASE_TOKEN"), 1)
+        self.assertNotIn("secrets.GITHUB_TOKEN", workflow_text)
+        self.assertNotIn("github.token", workflow_text)
+        self.assertNotIn("set -x", run)
+        self.assertNotIn("git push", run)
+        self.assertNotIn("update-branch", run)
+        self.assertNotIn("gh pr merge", run)
+        self.assertNotIn("--admin", run)
+        self.assertNotIn("@dependabot merge", run)
+        self.assertNotIn("@dependabot recreate", run)
+        self.assertIn("--body-file", run)
+        self.assertIn("--app dependabot", run)
+        self.assertIn("--limit 100", run)
+        self.assertIn('if ! pr_numbers_text="$(gh pr list', run)
+        self.assertLess(run.index('if ! pr_numbers_text="$(gh pr list'), run.index("exit 1"))
+        self.assertNotIn("pull/82", workflow_text)
+        self.assertNotIn("#82", workflow_text)
+
+        completed = subprocess.run(
+            ["bash", "-n"],
+            input=run,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def test_rebase_workflow_copies_the_auto_merge_major_policy(self):
+        auto = load_yaml(".github/workflows/dependabot-auto-merge.yml")
+        auto_steps = auto["jobs"]["enable-auto-merge"]["steps"]
+        rebase = rebase_run()
+        copied = (
+            (
+                "Detect major updates",
+                "# BEGIN dependabot-update-signals",
+                "# END dependabot-update-signals",
+            ),
+            (
+                "Decide whether to arm auto-merge",
+                "# BEGIN dependabot-merge-decision",
+                "# END dependabot-merge-decision",
+            ),
+        )
+        for step_name, begin, end in copied:
+            source = next(step["run"] for step in auto_steps if step["name"] == step_name)
+            self.assertEqual(
+                marked_region(source, begin, end),
+                marked_region(rebase, begin, end),
+            )
+        self.assertLess(
+            rebase.index("dependabot_merge_decision"),
+            rebase.index("dependabot_rebase_eligibility"),
+        )
+        self.assertLess(
+            rebase.index('dependabot_rebase_already_requested "$head_sha"'),
+            rebase.index("gh pr comment"),
+        )
+        self.assertIn(
+            'dependabot_update_signals "$head_ref" "$pr_title" "$pr_body"',
+            rebase,
+        )
+        self.assertIn(
+            'dependabot_merge_decision "${signals[0]}" "${signals[1]}" "${signals[2]}"',
+            rebase,
+        )
+        self.assertIn(
+            'dependabot_rebase_eligibility "$author" "$base_ref" "$armed" "$merge_state" "$decision"',
+            rebase,
+        )
+        self.assertLess(
+            rebase.index('[[ ! "$head_sha" =~ ^[0-9a-f]{40}$ ]]'),
+            rebase.index('dependabot_rebase_already_requested "$head_sha"'),
+        )
+
+    def test_rebase_request_is_once_per_head_sha_and_skips_held_majors(self):
+        run = rebase_run()
+        request = (
+            marked_region(
+                run,
+                "# BEGIN dependabot-rebase-request",
+                "# END dependabot-rebase-request",
+            )
+            + "\n"
+        )
+        comment_script = request + 'dependabot_rebase_comment "$1"\n'
+        already_script = request + 'dependabot_rebase_already_requested "$1" "$2"\n'
+        eligibility_script = request + 'dependabot_rebase_eligibility "$1" "$2" "$3" "$4" "$5"\n'
+        signals_script = (
+            marked_region(
+                run,
+                "# BEGIN dependabot-update-signals",
+                "# END dependabot-update-signals",
+            )
+            + '\ndependabot_update_signals "$1" "$2" "$3"\n'
+        )
+        decision_script = (
+            marked_region(
+                run,
+                "# BEGIN dependabot-merge-decision",
+                "# END dependabot-merge-decision",
+            )
+            + '\ndependabot_merge_decision "$1" "$2" "$3"\n'
+        )
+
+        sha_a = "a" * 40
+        sha_b = "b" * 40
+        comment = run_bash(comment_script, sha_a)
+        lines = comment.splitlines()
+        self.assertEqual(lines[0], "@dependabot rebase")
+        self.assertEqual(lines[1], "")
+        self.assertEqual(lines[2], f"<!-- dependabot-rebase-sha: {sha_a} -->")
+        self.assertNotIn(sha_a, lines[0])
+        self.assertEqual(run_bash(already_script, sha_a, comment).strip(), "yes")
+        self.assertEqual(run_bash(already_script, sha_b, comment).strip(), "no")
+        self.assertEqual(run_bash(already_script, "a" * 39, comment).strip(), "no")
+        self.assertEqual(run_bash(already_script, sha_a, "").strip(), "no")
+        self.assertEqual(
+            run_bash(already_script, sha_a, "@dependabot rebase\n").strip(),
+            "no",
+        )
+
+        eligible = ("dependabot[bot]", "main", "true", "BEHIND", "merge", "rebase")
+        skipped = (
+            ("dependabot[bot]", "main", "true", "BEHIND", "hold", "skip"),
+            ("dependabot[bot]", "main", "false", "BEHIND", "merge", "skip"),
+            ("dependabot[bot]", "main", "true", "CLEAN", "merge", "skip"),
+            ("dependabot[bot]", "main", "true", "BLOCKED", "merge", "skip"),
+            ("dependabot[bot]", "main", "true", "UNSTABLE", "merge", "skip"),
+            ("dependabot[bot]", "main", "true", "behind", "merge", "skip"),
+            ("dependabot[bot]", "develop", "true", "BEHIND", "merge", "skip"),
+            ("github-actions[bot]", "main", "true", "BEHIND", "merge", "skip"),
+            ("Dependabot[bot]", "main", "true", "BEHIND", "merge", "skip"),
+            ("dependabot[bot]", "main", "true", "BEHIND", "", "skip"),
+        )
+        author, base_ref, armed, state, decision, expected = eligible
+        self.assertEqual(
+            run_bash(eligibility_script, author, base_ref, armed, state, decision).strip(),
+            expected,
+        )
+        for author, base_ref, armed, state, decision, expected in skipped:
+            with self.subTest(author=author, state=state, decision=decision, base_ref=base_ref):
+                self.assertEqual(
+                    run_bash(
+                        eligibility_script, author, base_ref, armed, state, decision
+                    ).strip(),
+                    expected,
+                )
+
+        classified = (
+            (
+                "dependabot/pip/tools/routine-python-tools-abc",
+                "deps: bump github-copilot-sdk from 1.0.33 to 1.0.34",
+                "",
+                "rebase",
+            ),
+            (
+                "dependabot/github_actions/actions-major-updates-7f603b356f",
+                "ci: bump the actions-major-updates group",
+                "Updates `actions/checkout` from 6.0.2 to 7.0.1",
+                "rebase",
+            ),
+            (
+                "dependabot/npm_and_yarn/site/site-major-updates-abc",
+                "deps: bump the site-major-updates group",
+                "Updates `next` from 14.2.5 to 15.0.0",
+                "skip",
+            ),
+            (
+                "dependabot/pip/tools/python-major-updates-abc",
+                "deps: bump PyYAML from 6.0.3 to 7.0.0",
+                "",
+                "skip",
+            ),
+            (
+                "dependabot/github_actions/actions-major-updates-abc",
+                "ci: bump the actions-major-updates group",
+                "No version pair in this body",
+                "skip",
+            ),
+        )
+        for head_ref, title, body, expected in classified:
+            with self.subTest(head_ref=head_ref):
+                signal_lines = run_bash(signals_script, head_ref, title, body).splitlines()
+                decision = run_bash(decision_script, *signal_lines).strip()
+                action = run_bash(
+                    eligibility_script,
+                    "dependabot[bot]",
+                    "main",
+                    "true",
+                    "BEHIND",
+                    decision,
+                ).strip()
+                self.assertEqual(action, expected)
+
+    def test_rebase_runbook_states_scope_and_expiry(self):
+        runbook = (REPO_ROOT / "docs/maintenance/dependabot-rebase.md").read_text()
+        readme = (REPO_ROOT / "README.md").read_text()
+        contributing = (REPO_ROOT / "CONTRIBUTING.md").read_text()
+
+        self.assertIn("DEPENDABOT_REBASE_TOKEN", runbook)
+        self.assertIn("90 days", runbook)
+        self.assertIn("No expiration", runbook)
+        self.assertIn("Pull requests: Read and write", runbook)
+        self.assertIn("NoahJenkins/vgc-coach", runbook)
+        self.assertIn("Only select repositories", runbook)
+        self.assertIn("author_association", runbook)
+        self.assertIn("dependabot/dependabot-core#9147", runbook)
+        self.assertIn("Repository secrets", runbook)
+        self.assertIn("not an environment secret", runbook)
+        self.assertIn("Dependabot secret", runbook)
+        self.assertIn("Revoke the old token", runbook)
+        self.assertIn("does not push", runbook)
+        self.assertIn("does not change branch protection", runbook)
+        self.assertIn("::notice::", (REPO_ROOT / ".github/workflows/dependabot-rebase.yml").read_text())
+        for page in (readme, contributing):
+            self.assertIn("docs/maintenance/dependabot-rebase.md", page)
 
 
 if __name__ == "__main__":

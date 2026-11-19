@@ -206,6 +206,7 @@ The repo already includes:
 - A versioned, runtime-neutral `battle-state-v1` JSON contract and bounded local normalizer at `python3 tools/ingest_battle_state.py`
 - Opt-in `battle-ready` team building that can use live common cores, recent top teams, and calc-backed benchmark notes
 - A `Regulation Watch` workflow that checks the official Pokemon HOME news feed every third day and opens a Copilot-drafted draft pull request when the Champions regulation changes
+- A `Dependabot Rebase` workflow that asks Dependabot to rebase an armed pull request after `main` moves. Create and rotate its token with the [Dependabot rebase runbook](./docs/maintenance/dependabot-rebase.md)
 
 ## Planned Work
 
@@ -234,6 +235,7 @@ These are still in progress, not yet available:
 - [Contribute From Source](#contribute-from-source): clone/open workflow for editing the repo
 - [Codex runtime](./docs/runtime/codex.md), [Claude Code runtime](./docs/runtime/claude-code.md), [OpenCode runtime](./docs/runtime/opencode.md): AI-tool-specific usage notes
 - [RELEASE_NOTES.md](./RELEASE_NOTES.md): generated release summary for the current packaged version
+- [Dependabot rebase runbook](./docs/maintenance/dependabot-rebase.md): create and rotate the token that rebases armed Dependabot pull requests
 - [AGENTS.md](./AGENTS.md): repo rules and project constraints
 - [CONTRIBUTING.md](./CONTRIBUTING.md): contribution scope and validation expectations
 - [SECURITY.md](./SECURITY.md): responsible disclosure guidance
