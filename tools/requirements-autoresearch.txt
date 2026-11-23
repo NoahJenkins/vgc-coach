@@ -1,2 +1,2 @@
-github-copilot-sdk==1.0.34
+github-copilot-sdk==1.0.35
 PyYAML==6.0.3
