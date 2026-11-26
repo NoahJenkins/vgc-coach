@@ -1,6 +1,6 @@
 {
   "feed_url": "https://news.pokemon-home.com/en/json/list.json",
-  "reviewed_on": "2026-10-30",
+  "reviewed_on": "2026-11-26",
   "note": "Pokemon Champions regulation entries from the official Pokemon HOME news feed, as last reviewed. Update this file with `python3 tools/regulation_watch.py update-baseline` only in the pull request that handles the change.",
   "entries": [
     {
@@ -26,6 +26,14 @@
       "endAt": 1796176799,
       "pubAt": 1788934215,
       "link": "page/816.html"
+    },
+    {
+      "id": "878",
+      "title": "Regulation Set M-D",
+      "stAt": 1795572000,
+      "endAt": 1804039199,
+      "pubAt": 1795572015,
+      "link": "page/878.html"
     }
   ]
 }
